@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,7 +34,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) *App {
 }
 
 func (m *App) Bootstrap() (e error) {
-	return fasthttp.ListenAndServe(":8080", m.defaultHandler)
+	return fasthttp.ListenAndServe(":8089", m.hlpHandler)
 }
 
 func (*App) defaultHandler(ctx *fasthttp.RequestCtx) {
@@ -87,7 +88,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	uri := string(ctx.RequestURI())
+	uri := string(ctx.Request.Header.Peek("X-Client-URI"))
 	uid := string(ctx.Request.Header.Peek("X-Client-ID"))
 	srv := string(ctx.Request.Header.Peek("X-Cache-Server"))
 
@@ -119,7 +120,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	var rgs *url.Values
+	var rgs = &url.Values{}
 	rgs.Add("expires", expires)
 	rgs.Add("extra", extra)
 	rrl.RawQuery = rgs.Encode()
@@ -143,7 +144,8 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 //		openssl md5 -binary | openssl base64 | tr +/ -_ | tr -d =
 func (*App) getHlpExtra(uri, cip, sip string) (expires, extra string) {
 
-	expires = time.Now().Add(gCli.Duration("link-expiration")).String()
+	localts := time.Now().Local().Add(gCli.Duration("link-expiration")).Unix()
+	expires = strconv.Itoa(int(localts))
 
 	// secret link skeleton:
 	// expire:uri:client_ip:cache_ip secret
