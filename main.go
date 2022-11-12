@@ -12,13 +12,15 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
+
+	application "github.com/MindHunter86/anilibria-hlp-service/app"
 )
 
 var version = "devel" // -ldflags="-X 'main.version=X.X.X'"
 
 func main() {
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		log.Println(http.ListenAndServe("localhost:6063", nil))
 	}()
 
 	// logger
@@ -98,7 +100,18 @@ func main() {
 			Usage: "",
 		},
 
-    // ...
+		// ...
+		&cli.DurationFlag{
+			Name:  "link-expiration",
+			Usage: "",
+			Value: 30 * time.Second,
+		},
+		&cli.StringFlag{
+			Name:        "link-secret",
+			Usage:       "",
+			Value:       "TZj3Ts1LsvkX",
+			DefaultText: "CHANGE DEFAULT SECRET",
+		},
 	}
 
 	app.Action = func(c *cli.Context) error {
@@ -123,7 +136,7 @@ func main() {
 			Name:  "test",
 			Usage: "",
 			Action: func(c *cli.Context) (e error) {
-				// return application.NewApp().Bootstrap()
+				return application.NewApp(c, &log).Bootstrap()
 			},
 		},
 	}
