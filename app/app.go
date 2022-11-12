@@ -132,8 +132,16 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
 }
 
+// getHlpExtra() simply is a secure_link implementation
+//
+// docs:
+// https://nginx.org/ru/docs/http/ngx_http_secure_link_module.html#secure_link
+//
+// unix example:
+//
+//	echo -n '2147483647/s/link127.0.0.1 secret' | \
+//		openssl md5 -binary | openssl base64 | tr +/ -_ | tr -d =
 func (*App) getHlpExtra(uri, cip, sip string) (expires, extra string) {
-	// https://nginx.org/ru/docs/http/ngx_http_secure_link_module.html#secure_link
 
 	expires = time.Now().Add(gCli.Duration("link-expiration")).String()
 
