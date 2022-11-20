@@ -104,7 +104,7 @@ func main() {
 		&cli.DurationFlag{
 			Name:  "link-expiration",
 			Usage: "",
-			Value: 30 * time.Second,
+			Value: 10 * time.Second,
 		},
 		&cli.StringFlag{
 			Name:        "link-secret",
