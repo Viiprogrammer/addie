@@ -150,19 +150,20 @@ func (*App) getHlpExtra(uri, cip, sip, uid string) (expires, extra string) {
 	// secret link skeleton:
 	// expire:uri:client_ip:cache_ip secret
 	gLog.Debug().Strs("extra_values", []string{expires, uri, cip, sip, uid, gCli.String("link-secret")}).
-		Str("remote_addr", cip).Str("reuqest_uri", uri).Msg("")
+		Str("remote_addr", cip).Str("request_uri", uri).Msg("")
 
 	// concat all values
-	buf := expires + uri + cip + sip + uid + " " + gCli.String("link-secret")
+	// ?? buf := expires + uri + cip + sip + uid + " " + gCli.String("link-secret")
+	buf := expires + uri + sip + uid + " " + gCli.String("link-secret")
 
 	// md5 sum
 	md5sum := md5.Sum([]byte(buf))
 	gLog.Debug().Bytes("computed_md5", md5sum[:]).
-		Str("remote_addr", cip).Str("reuqest_uri", uri).Msg("")
+		Str("remote_addr", cip).Str("request_uri", uri).Msg("")
 
 	// base64 encoding
 	b64buf := base64.StdEncoding.EncodeToString(md5sum[:])
-	gLog.Debug().Str("computed_base64", b64buf).Str("remote_addr", cip).Str("reuqest_uri", uri).Msg("")
+	gLog.Debug().Str("computed_base64", b64buf).Str("remote_addr", cip).Str("request_uri", uri).Msg("")
 
 	// replace && trim string
 	extra = strings.Trim(
@@ -173,7 +174,7 @@ func (*App) getHlpExtra(uri, cip, sip, uid string) (expires, extra string) {
 			"/", "_",
 		), "=")
 
-	gLog.Debug().Str("computed_trim", extra).Str("remote_addr", cip).Str("reuqest_uri", uri).Msg("")
+	gLog.Debug().Str("computed_trim", extra).Str("remote_addr", cip).Str("request_uri", uri).Msg("")
 	return
 }
 
