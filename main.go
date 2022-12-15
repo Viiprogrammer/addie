@@ -48,16 +48,17 @@ func main() {
 
 	app.Flags = []cli.Flag{
 		// common flags
-		&cli.IntFlag{
-			Name:    "verbose",
-			Aliases: []string{"v"},
-			Value:   5,
-			Usage:   "Verbose `LEVEL` (value from 5(debug) to 0(panic) and -1 for log disabling(quite mode))",
+		&cli.StringFlag{
+			Name:    "log-level",
+			Aliases: []string{"l"},
+			Value:   "debug",
+			Usage:   "log level: trace, debug, info, warn, err, panic, disabled",
+			EnvVars: []string{"LOG_LEVEL"},
 		},
 		&cli.BoolFlag{
 			Name:    "quite",
 			Aliases: []string{"q"},
-			Usage:   "Flag is equivalent to verbose -1",
+			Usage:   "Flag is equivalent to --log-level=quite",
 		},
 
 		// http client settings
@@ -110,35 +111,26 @@ func main() {
 			Name:        "link-secret",
 			Usage:       "",
 			Value:       "TZj3Ts1LsvkX",
+			EnvVars:     []string{"SIGN_SECRET"},
 			DefaultText: "CHANGE DEFAULT SECRET",
 		},
 	}
 
-	app.Action = func(c *cli.Context) error {
-		// log.Debug().Msg("ready...")
-		// log.Debug().Strs("args", os.Args).Msg("")
+	app.Action = func(c *cli.Context) (e error) {
+		var lvl zerolog.Level
+		if lvl, e = zerolog.ParseLevel(c.String("log-level")); e != nil {
+			log.Fatal().Err(e)
+		}
 
-		// TODO
-		// if c.Int("verbose") < -1 || c.Int("verbose") > 5 {
-		// 	log.Fatal().Msg("There is invalid data in verbose option. Option supports values for -1 to 5")
-		// }
+		zerolog.SetGlobalLevel(lvl)
+		if c.Bool("quite") {
+			zerolog.SetGlobalLevel(zerolog.Disabled)
+		}
 
-		// zerolog.SetGlobalLevel(zerolog.Level(int8((c.Int("verbose") - 5) * -1)))
-		// if c.Int("verbose") == -1 || c.Bool("quite") {
-		// 	zerolog.SetGlobalLevel(zerolog.Disabled)
-		// }
+		log.Debug().Msg("ready...")
+		log.Debug().Strs("args", os.Args).Msg("")
 
-		return os.ErrInvalid
-	}
-
-	app.Commands = []*cli.Command{
-		&cli.Command{
-			Name:  "test",
-			Usage: "",
-			Action: func(c *cli.Context) (e error) {
-				return application.NewApp(c, &log).Bootstrap()
-			},
-		},
+		return application.NewApp(c, &log).Bootstrap()
 	}
 
 	// TODO sort.Sort of Flags uses too much allocs; temporary disabled
