@@ -43,8 +43,8 @@ func main() {
 			Email: "mindhunter86@vkom.cc",
 		},
 	}
-	app.Copyright = "(c) 2022 mindhunter86"
-	app.Usage = "N\\A"
+	app.Copyright = "(c) 2022-2023 mindhunter86\nwith love for Anilibria project"
+	app.Usage = "Hotlink Protection Service for Anilibria project"
 
 	app.Flags = []cli.Flag{
 		// common flags
