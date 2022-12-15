@@ -32,7 +32,7 @@ func main() {
 
 	// application
 	app := cli.NewApp()
-	cli.VersionFlag = &cli.BoolFlag{Name: "print-version", Aliases: []string{"V"}}
+	cli.VersionFlag = &cli.BoolFlag{Name: "version", Aliases: []string{"V"}}
 
 	app.Name = "anilibria-hlp-service"
 	app.Version = version
@@ -52,7 +52,7 @@ func main() {
 			Name:    "log-level",
 			Aliases: []string{"l"},
 			Value:   "debug",
-			Usage:   "log level: trace, debug, info, warn, err, panic, disabled",
+			Usage:   "levels: trace, debug, info, warn, err, panic, disabled",
 			EnvVars: []string{"LOG_LEVEL"},
 		},
 		&cli.BoolFlag{
@@ -69,7 +69,7 @@ func main() {
 		&cli.DurationFlag{
 			Name:  "http-client-timeout",
 			Usage: "Internal HTTP client connection `TIMEOUT` (format: 1000ms, 1s)",
-			Value: 3 * time.Second,
+			Value: 500 * time.Millisecond,
 		},
 		&cli.DurationFlag{
 			Name:  "http-tcp-timeout",
@@ -89,7 +89,7 @@ func main() {
 		&cli.DurationFlag{
 			Name:  "http-keepalive-timeout",
 			Usage: "",
-			Value: 300 * time.Second,
+			Value: 600 * time.Second,
 		},
 		&cli.IntFlag{
 			Name:  "http-max-idle-conns",
@@ -145,7 +145,7 @@ func main() {
 type SeverityHook struct{}
 
 func (SeverityHook) Run(e *zerolog.Event, level zerolog.Level, _ string) {
-	if level != zerolog.DebugLevel && version != "devel" {
+	if level > zerolog.DebugLevel || version != "devel" {
 		return
 	}
 
