@@ -1,15 +1,22 @@
 package app
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
+	"github.com/MindHunter86/anilibria-hlp-service/anilibria"
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 	"github.com/valyala/fasthttp"
@@ -18,6 +25,11 @@ import (
 var (
 	gCli *cli.Context
 	gLog *zerolog.Logger
+
+	gCtx   context.Context
+	gAbort context.CancelFunc
+
+	gAniApi *anilibria.ApiClient
 )
 
 var (
@@ -34,7 +46,80 @@ func NewApp(c *cli.Context, l *zerolog.Logger) *App {
 }
 
 func (m *App) Bootstrap() (e error) {
-	return fasthttp.ListenAndServe(":8089", m.hlpHandler)
+	var wg sync.WaitGroup
+	var echan = make(chan error, 32)
+
+	gCtx, gAbort = context.WithCancel(context.Background())
+	gCtx = context.WithValue(gCtx, utils.ContextKeyLogger, gLog)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyCliContext, gCli)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyAbortFunc, gAbort)
+
+	defer m.checkErrorsBeforeClosing(echan)
+	defer wg.Wait() // !!
+	defer gLog.Debug().Msg("waiting for opened goroutines")
+	defer gAbort()
+
+	// BOOTSTRAP SECTION:
+	// anilibria API
+	if gAniApi, e = anilibria.NewApiClient(gCli, gLog); e != nil {
+		return
+	}
+
+	// !!!
+	// TODO
+	// fix this shit
+	// main http server
+	defer fasthttp.ListenAndServe(":8089", m.hlpHandler)
+
+	// another subsystems
+	// ...
+
+	// main event loop
+	wg.Add(1)
+	go m.loop(echan, wg.Done)
+
+	wg.Wait()
+	return
+}
+
+func (*App) loop(errs chan error, done func()) {
+	defer done()
+
+	kernSignal := make(chan os.Signal, 1)
+	signal.Notify(kernSignal, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGQUIT)
+
+	gLog.Debug().Msg("initiate main event loop")
+	defer gLog.Debug().Msg("main event loop has been closed")
+
+LOOP:
+	for {
+		select {
+		case <-kernSignal:
+			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
+			gAbort()
+			break LOOP
+		case err := <-errs:
+			gLog.Error().Err(err).Msg("there are internal errors from one of application submodule")
+			gLog.Info().Msg("calling abort()...")
+			gAbort()
+		case <-gCtx.Done():
+			gLog.Info().Msg("internal abort() has been caught; initiate application closing...")
+			break LOOP
+		}
+	}
+}
+
+func (*App) checkErrorsBeforeClosing(errs chan error) {
+	gLog.Debug().Msg("pre-exit error chan checking for errors...")
+	if len(errs) == 0 {
+		gLog.Debug().Msg("error chan is empty, cool")
+		return
+	}
+
+	close(errs)
+	for err := range errs {
+		gLog.Warn().Err(err).Msg("an error has been detected while application trying close the submodules")
+	}
 }
 
 func (*App) defaultHandler(ctx *fasthttp.RequestCtx) {
