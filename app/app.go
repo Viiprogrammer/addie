@@ -15,7 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MindHunter86/anilibria-hlp-service/anilibria"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
@@ -29,7 +28,7 @@ var (
 	gCtx   context.Context
 	gAbort context.CancelFunc
 
-	gAniApi *anilibria.ApiClient
+	gAniApi *ApiClient
 )
 
 var (
@@ -38,7 +37,9 @@ var (
 	errHlpBadUid   = errors.New("got a problem in uid parsing")
 )
 
-type App struct{}
+type App struct {
+	cache *CachedTitlesBucket
+}
 
 func NewApp(c *cli.Context, l *zerolog.Logger) *App {
 	gCli, gLog = c, l
@@ -61,7 +62,7 @@ func (m *App) Bootstrap() (e error) {
 
 	// BOOTSTRAP SECTION:
 	// anilibria API
-	if gAniApi, e = anilibria.NewApiClient(gCli, gLog); e != nil {
+	if gAniApi, e = NewApiClient(gCli, gLog); e != nil {
 		return
 	}
 
