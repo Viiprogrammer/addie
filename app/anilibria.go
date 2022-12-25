@@ -1,4 +1,4 @@
-package anilibria
+package app
 
 import (
 	"context"
