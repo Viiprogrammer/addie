@@ -16,9 +16,9 @@ func (m *CachedTitlesBucket) PullSerie(tid, sid uint16) (serie *TitleSerie) {
 	return
 }
 
-func (m *CachedTitlesBucket) PushSerie(tid, sid uint16, serie *TitleSerie) {
+func (m *CachedTitlesBucket) PushSerie(serie *TitleSerie) {
 	m.locker.Lock()
 
-	m.bucket[uint32(tid)<<16|uint32(sid)] = serie
+	m.bucket[uint32(serie.Title)<<16|uint32(serie.Serie)] = serie
 	m.locker.Unlock()
 }
