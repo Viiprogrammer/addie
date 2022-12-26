@@ -102,17 +102,17 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 	if rsp, arsp.err = m.http.Do(req); arsp.Err() != nil {
 		return
 	}
-	defer rsp.Body.Close()
+	defer func() {
+		if e := rsp.Body.Close(); e != nil {
+			log.Warn().Err(e)
+		}
+	}()
 
 	m.debugHttpHandshake(req)
 	m.debugHttpHandshake(rsp)
 
 	if arsp.payload, arsp.err = io.ReadAll(rsp.Body); arsp.Err() != nil {
 		return
-	}
-
-	if arsp.err = rsp.Body.Close(); arsp.Err() != nil {
-		log.Warn().Err(arsp.Err()).Msg("")
 	}
 
 	switch rsp.StatusCode {
