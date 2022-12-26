@@ -117,7 +117,7 @@ func (m *App) getTitleSeriesFromApi(titleId string) (_ []*TitleSerie, e error) {
 	return m.validateTitleFromApiResponse(title), e
 }
 
-func (m *App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
+func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 	for _, serie := range title.Player.Playlist {
 		if serie == nil {
 			log.Warn().Msg("there is an empty serie found in the api response's playlist")
