@@ -203,7 +203,7 @@ func NewTitleSerieRequest(uri string) *TitleSerieRequest {
 }
 
 func (m *TitleSerieRequest) getTitleId() uint16 {
-	tid, _ := strconv.ParseUint(m.raw[tsrRawTitleId])
+	tid, _ := strconv.ParseUint(m.raw[tsrRawTitleId], 10, 16)
 	m.titleId = uint16(tid)
 	return m.titleId
 }
@@ -213,7 +213,7 @@ func (m *TitleSerieRequest) getTitleIdString() string {
 }
 
 func (m *TitleSerieRequest) getSerieId() uint16 {
-	sid, _ := strconv.ParseUint(m.raw[tsrRawTitleSerie])
+	sid, _ := strconv.ParseUint(m.raw[tsrRawTitleSerie], 10, 16)
 	m.serieId = uint16(sid)
 	return m.serieId
 }
