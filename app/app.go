@@ -66,6 +66,9 @@ func (m *App) Bootstrap() (e error) {
 		return
 	}
 
+	// cache
+	m.cache = NewCachedTitlesBucket()
+
 	// !!!
 	// TODO
 	// fix this shit
@@ -196,6 +199,10 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	//
 	//
 
+	// quality cooler:
+	uri = m.getUriWithFakeQuality(uri, titleQualityHD)
+
+	// request signer:
 	expires, extra := m.getHlpExtra(uri, cip, srv, uid)
 
 	rrl, e := url.Parse(srv + uri)
@@ -217,6 +224,30 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		Str("x_forwarded_for", cip).Msg("")
 	ctx.Response.Header.Set("X-Location", rrl.String())
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
+}
+
+func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
+	tsr := NewTitleSerieRequest(uri)
+
+	if tsr.quality <= quality {
+		return uri
+	}
+
+	if tsr.isOldFormat() {
+		return strings.ReplaceAll(uri, "/"+tsr.quality.string()+"/", "/"+quality.string()+"/")
+	}
+
+	title, e := m.doTitleSerieRequest(tsr)
+	if e != nil {
+		log.Error().Err(e).Msg("could not rewrite quality for the request")
+		return uri
+	}
+
+	log.Debug().Str("old_hash", tsr.hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
+	return strings.ReplaceAll(
+		strings.ReplaceAll(uri, "/"+tsr.quality.string()+"/", "/"+quality.string()+"/"),
+		tsr.hash, title.QualityHashes[quality],
+	)
 }
 
 // getHlpExtra() simply is a secure_link implementation

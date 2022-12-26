@@ -52,6 +52,19 @@ const (
 	titleQualityFHD
 )
 
+func (m *titleQuality) string() string {
+	switch *m {
+	case titleQualitySD:
+		return "480"
+	case titleQualityHD:
+		return "720"
+	case titleQualityFHD:
+		return "1080"
+	default:
+		return ""
+	}
+}
+
 // redis schema
 // https://cache.libria.fun/videos/media/ts/9277/13/720/3ae5aa5839690b8d9ea9fcef9b720fb4_00028.ts
 // https://cache.libria.fun/videos/media/ts/9222/11/1080/97d3bb428727bc25fa110bc51826a366.m3u8
@@ -66,15 +79,18 @@ const (
 	tsrRawFilename
 )
 
-// // TODO - remove strconv
 func getHashFromUriPath(upath string) (hash string, ok bool) {
 	switch upath[len(upath)-1:] {
 	case "s": // .ts
 		if hash, _, ok = strings.Cut(upath, ".ts"); !ok {
 			return "", ok
 		}
-	case "8": // .u8
-		if hash, _, ok = strings.Cut(upath, ".u8"); !ok {
+
+		if hash, _, ok = strings.Cut(hash, "_"); !ok {
+			return "", ok
+		}
+	case "8": // .m3u8
+		if hash, _, ok = strings.Cut(upath, ".m3u8"); !ok {
 			return "", ok
 		}
 	default:
@@ -138,39 +154,36 @@ func (m *App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 }
 
 func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e error) {
-	// get from cache
-	// get from api -> cache
-
 	var ok bool
-	log.Info().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+
+	log.Debug().Uint16("tid", tsr.titileId).Uint16("sid", tsr.serieId).Msg("trying to get series from cache")
 	if ts, ok = m.getTitleSerieFromCache(tsr); ok {
 		return
 	}
 
 	var tss []*TitleSerie
-	log.Info().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+	log.Info().Uint16("tid", tsr.titileId).Uint16("sid", tsr.serieId).Msg("trying to get series from api")
 	if tss, e = m.getTitleSeriesFromApi(tsr.titileId); e != nil {
 		return
 	}
 
 	if len(tss) == 0 {
-		return nil, errors.New("")
+		return nil, errors.New("there is an empty result in the response")
 	}
 
-	log.Info().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
 	for _, t := range tss {
 		if t.Serie == tsr.serieId {
 			ts = t
 		}
 
 		if e = m.cache.PushSerie(t); e != nil {
-			log.Warn().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+			log.Warn().Err(e).Uint16("tid", tsr.titileId).Uint16("sid", tsr.serieId).Msg("")
 			continue
 		}
 	}
 
 	if ts == nil {
-		return nil, errors.New("")
+		return nil, errors.New("could not find requesed serie id in the response")
 	}
 
 	return
@@ -228,4 +241,12 @@ func (m *TitleSerieRequest) getTitleQuality() titleQuality {
 
 func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {
 	return getHashFromUriPath(m.raw[tsrRawFilename])
+}
+
+func (m *TitleSerieRequest) isM3U8() bool {
+	return strings.Index(m.hash, "m3u8") > 0
+}
+
+func (m *TitleSerieRequest) isOldFormat() bool {
+	return strings.Index(m.hash, "_") > 0
 }

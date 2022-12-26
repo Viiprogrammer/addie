@@ -10,6 +10,12 @@ type CachedTitlesBucket struct {
 	bucket map[uint32]*TitleSerie
 }
 
+func NewCachedTitlesBucket() *CachedTitlesBucket {
+	return &CachedTitlesBucket{
+		bucket: make(map[uint32]*TitleSerie),
+	}
+}
+
 func (m *CachedTitlesBucket) PullSerie(tid, sid uint16) (serie *TitleSerie, _ error) {
 	if tid == 0 || sid == 0 {
 		return serie, errors.New("cache: tid, sid zero found")
