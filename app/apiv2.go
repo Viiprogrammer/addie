@@ -111,6 +111,10 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 		return
 	}
 
+	if arsp.err = rsp.Body.Close(); arsp.Err() != nil {
+		log.Warn().Err(arsp.Err()).Msg("")
+	}
+
 	switch rsp.StatusCode {
 	case http.StatusOK:
 		log.Debug().Str("api_method", string(amethod)).Msg("api reqiest has been completed with response 200 OK")
