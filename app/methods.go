@@ -101,7 +101,7 @@ func getHashFromUriPath(upath string) (hash string, ok bool) {
 }
 
 func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool) {
-	serie, e := m.cache.PullSerie(tsr.titileId, tsr.serieId)
+	serie, e := m.cache.PullSerie(tsr.getTitleId(), tsr.serieId)
 	if e != nil {
 		return nil, false
 	}
@@ -109,11 +109,10 @@ func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool)
 	return serie, serie != nil
 }
 
-// TODO - remove strconv
-func (m *App) getTitleSeriesFromApi(titleId uint16) (_ []*TitleSerie, e error) {
+func (m *App) getTitleSeriesFromApi(titleId string) (_ []*TitleSerie, e error) {
 	var title *Title
 	e = gAniApi.getApiResponse(http.MethodGet, apiMethodGetTitle,
-		[]string{"id", strconv.Itoa(int(titleId))}).parseApiResponse(&title)
+		[]string{"id", titleId}).parseApiResponse(&title)
 
 	return m.validateTitleFromApiResponse(title), e
 }
@@ -156,14 +155,14 @@ func (m *App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e error) {
 	var ok bool
 
-	log.Debug().Uint16("tid", tsr.titileId).Uint16("sid", tsr.serieId).Msg("trying to get series from cache")
+	log.Debug().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from cache")
 	if ts, ok = m.getTitleSerieFromCache(tsr); ok {
 		return
 	}
 
 	var tss []*TitleSerie
-	log.Info().Uint16("tid", tsr.titileId).Uint16("sid", tsr.serieId).Msg("trying to get series from api")
-	if tss, e = m.getTitleSeriesFromApi(tsr.titileId); e != nil {
+	log.Info().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from api")
+	if tss, e = m.getTitleSeriesFromApi(tsr.getTitleIdString()); e != nil {
 		return
 	}
 
@@ -172,12 +171,12 @@ func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e err
 	}
 
 	for _, t := range tss {
-		if t.Serie == tsr.serieId {
+		if t.Serie == tsr.getSerieId() {
 			ts = t
 		}
 
 		if e = m.cache.PushSerie(t); e != nil {
-			log.Warn().Err(e).Uint16("tid", tsr.titileId).Uint16("sid", tsr.serieId).Msg("")
+			log.Warn().Err(e).Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("")
 			continue
 		}
 	}
@@ -190,9 +189,9 @@ func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e err
 }
 
 type TitleSerieRequest struct {
-	titileId, serieId uint16
-	quality           titleQuality
-	hash              string
+	titleId, serieId uint16
+	quality          titleQuality
+	hash             string
 
 	raw []string
 }
@@ -203,24 +202,24 @@ func NewTitleSerieRequest(uri string) *TitleSerieRequest {
 	}
 }
 
-func (m *TitleSerieRequest) getTitleId() (_ uint16, e error) {
-	var tid int
-	if tid, e = strconv.Atoi(m.raw[tsrRawTitleId]); e != nil {
-		return
-	}
-
-	m.titileId = uint16(tid)
-	return m.titileId, e
+func (m *TitleSerieRequest) getTitleId() uint16 {
+	tid, _ := strconv.Atoi(m.raw[tsrRawTitleId])
+	m.titleId = uint16(tid)
+	return m.titleId
 }
 
-func (m *TitleSerieRequest) getSerieId() (_ uint16, e error) {
-	var tid int
-	if tid, e = strconv.Atoi(m.raw[tsrRawTitleSerie]); e != nil {
-		return
-	}
+func (m *TitleSerieRequest) getTitleIdString() string {
+	return m.raw[tsrRawTitleId]
+}
 
-	m.titileId = uint16(tid)
-	return m.titileId, e
+func (m *TitleSerieRequest) getSerieId() uint16 {
+	sid, _ := strconv.Atoi(m.raw[tsrRawTitleSerie])
+	m.serieId = uint16(sid)
+	return m.serieId
+}
+
+func (m *TitleSerieRequest) getSerieIdString() string {
+	return m.raw[tsrRawTitleSerie]
 }
 
 func (m *TitleSerieRequest) getTitleQuality() titleQuality {
@@ -237,6 +236,10 @@ func (m *TitleSerieRequest) getTitleQuality() titleQuality {
 	default:
 		return titleQualityNone
 	}
+}
+
+func (m *TitleSerieRequest) getTitleQualityString() string {
+	return m.raw[tsrRawTitleQuality]
 }
 
 func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {

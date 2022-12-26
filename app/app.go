@@ -229,12 +229,12 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
 	tsr := NewTitleSerieRequest(uri)
 
-	if tsr.quality <= quality {
+	if tsr.getTitleQuality() <= quality {
 		return uri
 	}
 
 	if tsr.isOldFormat() {
-		return strings.ReplaceAll(uri, "/"+tsr.quality.string()+"/", "/"+quality.string()+"/")
+		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
 	}
 
 	title, e := m.doTitleSerieRequest(tsr)
@@ -245,7 +245,7 @@ func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
 
 	log.Debug().Str("old_hash", tsr.hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
 	return strings.ReplaceAll(
-		strings.ReplaceAll(uri, "/"+tsr.quality.string()+"/", "/"+quality.string()+"/"),
+		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/"),
 		tsr.hash, title.QualityHashes[quality],
 	)
 }
