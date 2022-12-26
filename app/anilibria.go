@@ -20,7 +20,6 @@ var (
 )
 
 var (
-	errApiAuthorizationFailed = errors.New("there is some problems with the authorization process")
 	errApiAbnormalResponse    = errors.New("there is some problems with anilibria servers communication")
 )
 

@@ -203,6 +203,10 @@ func NewTitleSerieRequest(uri string) *TitleSerieRequest {
 }
 
 func (m *TitleSerieRequest) getTitleId() uint16 {
+	if m.titleId != 0 {
+		return m.titleId
+	}
+
 	tid, _ := strconv.ParseUint(m.raw[tsrRawTitleId], 10, 16)
 	m.titleId = uint16(tid)
 	return m.titleId
@@ -213,6 +217,10 @@ func (m *TitleSerieRequest) getTitleIdString() string {
 }
 
 func (m *TitleSerieRequest) getSerieId() uint16 {
+	if m.serieId != 0 {
+		return m.serieId
+	}
+
 	sid, _ := strconv.ParseUint(m.raw[tsrRawTitleSerie], 10, 16)
 	m.serieId = uint16(sid)
 	return m.serieId
@@ -223,6 +231,10 @@ func (m *TitleSerieRequest) getSerieIdString() string {
 }
 
 func (m *TitleSerieRequest) getTitleQuality() titleQuality {
+	if m.quality != titleQualityNone {
+		return m.quality
+	}
+
 	switch m.raw[tsrRawTitleQuality] {
 	case "480":
 		m.quality = titleQualitySD
@@ -243,13 +255,18 @@ func (m *TitleSerieRequest) getTitleQualityString() string {
 }
 
 func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {
-	return getHashFromUriPath(m.raw[tsrRawFilename])
-}
+	if m.hash != "" {
+		return m.hash, true
+	}
 
-func (m *TitleSerieRequest) isM3U8() bool {
-	return strings.Index(m.hash, "m3u8") > 0
+	m.hash, ok = getHashFromUriPath(m.raw[tsrRawFilename])
+	return m.hash, ok
 }
 
 func (m *TitleSerieRequest) isOldFormat() bool {
+	if m.hash == "" {
+		panic("m.hash is undefined")
+	}
+
 	return strings.Index(m.hash, "_") > 0
 }
