@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -58,27 +59,50 @@ const (
 // ID:SERIE - FHD:HD:SD (links)
 // ID:SERIE:{FHD,HD,SD} - json{[TS LINKS]}
 
-func (*App) getTitlePlayerLinks() (e error) {
-	return
+const (
+	tsrRawTitleId = uint8(iota) + 4 // 4 is a skipping of "/videos/media/ts" parts
+	tsrRawTitleSerie
+	tsrRawTitleQuality
+	tsrRawFilename
+)
+
+// // TODO - remove strconv
+func getHashFromUriPath(upath string) (hash string, ok bool) {
+	switch upath[len(upath)-1:] {
+	case "s": // .ts
+		if hash, _, ok = strings.Cut(upath, ".ts"); !ok {
+			return "", ok
+		}
+	case "8": // .u8
+		if hash, _, ok = strings.Cut(upath, ".u8"); !ok {
+			return "", ok
+		}
+	default:
+		return "", false
+	}
+
+	return hash, ok
 }
 
-func (*App) getTitleCacheStatus() (ok bool, e error) {
-	return
-}
+func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool) {
+	serie, e := m.cache.PullSerie(tsr.titileId, tsr.serieId)
+	if e != nil {
+		return nil, false
+	}
 
-func (m *App) getTitleSerieFromCache(titleId, serieId uint16) (*TitleSerie, bool) {
-	serie := m.cache.PullSerie(titleId, serieId)
 	return serie, serie != nil
 }
 
 // TODO - remove strconv
-func (m *App) getTitleFromApi(titleId uint16) (title *Title, e error) {
+func (m *App) getTitleSeriesFromApi(titleId uint16) (_ []*TitleSerie, e error) {
+	var title *Title
 	e = gAniApi.getApiResponse(http.MethodGet, apiMethodGetTitle,
 		[]string{"id", strconv.Itoa(int(titleId))}).parseApiResponse(&title)
-	return
+
+	return m.validateTitleFromApiResponse(title), e
 }
 
-func (*App) cacheTitleFromRespose(title *Title) {
+func (m *App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 	for _, serie := range title.Player.Playlist {
 		if serie == nil {
 			log.Warn().Msg("there is an empty serie found in the api response's playlist")
@@ -92,48 +116,64 @@ func (*App) cacheTitleFromRespose(title *Title) {
 
 		tserie, ok := &TitleSerie{}, false
 
-		// parse
+		tserie.Title = title.Id
+		tserie.Serie = serie.Serie
 
-		// !!! XXX !!! HERE MUST BE THE HASHED BUT NOT URLS!!!!
-		if tserie.QualityHashes[titleQualitySD], ok = serie.getQuality(titleQualitySD); !ok {
-			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).
-				Msg("there is no SD quality for parsed title")
-		}
-		if tserie.QualityHashes[titleQualityHD], ok = serie.getQuality(titleQualityHD); !ok {
-			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).
-				Msg("there is no HD quality for parsed title")
-		}
-		if tserie.QualityHashes[titleQualityFHD], ok = serie.getQuality(titleQualityFHD); !ok {
-			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).
-				Msg("there is no FHD quality for parsed title")
+		if tserie.QualityHashes[titleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
+			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
 		}
 
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
-		// !!!
+		if tserie.QualityHashes[titleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
+			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
+		}
 
+		if tserie.QualityHashes[titleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
+			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
+		}
+
+		tss = append(tss, tserie)
 	}
+
+	return
 }
 
-func (m *PlayerPlaylist) getQuality(quality titleQuality) (string, bool) {
-	switch quality {
-	case titleQualitySD:
-		return m.Hls.Sd, m.Hls.Sd != ""
-	case titleQualityHD:
-		return m.Hls.Hd, m.Hls.Hd != ""
-	case titleQualityFHD:
-		return m.Hls.Fhd, m.Hls.Fhd != ""
-	default:
-		return "", false
+func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e error) {
+	// get from cache
+	// get from api -> cache
+
+	var ok bool
+	log.Info().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+	if ts, ok = m.getTitleSerieFromCache(tsr); ok {
+		return
 	}
+
+	var tss []*TitleSerie
+	log.Info().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+	if tss, e = m.getTitleSeriesFromApi(tsr.titileId); e != nil {
+		return
+	}
+
+	if len(tss) == 0 {
+		return nil, errors.New("")
+	}
+
+	log.Info().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+	for _, t := range tss {
+		if t.Serie == tsr.serieId {
+			ts = t
+		}
+
+		if e = m.cache.PushSerie(t); e != nil {
+			log.Warn().Uint16("", tsr.titileId).Uint16("", tsr.serieId).Msg("")
+			continue
+		}
+	}
+
+	if ts == nil {
+		return nil, errors.New("")
+	}
+
+	return
 }
 
 type TitleSerieRequest struct {
@@ -143,13 +183,6 @@ type TitleSerieRequest struct {
 
 	raw []string
 }
-
-const (
-	tsrRawTitleId = uint8(iota) + 3 // 3 is a skipping of "/videos/media/ts" parts
-	tsrRawTitleSerie
-	tsrRawTitleQuality
-	tsrRawFilename
-)
 
 func NewTitleSerieRequest(uri string) *TitleSerieRequest {
 	return &TitleSerieRequest{
@@ -194,22 +227,5 @@ func (m *TitleSerieRequest) getTitleQuality() titleQuality {
 }
 
 func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {
-	switch m.raw[tsrRawFilename][len(m.raw[tsrRawFilename])-1:] {
-	case "s": // .ts
-		if m.hash, _, ok = strings.Cut(m.raw[tsrRawFilename], ".ts"); !ok {
-			return "", ok
-		}
-	case "8": // .m3u8
-		if m.hash, _, ok = strings.Cut(m.raw[tsrRawFilename], ".m3u8"); !ok {
-			return "", ok
-		}
-	default:
-		return "", false
-	}
-
-	return m.hash, ok
-}
-
-func (*App) getTitleHash(titleId, serieId uint16, quality titleQuality) string {
-	return ""
+	return getHashFromUriPath(m.raw[tsrRawFilename])
 }
