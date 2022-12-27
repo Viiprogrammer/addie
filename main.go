@@ -112,6 +112,13 @@ func main() {
 			Value: "https://api.anilibria.tv/v2",
 		},
 
+		// ip ban settigns
+		&cli.DurationFlag{
+			Name:  "ip-ban-time",
+			Usage: "",
+			Value: 60 * time.Minute,
+		},
+
 		// ...
 		&cli.DurationFlag{
 			Name:  "link-expiration",
