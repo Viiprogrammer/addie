@@ -263,9 +263,13 @@ func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {
 	return m.hash, ok
 }
 
+// TODO - refactor
 func (m *TitleSerieRequest) isOldFormat() bool {
 	if m.hash == "" {
-		panic("m.hash is undefined")
+		m.hash, _ = m.getTitleHash()
+		if m.hash == "" {
+			panic("m.hash is undefined")
+		}
 	}
 
 	return strings.Index(m.hash, "_") > 0

@@ -54,8 +54,8 @@ func (m *App) Bootstrap() (e error) {
 	gCtx = context.WithValue(gCtx, utils.ContextKeyCliContext, gCli)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyAbortFunc, gAbort)
 
-	defer m.checkErrorsBeforeClosing(echan)
-	defer wg.Wait() // !!
+	// defer m.checkErrorsBeforeClosing(echan)
+	// defer wg.Wait() // !!
 	defer gLog.Debug().Msg("waiting for opened goroutines")
 	defer gAbort()
 
@@ -72,7 +72,7 @@ func (m *App) Bootstrap() (e error) {
 	// TODO
 	// fix this shit
 	// main http server
-	defer fasthttp.ListenAndServe(":8089", m.hlpHandler)
+	go fasthttp.ListenAndServe(":8089", m.hlpHandler)
 
 	// another subsystems
 	// ...
@@ -101,10 +101,10 @@ LOOP:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
 			gAbort()
 			break LOOP
-		case err := <-errs:
-			gLog.Error().Err(err).Msg("there are internal errors from one of application submodule")
-			gLog.Info().Msg("calling abort()...")
-			gAbort()
+		// case err := <-errs:
+		// 	gLog.Error().Err(err).Msg("there are internal errors from one of application submodule")
+		// 	gLog.Info().Msg("calling abort()...")
+		// 	gAbort()
 		case <-gCtx.Done():
 			gLog.Info().Msg("internal abort() has been caught; initiate application closing...")
 			break LOOP
@@ -226,22 +226,28 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
+	log.Debug().Msg("called fake quality")
 	tsr := NewTitleSerieRequest(uri)
 
+	log.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).Msg("quality check")
 	if tsr.getTitleQuality() <= quality {
 		return uri
 	}
 
+	log.Debug().Msg("format check")
 	if tsr.isOldFormat() {
+		log.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
 		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
 	}
 
+	log.Debug().Msg("trying to complete tsr")
 	title, e := m.doTitleSerieRequest(tsr)
 	if e != nil {
 		log.Error().Err(e).Msg("could not rewrite quality for the request")
 		return uri
 	}
 
+	log.Debug().Msg("trying to get hash")
 	hash, ok := tsr.getTitleHash()
 	if !ok {
 		return uri
