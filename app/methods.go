@@ -115,6 +115,10 @@ func (m *App) getTitleSeriesFromApi(titleId string) (_ []*TitleSerie, e error) {
 	e = gAniApi.getApiResponse(http.MethodGet, apiMethodGetTitle,
 		[]string{"id", titleId}).parseApiResponse(&title)
 
+	if e != nil {
+		return nil, e
+	}
+
 	return m.validateTitleFromApiResponse(title), e
 }
 
