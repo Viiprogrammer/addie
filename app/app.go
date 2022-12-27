@@ -278,10 +278,6 @@ func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
 		return uri
 	}
 
-	log.Debug().Msg(title.QualityHashes[titleQualityHD])
-	log.Debug().Msg(title.QualityHashes[titleQualitySD])
-	log.Debug().Msg(title.QualityHashes[titleQualityFHD])
-
 	log.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
 	return strings.ReplaceAll(
 		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/"),
