@@ -87,7 +87,7 @@ func (m *App) Bootstrap() (e error) {
 	return
 }
 
-func (*App) loop(errs chan error, done func()) {
+func (*App) loop(_ chan error, done func()) {
 	defer done()
 
 	kernSignal := make(chan os.Signal, 1)
