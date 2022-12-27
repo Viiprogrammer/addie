@@ -215,7 +215,9 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
 			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
 
-		m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
+		if !m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
+			log.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
+		}
 
 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
 		return
