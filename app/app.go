@@ -39,7 +39,8 @@ var (
 var gQualityLevel = titleQualityFHD
 
 type App struct {
-	cache *CachedTitlesBucket
+	cache   *CachedTitlesBucket
+	banlist *blocklist
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) *App {
@@ -66,6 +67,13 @@ func (m *App) Bootstrap() (e error) {
 	if gAniApi, e = NewApiClient(gCli, gLog); e != nil {
 		return
 	}
+
+	// ban subsystem
+	wg.Add(1)
+	go func(adone func()) {
+		m.banlist = newBlocklist(ccx.Bool("ban-ip-disable") != true)
+		m.banlist.run(adone)
+	}(wg.Done)
 
 	// cache
 	m.cache = NewCachedTitlesBucket()
@@ -224,6 +232,10 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 
 	// request signer:
 	expires, extra := m.getHlpExtra(uri, cip, srv, uid)
+
+	// furl := fasthttp.AcquireURI()
+	// furl.Parse(nil, ctx.Request.Header.Peek("X-Client-URI"))
+	// furl.Q
 
 	rrl, e := url.Parse(srv + uri)
 	if e != nil {

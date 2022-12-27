@@ -12,6 +12,7 @@ type blocklist struct {
 
 	ticklock sync.Mutex
 	ticker   *time.Ticker
+	wg       sync.WaitGroup
 
 	isEnabled bool
 }
@@ -43,17 +44,25 @@ loop:
 			break loop
 		case <-m.ticker.C:
 			log.Trace().Msg("start searching of expired bans...")
-			m.findExpiredBans()
+
+			m.wg.Add(1)
+			m.findExpiredBans(m.wg.Done)
 		}
 	}
 
 	m.ticker.Stop()
+
+	log.Debug().Msg("waiting for goroutines with blocklist jobs...")
+	m.wg.Wait()
 	return
 }
 
-func (m *blocklist) findExpiredBans() {
+func (m *blocklist) findExpiredBans(done func()) {
+	defer done()
+
 	if !m.ticklock.TryLock() {
 		log.Debug().Msg("could not get lock for the job, seems previous call has not been completed yet")
+		return
 	}
 	defer m.ticklock.Unlock()
 

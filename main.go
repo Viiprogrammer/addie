@@ -113,6 +113,10 @@ func main() {
 		},
 
 		// ip ban settigns
+		&cli.BoolFlag{
+			Name:  "ip-ban-disable",
+			Usage: "",
+		},
 		&cli.DurationFlag{
 			Name:  "ip-ban-time",
 			Usage: "",
