@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -31,9 +32,11 @@ var (
 )
 
 var (
-	errHlpBadIp    = errors.New("got a problem in parsing X-Forwarded-For request")
-	errHlpBadInput = errors.New("there are empty headers in the request")
-	errHlpBadUid   = errors.New("got a problem in uid parsing")
+	errHlpBadIp      = errors.New("got a problem in parsing X-Forwarded-For request")
+	errHlpBadInput   = errors.New("there are empty headers in the request")
+	errHlpBadUid     = errors.New("got a problem in uid parsing")
+	errHlpBanIp      = errors.New("your ip address has reached download limits; try again later")
+	errHlpBadQuality = errors.New("could not parse given quality; there are only values - 480, 720, 1080")
 )
 
 var gQualityLevel = titleQualityFHD
@@ -178,6 +181,7 @@ func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 }
 
 func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+	// quality cooler API
 	if q := ctx.Request.Header.Peek("X-Quality-Cooldown"); len(q) != 0 {
 		log.Info().Str("request", string(q)).Msg("quality settings change requested")
 
@@ -189,7 +193,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		case "1080":
 			gQualityLevel = titleQualityFHD
 		default:
-			m.hlpRespondError(&ctx.Response, errHlpBadInput, fasthttp.StatusBadRequest)
+			m.hlpRespondError(&ctx.Response, errHlpBadQuality, fasthttp.StatusBadRequest)
 			return
 		}
 
@@ -198,13 +202,26 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	cip := string(ctx.Request.Header.Peek("X-Forwarded-For"))
+	// client IP parsing
+	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
 	if cip == "" || cip == "127.0.0.1" {
 		gLog.Debug().Str("remote_addr", ctx.RemoteIP().String()).Str("x_forwarded_for", cip).Msg("")
 		m.hlpRespondError(&ctx.Response, errHlpBadIp)
 		return
 	}
 
+	// blocklist
+	if bytes.Compare(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) != 0 {
+		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
+			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
+
+		m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
+
+		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
+		return
+	}
+
+	// another values parsing
 	uri := string(ctx.Request.Header.Peek("X-Client-URI"))
 	uid := string(ctx.Request.Header.Peek("X-Client-ID"))
 	srv := string(ctx.Request.Header.Peek("X-Cache-Server"))
