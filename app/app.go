@@ -74,7 +74,7 @@ func (m *App) Bootstrap() (e error) {
 	// ban subsystem
 	wg.Add(1)
 	go func(adone func()) {
-		m.banlist = newBlocklist(ccx.Bool("ban-ip-disable") != true)
+		m.banlist = newBlocklist(!ccx.Bool("ban-ip-disable"))
 		m.banlist.run(adone)
 	}(wg.Done)
 
