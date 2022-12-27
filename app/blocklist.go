@@ -54,7 +54,6 @@ loop:
 
 	log.Debug().Msg("waiting for goroutines with blocklist jobs...")
 	m.wg.Wait()
-	return
 }
 
 func (m *blocklist) findExpiredBans(done func()) {
