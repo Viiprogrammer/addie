@@ -33,7 +33,7 @@ const defaultApiMethodFilter = "id,code,names,updated,last_change,player"
 
 type ApiRequestMethod string
 const (
-	apiMethodGetTitle ApiRequestMethod = "/v2/getTitle"
+	apiMethodGetTitle ApiRequestMethod = "/getTitle"
 )
 
 type (

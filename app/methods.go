@@ -101,8 +101,9 @@ func getHashFromUriPath(upath string) (hash string, ok bool) {
 }
 
 func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool) {
-	serie, e := m.cache.PullSerie(tsr.getTitleId(), tsr.serieId)
+	serie, e := m.cache.PullSerie(tsr.getTitleId(), tsr.getSerieId())
 	if e != nil {
+		log.Warn().Err(e).Msg("")
 		return nil, false
 	}
 
@@ -133,6 +134,7 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 
 		tserie.Title = title.Id
 		tserie.Serie = serie.Serie
+		tserie.QualityHashes = make(map[titleQuality]string)
 
 		if tserie.QualityHashes[titleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
 			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")

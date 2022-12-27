@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"sync"
+
+	"github.com/rs/zerolog"
 )
 
 type CachedTitlesBucket struct {
@@ -22,6 +24,9 @@ func (m *CachedTitlesBucket) PullSerie(tid, sid uint16) (serie *TitleSerie, _ er
 	}
 
 	m.locker.RLock()
+	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+		log.Debug().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
+	}
 
 	serie = m.bucket[uint32(tid)<<16|uint32(sid)]
 	m.locker.RUnlock()
@@ -35,6 +40,9 @@ func (m *CachedTitlesBucket) PushSerie(serie *TitleSerie) (_ error) {
 	}
 
 	m.locker.Lock()
+	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+		log.Debug().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
+	}
 
 	m.bucket[uint32(serie.Title)<<16|uint32(serie.Serie)] = serie
 	m.locker.Unlock()

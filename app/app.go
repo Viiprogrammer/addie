@@ -36,6 +36,8 @@ var (
 	errHlpBadUid   = errors.New("got a problem in uid parsing")
 )
 
+var gQualityLevel = titleQualityFHD
+
 type App struct {
 	cache *CachedTitlesBucket
 }
@@ -168,6 +170,25 @@ func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 }
 
 func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+	if q := ctx.Request.Header.Peek("X-Quality-Cooldown"); len(q) != 0 {
+		log.Info().Str("request", string(q)).Msg("quality settings change requested")
+
+		switch string(q) {
+		case "480":
+			gQualityLevel = titleQualitySD
+		case "720":
+			gQualityLevel = titleQualityHD
+		case "1080":
+			gQualityLevel = titleQualityFHD
+		default:
+			m.hlpRespondError(&ctx.Response, errHlpBadInput, fasthttp.StatusBadRequest)
+			return
+		}
+
+		ctx.Response.Header.Set("X-Request-Status", "OK")
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
 
 	cip := string(ctx.Request.Header.Peek("X-Forwarded-For"))
 	if cip == "" || cip == "127.0.0.1" {
@@ -199,7 +220,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	//
 
 	// quality cooler:
-	uri = m.getUriWithFakeQuality(uri, titleQualityHD)
+	uri = m.getUriWithFakeQuality(uri, gQualityLevel)
 
 	// request signer:
 	expires, extra := m.getHlpExtra(uri, cip, srv, uid)
@@ -252,6 +273,10 @@ func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
 	if !ok {
 		return uri
 	}
+
+	log.Debug().Msg(title.QualityHashes[titleQualityHD])
+	log.Debug().Msg(title.QualityHashes[titleQualitySD])
+	log.Debug().Msg(title.QualityHashes[titleQualityFHD])
 
 	log.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
 	return strings.ReplaceAll(
