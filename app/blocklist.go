@@ -112,20 +112,20 @@ func (m *blocklist) pop(addr netip.Addr) {
 	log.Debug().Str("addr", addr.String()).Msg("ip addres has been remove from blocklist")
 }
 
-func (m *blocklist) isExists(ip []byte) (ok bool) {
-	if !m.isEnabled {
-		return false
-	}
+// func (m *blocklist) isExists(ip []byte) (ok bool) {
+// 	if !m.isEnabled {
+// 		return false
+// 	}
 
-	var addr netip.Addr
-	if addr, ok = netip.AddrFromSlice(ip); !ok {
-		return false
-	}
+// 	var addr netip.Addr
+// 	if addr, ok = netip.AddrFromSlice(ip); !ok {
+// 		return false
+// 	}
 
-	m.locker.RLock()
+// 	m.locker.RLock()
 
-	_, ok = m.list[addr]
-	m.locker.RUnlock()
+// 	_, ok = m.list[addr]
+// 	m.locker.RUnlock()
 
-	return
-}
+// 	return
+// 
