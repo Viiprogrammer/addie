@@ -211,7 +211,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	}
 
 	// blocklist
-	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) {
+	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) && len(ctx.Request.Header.Peek("X-ReqLimit-Status")) != 0 {
 		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
 			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
 
