@@ -223,6 +223,13 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	if m.banlist.isExists(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
+		log.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
+
+		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
+		return
+	}
+
 	// another values parsing
 	uri := string(ctx.Request.Header.Peek("X-Client-URI"))
 	uid := string(ctx.Request.Header.Peek("X-Client-ID"))
