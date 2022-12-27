@@ -256,7 +256,7 @@ func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
 	}
 
 	log.Debug().Msg("format check")
-	if tsr.isOldFormat() {
+	if tsr.isOldFormat() && !tsr.isM3U8() {
 		log.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
 		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
 	}

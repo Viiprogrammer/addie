@@ -273,5 +273,9 @@ func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {
 
 // TODO - refactor
 func (m *TitleSerieRequest) isOldFormat() bool {
-	return strings.Index(m.raw[tsrRawFilename], "_") < 0
+	return strings.Index(m.raw[tsrRawFilename], "fff") != -1
+}
+
+func (m *TitleSerieRequest) isM3U8() bool {
+	return strings.Index(m.raw[tsrRawFilename], "m3u8") != -1
 }
