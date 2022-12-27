@@ -279,3 +279,7 @@ func (m *TitleSerieRequest) isOldFormat() bool {
 func (m *TitleSerieRequest) isM3U8() bool {
 	return strings.Contains(m.raw[tsrRawFilename], "m3u8")
 }
+
+func (m *TitleSerieRequest) isValid() bool {
+	return len(m.raw) == 8
+}

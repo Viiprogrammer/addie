@@ -250,6 +250,10 @@ func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
 	log.Debug().Msg("called fake quality")
 	tsr := NewTitleSerieRequest(uri)
 
+	if !tsr.isValid() {
+		return uri
+	}
+
 	log.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).Msg("quality check")
 	if tsr.getTitleQuality() <= quality {
 		return uri
