@@ -20,7 +20,7 @@ var version = "devel" // -ldflags="-X 'main.version=X.X.X'"
 
 func main() {
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6063", nil))
+		log.Println(http.ListenAndServe("localhost:6068", nil))
 	}()
 
 	// logger

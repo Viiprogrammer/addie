@@ -114,18 +114,18 @@ LOOP:
 	}
 }
 
-func (*App) checkErrorsBeforeClosing(errs chan error) {
-	gLog.Debug().Msg("pre-exit error chan checking for errors...")
-	if len(errs) == 0 {
-		gLog.Debug().Msg("error chan is empty, cool")
-		return
-	}
+// func (*App) checkErrorsBeforeClosing(errs chan error) {
+// 	gLog.Debug().Msg("pre-exit error chan checking for errors...")
+// 	if len(errs) == 0 {
+// 		gLog.Debug().Msg("error chan is empty, cool")
+// 		return
+// 	}
 
-	close(errs)
-	for err := range errs {
-		gLog.Warn().Err(err).Msg("an error has been detected while application trying close the submodules")
-	}
-}
+// 	close(errs)
+// 	for err := range errs {
+// 		gLog.Warn().Err(err).Msg("an error has been detected while application trying close the submodules")
+// 	}
+// }
 
 // func (*App) defaultHandler(ctx *fasthttp.RequestCtx) {
 // 	fmt.Fprintf(ctx, "Hello, world!\n\n")
