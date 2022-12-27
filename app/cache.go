@@ -40,9 +40,6 @@ func (m *CachedTitlesBucket) PushSerie(serie *TitleSerie) (_ error) {
 	}
 
 	m.locker.Lock()
-	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
-		log.Debug().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
-	}
 
 	m.bucket[uint32(serie.Title)<<16|uint32(serie.Serie)] = serie
 	m.locker.Unlock()

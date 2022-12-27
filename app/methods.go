@@ -136,16 +136,22 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 		tserie.Serie = serie.Serie
 		tserie.QualityHashes = make(map[titleQuality]string)
 
-		if tserie.QualityHashes[titleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
-			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
+		if serie.Hls.Sd != "" {
+			if tserie.QualityHashes[titleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
+				log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
+			}
 		}
 
-		if tserie.QualityHashes[titleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
-			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
+		if serie.Hls.Hd != "" {
+			if tserie.QualityHashes[titleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
+				log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
+			}
 		}
 
-		if tserie.QualityHashes[titleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
-			log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
+		if serie.Hls.Fhd != "" {
+			if tserie.QualityHashes[titleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
+				log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
+			}
 		}
 
 		tss = append(tss, tserie)
@@ -267,12 +273,5 @@ func (m *TitleSerieRequest) getTitleHash() (_ string, ok bool) {
 
 // TODO - refactor
 func (m *TitleSerieRequest) isOldFormat() bool {
-	if m.hash == "" {
-		m.hash, _ = m.getTitleHash()
-		if m.hash == "" {
-			panic("m.hash is undefined")
-		}
-	}
-
-	return strings.Index(m.hash, "_") > 0
+	return strings.Index(m.raw[tsrRawFilename], "_") < 0
 }
