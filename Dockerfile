@@ -2,7 +2,7 @@
 # vim: ft=Dockerfile
 
 FROM golang:1.19.1-alpine AS build
-LABEL maintainer="vkom <admin@vkom.cc>"
+LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN apk add --no-cache upx \
 
 
 FROM alpine
-LABEL maintainer="vkom <admin@vkom.cc>"
+LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
 WORKDIR /
 
