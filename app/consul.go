@@ -62,7 +62,7 @@ loop:
 		select {
 		case err := <-errs:
 			gLog.Error().Err(err).Msg("")
-			break
+			break loop
 		case <-gCtx.Done():
 			gLog.Debug().Msg("internal abort() has been caught")
 			eventDone()
