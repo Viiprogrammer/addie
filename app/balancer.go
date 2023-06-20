@@ -187,7 +187,7 @@ func (m *iplist) getServersStats() io.ReadWriter {
 	}
 
 	tb.SortBy([]table.SortBy{
-		{Number: 2, Mode: table.Asc},
+		{Number: 3, Mode: table.Dsc},
 	})
 
 	tb.Style().Options.SeparateRows = true
