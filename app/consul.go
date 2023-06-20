@@ -14,9 +14,6 @@ import (
 type consulClient struct {
 	*capi.Client
 	balancer *iplist
-
-	commitedServices []*net.IP
-	services         map[string]*capi.AgentService
 }
 
 func newConsulClient(b *iplist) (client *consulClient, e error) {

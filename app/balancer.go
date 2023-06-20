@@ -131,23 +131,6 @@ func (m *iplist) getRouterEntry(k string) (ip *net.IP) {
 
 	return
 }
-func (m *iplist) isIpExists(ip *net.IP) (ok bool) {
-
-	var v net.IP
-
-	m.RLock()
-	snap := m.list
-	m.RUnlock()
-
-	for _, v = range snap {
-		if ip.Equal(v) {
-			ok = true
-			break
-		}
-	}
-
-	return
-}
 
 func (m *iplist) getIpByKey(k string) (ip *net.IP) {
 	if ip = m.getRouterEntry(k); ip != nil {
