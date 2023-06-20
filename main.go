@@ -140,12 +140,17 @@ func main() {
 		// consul settings
 		&cli.StringFlag{
 			Name:  "consul-address",
-			Usage: "",
+			Usage: "consul API uri",
 			Value: "http://127.0.0.1:8500",
 		},
 		&cli.StringFlag{
 			Name:  "consul-service-name",
-			Usage: "",
+			Usage: "service name (id) used for balancing",
+		},
+		&cli.StringFlag{
+			Name:  "consul-entries-domain",
+			Usage: "add domain for all service entries",
+			Value: "libria.fun",
 		},
 	}
 
