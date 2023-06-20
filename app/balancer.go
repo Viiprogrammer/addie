@@ -1,9 +1,13 @@
 package app
 
 import (
+	"bytes"
+	"io"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 type (
@@ -66,6 +70,14 @@ func (m *ipam) putServer(ip *net.IP, s *server) {
 	m.Lock()
 	m.ipam[ip.String()] = s
 	m.Unlock()
+}
+
+func (m *ipam) getIpamCopy() (serverlist map[string]*server) {
+	m.RLock()
+	serverlist = m.ipam
+	m.RUnlock()
+
+	return serverlist
 }
 
 func newIplist(i *ipam) *iplist {
@@ -165,4 +177,59 @@ func (m *iplist) getIp(k string) (ip *net.IP, s *server) {
 	s.updateStat()
 
 	return
+}
+
+func (m *iplist) getServersStats() io.ReadWriter {
+	tb := table.NewWriter()
+	defer tb.Render()
+
+	buf := bytes.NewBuffer(nil)
+	tb.SetOutputMirror(buf)
+	tb.AppendHeader(table.Row{
+		"Address", "Name", "Requests", "LastRequest",
+	})
+
+	var serverlist = m.ipam.getIpamCopy()
+	for ip, server := range serverlist {
+		tb.AppendRow([]interface{}{
+			ip, server.name, server.proxiedRequests, server.lastRequestTime.String(),
+		})
+	}
+
+	tb.SortBy([]table.SortBy{
+		{Number: 2, Mode: table.Asc},
+	})
+
+	tb.Style().Options.SeparateRows = true
+
+	return buf
+}
+
+func (m *iplist) getRouterStats() io.ReadWriter {
+	tb := table.NewWriter()
+	defer tb.Render()
+
+	buf := bytes.NewBuffer(nil)
+	tb.SetOutputMirror(buf)
+	tb.AppendHeader(table.Row{
+		"URI", "Server",
+	})
+
+	m.RLock()
+	router := m.router
+	m.RUnlock()
+
+	for uri, server := range router {
+		tb.AppendRow([]interface{}{
+			uri, server.String(),
+		})
+	}
+
+	// tb.SortBy([]table.SortBy{
+	// 	{Number: 2, Mode: table.Asc},
+	// })
+
+	tb.Style().Options.SeparateRows = true
+
+	return buf
 }

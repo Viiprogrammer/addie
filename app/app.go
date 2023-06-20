@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
@@ -198,6 +199,19 @@ func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 }
 
 func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+	if string(ctx.Request.RequestURI()) == "/debug/ipam" {
+		fmt.Fprint(ctx, m.balancer.getServersStats())
+		ctx.SetContentType("text/plain; charset=utf8")
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
+	if string(ctx.Request.RequestURI()) == "/debug/router" {
+		fmt.Fprint(ctx, m.balancer.getRouterStats())
+		ctx.SetContentType("text/plain; charset=utf8")
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
+
 	// quality cooler API
 	if q := ctx.Request.Header.Peek("X-Quality-Cooldown"); len(q) != 0 {
 		log.Info().Str("request", string(q)).Msg("quality settings change requested")

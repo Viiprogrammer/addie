@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/hashicorp/consul/api v1.21.0
+	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/rs/zerolog v1.28.0
 	github.com/urfave/cli/v2 v2.23.7
 	github.com/valyala/fasthttp v1.43.0
@@ -24,11 +25,13 @@ require (
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
-	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 )
