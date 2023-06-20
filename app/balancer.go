@@ -138,6 +138,11 @@ func (m *iplist) getIpByKey(k string) (ip *net.IP) {
 	}
 
 	m.Lock()
+	if m.midx == 0 {
+		m.Unlock()
+		return nil
+	}
+
 	if m.idx = m.idx + 1; m.idx >= m.midx {
 		gLog.Trace().Msg("idx reseted")
 		m.idx = 0
@@ -154,7 +159,9 @@ func (m *iplist) getIpByKey(k string) (ip *net.IP) {
 }
 
 func (m *iplist) getIp(k string) (ip *net.IP, s *server) {
-	ip = m.getIpByKey(k)
+	if ip = m.getIpByKey(k); ip == nil {
+		return
+	}
 
 	s = m.ipam.getServer(ip)
 	s.updateStat()

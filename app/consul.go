@@ -62,11 +62,11 @@ loop:
 			break loop
 		case <-gCtx.Done():
 			gLog.Debug().Msg("internal abort() has been caught")
-			eventDone()
 			break loop
 		}
 	}
 
+	eventDone()
 	gLog.Debug().Msg("waiting for goroutines")
 	wg.Wait()
 }
@@ -82,7 +82,7 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 			break
 		}
 
-		if fails > uint8(3) {
+		if fails > uint8(3) && !gCli.Bool("consul-ignore-errors") {
 			gLog.Error().Msg("too many unsuccessfully tempts of serverlist receiving")
 			break
 		}
@@ -96,17 +96,12 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 			continue
 		}
 
-		if len(servers) == 0 {
-			gLog.Error().Uint8("fails", fails).
-				Msg("received serverlist from consul is empty, retrying...")
-			fails = fails + 1
-
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
 		gLog.Debug().Msg("consul listenEvents iteration triggered")
 		fails = 0
+
+		if len(servers) == 0 {
+			gLog.Warn().Msg("received empty serverlist from consul")
+		}
 
 		if gLog.GetLevel() == zerolog.TraceLevel {
 			gLog.Trace().Msg("received serverlist debug:")

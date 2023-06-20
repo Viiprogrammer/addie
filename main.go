@@ -138,6 +138,12 @@ func main() {
 		},
 
 		// consul settings
+		&cli.BoolFlag{
+			Name: "consul-managed",
+		},
+		&cli.BoolFlag{
+			Name: "consul-ignore-errors",
+		},
 		&cli.StringFlag{
 			Name:  "consul-address",
 			Usage: "consul API uri",

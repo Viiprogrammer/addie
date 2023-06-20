@@ -287,15 +287,23 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	// quality cooler:
 	uri = m.getUriWithFakeQuality(uri, gQualityLevel)
 
+	// consul managing
+	if gCli.Bool("consul-managed") {
+		ip, s := m.balancer.getIp(uri)
+		if ip != nil {
+			srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
+			gLog.Trace().Msgf("test new consul balancing %s %s", ip.String(), srv)
+		} else {
+			gLog.Debug().Msg("consul has no servers for balancing, fallback to old method")
+		}
+	}
+
 	// request signer:
 	expires, extra := m.getHlpExtra(uri, cip, srv, uid)
 
 	// furl := fasthttp.AcquireURI()
 	// furl.Parse(nil, ctx.Request.Header.Peek("X-Client-URI"))
 	// furl.Q
-
-	ip, s := m.balancer.getIp(uri)
-	gLog.Debug().Msgf("test new consul balancing %s %s", ip.String(), s.name)
 
 	rrl, e := url.Parse(srv + uri)
 	if e != nil {
