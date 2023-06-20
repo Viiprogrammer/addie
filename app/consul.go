@@ -77,7 +77,7 @@ loop:
 // !! context
 func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 	var idx uint64
-	var servers []net.IP
+	var servers map[string]net.IP
 	var fails uint8
 
 	for {
@@ -119,29 +119,25 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 			}
 		}
 
-		m.updateServerList(servers...)
+		m.balancer.syncIps(servers)
 	}
 
 	return
 }
 
-func (m *consulClient) updateServerList(ips ...net.IP) {
-	m.balancer.syncIps(ips...)
-}
-
-func (m *consulClient) getHealthServiceServers(ctx context.Context, idx ...uint64) (srvs []net.IP, _ uint64, e error) {
-	idx = append(idx, 0) //default value
-
+func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) (_ map[string]net.IP, _ uint64, e error) {
 	opts := &capi.QueryOptions{
-		WaitIndex: idx[0],
+		WaitIndex: idx,
 	}
 
 	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(ctx))
 	if e != nil {
-		return srvs, idx[0], e
+		return nil, idx, e
 	}
 
 	var ip net.IP
+	var servers = make(map[string]net.IP)
+
 	for _, entry := range entries {
 		gLog.Debug().Msgf("new health service entry %s:%d", entry.Node.Address, entry.Service.Port)
 
@@ -151,10 +147,10 @@ func (m *consulClient) getHealthServiceServers(ctx context.Context, idx ...uint6
 			continue
 		}
 
-		srvs = append(srvs, ip)
+		servers[entry.Node.Node] = ip
 	}
 
-	return srvs, meta.LastIndex, e
+	return servers, meta.LastIndex, e
 }
 
 // func (m *consulClient) bootstrap() (e error) {

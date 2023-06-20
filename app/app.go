@@ -280,6 +280,9 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	// furl.Parse(nil, ctx.Request.Header.Peek("X-Client-URI"))
 	// furl.Q
 
+	ip, s := m.balancer.getIp(uri)
+	gLog.Debug().Msgf("test new consul balancing %s %s", ip.String(), s.name)
+
 	rrl, e := url.Parse(srv + uri)
 	if e != nil {
 		gLog.Debug().Str("url_parse", srv+uri).Str("remote_addr", ctx.RemoteIP().String()).
