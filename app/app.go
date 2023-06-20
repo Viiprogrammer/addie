@@ -6,6 +6,8 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"math/rand"
 	"net/url"
 	"os"
 	"os/signal"
@@ -40,14 +42,19 @@ var (
 )
 
 var gQualityLevel = titleQualityFHD
+var gLotteryChance = 0
 
 type App struct {
 	cache   *CachedTitlesBucket
 	banlist *blocklist
+
+	consul   *consulClient
+	balancer *iplist
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) *App {
 	gCli, gLog = c, l
+	gLotteryChance = gCli.Int("consul-ab-split")
 	return &App{}
 }
 
@@ -86,6 +93,20 @@ func (m *App) Bootstrap() (e error) {
 	// fix this shit
 	// main http server
 	go fasthttp.ListenAndServe(":8089", m.hlpHandler)
+
+	// balancer
+	m.balancer = newIplist(newIpam())
+
+	// consul
+	if m.consul, e = newConsulClient(m.balancer); e != nil {
+		return
+	}
+
+	wg.Add(1)
+	go func(adone func()) {
+		m.consul.bootstrap()
+		adone()
+	}(wg.Done)
 
 	// another subsystems
 	// ...
@@ -181,6 +202,45 @@ func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 }
 
 func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+
+	// debug methods
+	if string(ctx.Request.RequestURI()) == "/debug/ipam" {
+		fmt.Fprint(ctx, m.balancer.getServersStats())
+		ctx.SetContentType("text/plain; charset=utf8")
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
+	if string(ctx.Request.RequestURI()) == "/debug/router" {
+		fmt.Fprint(ctx, m.balancer.getRouterStats())
+		ctx.SetContentType("text/plain; charset=utf8")
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
+
+	// lottery API
+	if q := ctx.Request.Header.Peek("X-Consul-Lottery"); len(q) != 0 {
+		log.Info().Str("request", string(q)).Msg("consul ab split change requested")
+
+		var e error
+		var perc int
+		if perc, e = strconv.Atoi(string(q)); e != nil {
+			gLog.Error().Err(e).Msg("could not change consul ab split variable")
+			ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+
+		if perc < 0 || perc > 100 {
+			gLog.Warn().Int("value", perc).
+				Msg("could not change consul ab split variable - value must be 0-100")
+			ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
+			return
+		}
+
+		gLotteryChance = perc
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
+
 	// quality cooler API
 	if q := ctx.Request.Header.Peek("X-Quality-Cooldown"); len(q) != 0 {
 		log.Info().Str("request", string(q)).Msg("quality settings change requested")
@@ -255,6 +315,22 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 
 	// quality cooler:
 	uri = m.getUriWithFakeQuality(uri, gQualityLevel)
+
+	// consul managing
+	if gCli.Bool("consul-managed") {
+		// lottery
+		if gLotteryChance >= rand.Intn(99)+1 {
+			ip, s := m.balancer.getIp(uri)
+			if ip != nil {
+				srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
+				gLog.Trace().Msgf("test new consul balancing %s %s", ip.String(), srv)
+			} else {
+				gLog.Debug().Msg("consul has no servers for balancing, fallback to old method")
+			}
+		} else {
+			gLog.Debug().Msg("consul lottery looser, fallback to old method")
+		}
+	}
 
 	// request signer:
 	expires, extra := m.getHlpExtra(uri, cip, srv, uid)

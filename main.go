@@ -136,6 +136,33 @@ func main() {
 			EnvVars:     []string{"SIGN_SECRET"},
 			DefaultText: "CHANGE DEFAULT SECRET",
 		},
+
+		// consul settings
+		&cli.BoolFlag{
+			Name: "consul-managed",
+		},
+		&cli.BoolFlag{
+			Name: "consul-ignore-errors",
+		},
+		&cli.StringFlag{
+			Name:  "consul-address",
+			Usage: "consul API uri",
+			Value: "http://127.0.0.1:8500",
+		},
+		&cli.StringFlag{
+			Name:  "consul-service-name",
+			Usage: "service name (id) used for balancing",
+		},
+		&cli.StringFlag{
+			Name:  "consul-entries-domain",
+			Usage: "add domain for all service entries",
+			Value: "libria.fun",
+		},
+		&cli.IntFlag{
+			Name:  "consul-ab-split",
+			Usage: "percent",
+			Value: 50,
+		},
 	}
 
 	app.Action = func(c *cli.Context) (e error) {
