@@ -33,19 +33,24 @@ func newConsulClient(b *iplist) (client *consulClient, e error) {
 		return nil, errors.New("given consul service name could not be empty")
 	}
 
+	client = new(consulClient)
 	client.Client, e = capi.NewClient(cfg)
 	client.balancer = b
 	return
 }
 
-func (m *consulClient) bootstrap() (e error) {
+func (m *consulClient) bootstrap() {
+	gLog.Debug().Msg("consul bootrap started")
+
 	eventCtx, eventDone := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	var errs = make(chan error, 1)
 
 	wg.Add(1)
 	go func() {
-		if e = m.listenEvents(eventCtx); e != nil {
+		gLog.Debug().Msg("consul event listener started")
+
+		if e := m.listenEvents(eventCtx); e != nil {
 			errs <- e
 		}
 
@@ -59,21 +64,14 @@ loop:
 			gLog.Error().Err(err).Msg("")
 			break
 		case <-gCtx.Done():
-			gLog.Info().Msg("internal abort() has been caught")
+			gLog.Debug().Msg("internal abort() has been caught")
 			eventDone()
 			break loop
 		}
 	}
 
-	if len(errs) != 0 {
-		for err := range errs {
-			gLog.Error().Err(err).Msg("cleaning buff")
-		}
-	}
-
-	gLog.Info().Msg("waiting for goroutines")
+	gLog.Debug().Msg("waiting for goroutines")
 	wg.Wait()
-	return
 }
 
 // !! context
@@ -83,22 +81,28 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 	var fails uint8
 
 	for {
+		if gCtx.Err() != nil {
+			break
+		}
+
 		if fails > uint8(3) {
 			gLog.Error().Msg("too many unsuccessfully tempts of serverlist receiving")
 			break
 		}
 
 		if servers, idx, e = m.getHealthServiceServers(ctx, idx); e != nil {
-			gLog.Warn().Err(e).Msg("there some problems with serverlist receiving from consul")
-			fails = fails << 1
+			gLog.Warn().Uint8("fails", fails).Err(e).
+				Msg("there some problems with serverlist receiving from consul")
+			fails = fails + 1
 
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		if len(servers) == 0 {
-			gLog.Error().Msg("received serverlist from consul is empty, retrying...")
-			fails = fails << 1
+			gLog.Error().Uint8("fails", fails).
+				Msg("received serverlist from consul is empty, retrying...")
+			fails = fails + 1
 
 			time.Sleep(1 * time.Second)
 			continue
@@ -131,9 +135,8 @@ func (m *consulClient) getHealthServiceServers(ctx context.Context, idx ...uint6
 	opts := &capi.QueryOptions{
 		WaitIndex: idx[0],
 	}
-	opts.WithContext(ctx)
 
-	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts)
+	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(ctx))
 	if e != nil {
 		return srvs, idx[0], e
 	}

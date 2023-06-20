@@ -134,7 +134,7 @@ func (m *iplist) isIpExists(ip *net.IP) (ok bool) {
 
 func (m *iplist) getIpFromList() (ip *net.IP, s *server) {
 	m.Lock()
-	if m.idx = m.idx << 1; m.idx > m.midx {
+	if m.idx = m.idx + 1; m.idx > m.midx {
 		m.idx = 0
 	}
 

@@ -98,6 +98,12 @@ func (m *App) Bootstrap() (e error) {
 		return
 	}
 
+	wg.Add(1)
+	go func(adone func()) {
+		m.consul.bootstrap()
+		adone()
+	}(wg.Done)
+
 	// another subsystems
 	// ...
 
