@@ -44,6 +44,9 @@ var gQualityLevel = titleQualityFHD
 type App struct {
 	cache   *CachedTitlesBucket
 	banlist *blocklist
+
+	consul   *consulClient
+	balancer *iplist
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) *App {
@@ -86,6 +89,14 @@ func (m *App) Bootstrap() (e error) {
 	// fix this shit
 	// main http server
 	go fasthttp.ListenAndServe(":8089", m.hlpHandler)
+
+	// balancer
+	m.balancer = newIplist(newIpam())
+
+	// consul
+	if m.consul, e = newConsulClient(m.balancer); e != nil {
+		return
+	}
 
 	// another subsystems
 	// ...

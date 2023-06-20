@@ -136,6 +136,17 @@ func main() {
 			EnvVars:     []string{"SIGN_SECRET"},
 			DefaultText: "CHANGE DEFAULT SECRET",
 		},
+
+		// consul settings
+		&cli.StringFlag{
+			Name:  "consul-address",
+			Usage: "",
+			Value: "http://127.0.0.1:8500",
+		},
+		&cli.StringFlag{
+			Name:  "consul-service-name",
+			Usage: "",
+		},
 	}
 
 	app.Action = func(c *cli.Context) (e error) {

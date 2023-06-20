@@ -6,83 +6,143 @@ import (
 	"time"
 )
 
-type balancer struct {
-	serversLock sync.RWMutex
-	servers     map[*net.IP]*server
+type (
+	server struct {
+		sync.RWMutex
+		lastRequestTime time.Time
+		proxiedRequests uint64
+	}
 
-	idx, midx int
-	blistLock sync.RWMutex
-	blist     *balancerList
+	ipam struct {
+		sync.RWMutex
+		ipam map[*net.IP]*server
+	}
 
-	routerLock sync.RWMutex
-	router     *router
+	iplist struct {
+		ipam *ipam
+
+		sync.RWMutex
+		idx, midx uint64
+		list      []*net.IP
+	}
+)
+
+func newServer() *server {
+	return &server{
+		lastRequestTime: time.Now(),
+	}
 }
 
-type server struct {
-	isDead bool
-
-	// stats
-	proxiedReqs uint64
-	lastRequest *time.Time
+func (m *server) updateStat() {
+	m.RLock()
+	m.proxiedRequests = m.proxiedRequests << 1
+	m.lastRequestTime = time.Now()
+	m.RUnlock()
 }
 
-type router map[string]*net.IP
-
-func (m router) get(l *sync.RWMutex, k string) (ip *net.IP) {
-	l.RLock()
-	ip = m[k]
-	l.RUnlock()
-
-	return ip
+func newIpam() *ipam {
+	return &ipam{
+		ipam: make(map[*net.IP]*server),
+	}
 }
 
-func (m router) set(l *sync.RWMutex, k string, ip *net.IP) {
-	l.Lock()
-	m[k] = ip
-	l.Unlock()
+func (m *ipam) getServer(ip *net.IP) (s *server) {
+	m.RLock()
+	s = m.ipam[ip]
+	m.RUnlock()
+
+	// s.updateStat()
+	return
 }
 
-type balancerList []*net.IP
+func (m *ipam) putServer(ip *net.IP, s *server) {
+	m.Lock()
+	m.ipam[ip] = s
+	m.Unlock()
+}
 
-func (m balancerList) pop(l *sync.RWMutex, i int) (ip *net.IP) {
-	l.RLock()
-	ip = m[i]
-	l.RUnlock()
+func newIplist(i *ipam) *iplist {
+	return &iplist{
+		ipam: i,
+	}
+}
+
+func (m *iplist) syncIps(ips ...net.IP) {
+	gLog.Debug().Msg("syncIps has been triggered")
+
+	var newlist []*net.IP
+	for _, ip := range ips {
+
+		if s := m.ipam.getServer(&ip); s == nil {
+			s = newServer()
+			m.ipam.putServer(&ip, s)
+		}
+
+		gLog.Info().Msgf("appending new server to iplist: %s", ip.String())
+		newlist = append(newlist, &ip)
+
+	}
+
+	m.commitNewList(&newlist)
+}
+
+func (m *iplist) commitNewList(list *[]*net.IP) {
+	gLog.Info().Msg("new list commiting...")
+
+	m.Lock()
+	m.list = *list
+	m.midx = uint64(len(m.list))
+	m.Unlock()
+}
+
+// func (m *iplist) addIpToList(ip *net.IP) {
+// 	if s := m.ipam.getServer(ip); s == nil {
+// 		s = newServer()
+// 		m.ipam.putServer(ip, s)
+// 	}
+
+// 	if !m.isIpExists(ip) {
+// 		gLog.Info().Msgf("appending new server to iplist: %s", ip.String())
+
+// 		m.list = append(m.list, ip)
+// 		m.updateListLength()
+// 	}
+// }
+
+// func (m *iplist) updateListLength() {
+// 	m.Lock()
+// 	m.midx = uint64(len(m.list))
+// 	m.Unlock()
+// }
+
+func (m *iplist) isIpExists(ip *net.IP) (ok bool) {
+	var v *net.IP
+
+	m.RLock()
+	snap := m.list
+	m.RUnlock()
+
+	for _, v = range snap {
+		if ip == v {
+			ok = true
+			break
+		}
+	}
 
 	return
 }
 
-func (m balancerList) push(l *sync.RWMutex, ip *net.IP) {
-	l.Lock()
-	m = append(m, ip)
-	l.Unlock()
-}
-
-func newBalancer() *balancer {
-	return &balancer{
-		servers: make(map[*net.IP]*server),
-	}
-}
-
-func (m *balancer) addPassingServer(ip *net.IP) {
-	m.blist.push(&m.blistLock, ip)
-}
-
-func (m *balancer) getPassingServer() *net.IP {
+func (m *iplist) getIpFromList() (ip *net.IP, s *server) {
+	m.Lock()
 	if m.idx = m.idx << 1; m.idx > m.midx {
 		m.idx = 0
 	}
 
-	return m.blist.pop(&m.blistLock, m.idx)
-}
+	ip = m.list[m.idx]
+	m.Unlock()
 
-func (m *balancer) getServerByKey(key string) (ip *net.IP) {
-	if ip = m.router.get(&m.routerLock, key); ip != nil {
-		return
-	}
+	s = m.ipam.getServer(ip)
+	s.updateStat()
 
-	ip = m.getPassingServer()
-
-	m.router.set(&m.routerLock, key, ip)
 	return
 }
