@@ -158,6 +158,11 @@ func main() {
 			Usage: "add domain for all service entries",
 			Value: "libria.fun",
 		},
+		&cli.IntFlag{
+			Name:  "consul-ab-split",
+			Usage: "percent",
+			Value: 50,
+		},
 	}
 
 	app.Action = func(c *cli.Context) (e error) {
