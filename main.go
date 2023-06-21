@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -146,9 +147,9 @@ func main() {
 			Name: "consul-ignore-errors",
 		},
 		&cli.StringFlag{
-			Name:  "consul-address",
-			Usage: "consul API uri",
-			Value: "http://127.0.0.1:8500",
+			Name:    "consul-address",
+			Usage:   "consul API uri",
+			Value:   "http://127.0.0.1:8500",
 			EnvVars: []string{"CONSUL_ADDRESS"},
 		},
 		&cli.StringFlag{
@@ -167,7 +168,7 @@ func main() {
 		},
 		&cli.StringFlag{
 			Name:  "consul-kv-prefix",
-			Value: "anilibria/" + app.Name + "/balancer/",
+			Value: fmt.Sprintf("anilibria/%s", app.Name),
 		},
 	}
 

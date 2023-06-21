@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -168,7 +169,10 @@ func (m *balancer) getNextServer() *net.IP {
 
 func (m *balancer) storeRouteToConsul(key, server string) (ok bool, e error) {
 	var p *capi.KVPair
-	p = &capi.KVPair{Key: gCli.String("consul-kv-prefix") + key, Value: []byte(server)}
+	p = &capi.KVPair{
+		Key:   fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key),
+		Value: []byte(server),
+	}
 
 	var meta *capi.WriteMeta
 	if ok, meta, e = gConsul.KV().CAS(p, nil); e != nil {
@@ -188,7 +192,8 @@ func (m *balancer) getRouteFromConsul(key string) (value string, e error) {
 
 	var kv *capi.KVPair
 	var meta *capi.QueryMeta
-	if kv, meta, e = gConsul.KV().Get(gCli.String("consul-kv-prefix")+key, opts); e != nil {
+	ckey := fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key)
+	if kv, meta, e = gConsul.KV().Get(ckey, opts); e != nil {
 		return
 	}
 

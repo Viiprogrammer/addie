@@ -43,13 +43,29 @@ var (
 	errHlpBadQuality = errors.New("could not parse given quality; there are only values - 480, 720, 1080")
 )
 
-var gQualityLevel = titleQualityFHD
-var gLotteryChance = 0
+const (
+	gSetQualityLevel = uint8(iota)
+	gSetLotteryChance
+)
+
+var (
+	gQualityLevel        = titleQualityFHD
+	gLotteryChance       = 0
+	gApplicationSettings = map[uint8]int{
+		gSetQualityLevel:  int(titleQualityFHD),
+		gSetLotteryChance: 0,
+	}
+)
 
 type App struct {
 	cache    *CachedTitlesBucket
 	banlist  *blocklist
 	balancer *balancer
+}
+
+type runtimeConfig struct {
+	lotteryChance []byte
+	qualityLevel  []byte
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) *App {
@@ -61,11 +77,13 @@ func NewApp(c *cli.Context, l *zerolog.Logger) *App {
 func (m *App) Bootstrap() (e error) {
 	var wg sync.WaitGroup
 	var echan = make(chan error, 32)
+	var cfgchan = make(chan *runtimeConfig, 1)
 
 	gCtx, gAbort = context.WithCancel(context.Background())
 	gCtx = context.WithValue(gCtx, utils.ContextKeyLogger, gLog)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyCliContext, gCli)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyAbortFunc, gAbort)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyCfgChan, cfgchan)
 
 	// defer m.checkErrorsBeforeClosing(echan)
 	// defer wg.Wait() // !!
@@ -119,7 +137,7 @@ func (m *App) Bootstrap() (e error) {
 	return
 }
 
-func (*App) loop(_ chan error, done func()) {
+func (m *App) loop(_ chan error, done func()) {
 	defer done()
 
 	kernSignal := make(chan os.Signal, 1)
@@ -128,9 +146,14 @@ func (*App) loop(_ chan error, done func()) {
 	gLog.Debug().Msg("initiate main event loop")
 	defer gLog.Debug().Msg("main event loop has been closed")
 
+	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+
 LOOP:
 	for {
 		select {
+		case cfg := <-cfgchan:
+			gLog.Info().Msg("new configuration detected, applying...")
+			m.applyRuntimeConfig(cfg)
 		case <-kernSignal:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
 			gAbort()
@@ -144,6 +167,57 @@ LOOP:
 			break LOOP
 		}
 	}
+}
+
+func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
+	if len(cfg.lotteryChance) != 0 {
+		if e = m.applyLotteryChance(cfg.lotteryChance); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (lottery chance)")
+		}
+	}
+
+	if len(cfg.qualityLevel) != 0 {
+		if e = m.applyQualityLevel(cfg.qualityLevel); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (quality level)")
+		}
+	}
+
+	return
+}
+
+func (*App) applyLotteryChance(input []byte) (e error) {
+	var chance int
+	if chance, e = strconv.Atoi(string(input)); e != nil {
+		return
+	}
+
+	if chance < 0 || chance > 100 {
+		gLog.Warn().Int("chance", chance).Msg("chance could not be less than 0 and more than 100")
+		return
+	}
+
+	gLog.Info().Msgf("runtime config - applied lottery chance %s", string(input))
+	gLotteryChance = chance
+	return
+}
+
+func (*App) applyQualityLevel(input []byte) (e error) {
+	log.Info().Msg("quality settings change requested")
+
+	switch string(input) {
+	case "480":
+		gQualityLevel = titleQualitySD
+	case "720":
+		gQualityLevel = titleQualityHD
+	case "1080":
+		gQualityLevel = titleQualityFHD
+	default:
+		gLog.Warn().Str("input", string(input)).Msg("qulity level can be 480 720 or 1080 only")
+		return
+	}
+
+	gLog.Info().Msgf("runtime config - applied quality %s", string(input))
+	return
 }
 
 // func (*App) checkErrorsBeforeClosing(errs chan error) {
@@ -213,47 +287,10 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 
 	// lottery API
 	if q := ctx.Request.Header.Peek("X-Consul-Lottery"); len(q) != 0 {
-		log.Info().Str("request", string(q)).Msg("consul ab split change requested")
-
-		var e error
-		var perc int
-		if perc, e = strconv.Atoi(string(q)); e != nil {
-			gLog.Error().Err(e).Msg("could not change consul ab split variable")
-			ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
-			return
-		}
-
-		if perc < 0 || perc > 100 {
-			gLog.Warn().Int("value", perc).
-				Msg("could not change consul ab split variable - value must be 0-100")
-			ctx.Response.SetStatusCode(fasthttp.StatusInternalServerError)
-			return
-		}
-
-		gLotteryChance = perc
-		ctx.Response.SetStatusCode(fasthttp.StatusOK)
-		return
 	}
 
 	// quality cooler API
 	if q := ctx.Request.Header.Peek("X-Quality-Cooldown"); len(q) != 0 {
-		log.Info().Str("request", string(q)).Msg("quality settings change requested")
-
-		switch string(q) {
-		case "480":
-			gQualityLevel = titleQualitySD
-		case "720":
-			gQualityLevel = titleQualityHD
-		case "1080":
-			gQualityLevel = titleQualityFHD
-		default:
-			m.hlpRespondError(&ctx.Response, errHlpBadQuality, fasthttp.StatusBadRequest)
-			return
-		}
-
-		ctx.Response.Header.Set("X-Request-Status", "OK")
-		ctx.Response.SetStatusCode(fasthttp.StatusOK)
-		return
 	}
 
 	// client IP parsing

@@ -3,16 +3,20 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
 )
 
 type consulClient struct {
 	*capi.Client
+	ctx context.Context
+
 	balancer *balancer
 }
 
@@ -39,7 +43,8 @@ func newConsulClient(b *balancer) (client *consulClient, e error) {
 func (m *consulClient) bootstrap() {
 	gLog.Debug().Msg("consul bootrap started")
 
-	eventCtx, eventDone := context.WithCancel(context.Background())
+	var eventDone context.CancelFunc
+	m.ctx, eventDone = context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	var errs = make(chan error, 1)
 
@@ -47,10 +52,26 @@ func (m *consulClient) bootstrap() {
 	go func() {
 		gLog.Debug().Msg("consul event listener started")
 
-		if e := m.listenEvents(eventCtx); e != nil {
+		if e := m.listenEvents(); e != nil {
 			errs <- e
 		}
 
+		wg.Done()
+	}()
+
+	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (lottery)")
+		m.listenRuntimeConfigKey(utils.CfgLotteryChance, cfgchan)
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (quality)")
+		m.listenRuntimeConfigKey(utils.CfxQualityLevel, cfgchan)
 		wg.Done()
 	}()
 
@@ -72,7 +93,7 @@ loop:
 }
 
 // !! context
-func (m *consulClient) listenEvents(ctx context.Context) (e error) {
+func (m *consulClient) listenEvents() (e error) {
 	var idx uint64
 	var servers map[string]net.IP
 	var fails uint8
@@ -87,7 +108,7 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 			break
 		}
 
-		if servers, idx, e = m.getHealthServiceServers(ctx, idx); e != nil {
+		if servers, idx, e = m.getHealthServiceServers(idx); e != nil {
 			gLog.Warn().Uint8("fails", fails).Err(e).
 				Msg("there some problems with serverlist receiving from consul")
 			fails = fails + 1
@@ -117,7 +138,7 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 	return
 }
 
-func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) (_ map[string]net.IP, _ uint64, e error) {
+func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
 	opts := &capi.QueryOptions{
 		WaitIndex:         idx,
 		AllowStale:        true,
@@ -125,7 +146,7 @@ func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) 
 		RequireConsistent: false,
 	}
 
-	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(ctx))
+	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(m.ctx))
 	if e != nil {
 		return nil, idx, e
 	}
@@ -148,6 +169,51 @@ func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) 
 	return servers, meta.LastIndex, e
 }
 
-func (m *consulClient) watchForKVChanges(ctx context.Context, idx uint64) (e error) {
-	return
+func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
+	var opts = &capi.QueryOptions{
+		AllowStale:        true,
+		UseCache:          true,
+		RequireConsistent: false,
+	}
+
+	var idx uint64
+	var ckey = fmt.Sprintf("%s/settings/%s", gCli.String("consul-kv-prefix"), key)
+
+loop:
+	for {
+		select {
+		case <-m.ctx.Done():
+			break loop
+		default:
+			opts.WaitIndex = idx
+			pair, meta, e := m.KV().Get(ckey, opts.WithContext(m.ctx))
+
+			if errors.Is(context.Canceled, e) {
+				gLog.Trace().Msg("exit 2delete")
+				break loop
+			} else if e != nil {
+				gLog.Error().Err(e).Msgf("could not get consul value for %s key", key)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			if pair == nil {
+				gLog.Warn().Msg("consul sent empty values while runtime config getting")
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			rconfig := &runtimeConfig{}
+
+			switch key {
+			case utils.CfgLotteryChance:
+				rconfig.lotteryChance = pair.Value
+			case utils.CfxQualityLevel:
+				rconfig.qualityLevel = pair.Value
+			}
+
+			payload <- rconfig
+			idx = meta.LastIndex
+		}
+	}
 }
