@@ -40,21 +40,11 @@ var (
 	errHlpBadInput   = errors.New("there are empty headers in the request")
 	errHlpBadUid     = errors.New("got a problem in uid parsing")
 	errHlpBanIp      = errors.New("your ip address has reached download limits; try again later")
-	errHlpBadQuality = errors.New("could not parse given quality; there are only values - 480, 720, 1080")
-)
-
-const (
-	gSetQualityLevel = uint8(iota)
-	gSetLotteryChance
 )
 
 var (
 	gQualityLevel        = titleQualityFHD
 	gLotteryChance       = 0
-	gApplicationSettings = map[uint8]int{
-		gSetQualityLevel:  int(titleQualityFHD),
-		gSetLotteryChance: 0,
-	}
 )
 
 type App struct {
