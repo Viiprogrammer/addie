@@ -13,10 +13,10 @@ import (
 
 type consulClient struct {
 	*capi.Client
-	balancer *iplist
+	balancer *balancer
 }
 
-func newConsulClient(b *iplist) (client *consulClient, e error) {
+func newConsulClient(b *balancer) (client *consulClient, e error) {
 	cfg := capi.DefaultConfig()
 
 	cfg.Address = gCli.String("consul-address")
@@ -111,7 +111,7 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 			}
 		}
 
-		m.balancer.syncIps(servers)
+		m.balancer.updateUpstream(servers)
 	}
 
 	return
@@ -119,7 +119,10 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 
 func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) (_ map[string]net.IP, _ uint64, e error) {
 	opts := &capi.QueryOptions{
-		WaitIndex: idx,
+		WaitIndex:         idx,
+		AllowStale:        true,
+		UseCache:          true,
+		RequireConsistent: false,
 	}
 
 	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(ctx))
@@ -145,71 +148,6 @@ func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) 
 	return servers, meta.LastIndex, e
 }
 
-// func (m *consulClient) bootstrap() (e error) {
-// 	cfg := capi.DefaultConfig()
-// 	cfg.Address = "http://116.202.101.219:8500"
-
-// 	if m.client, e = capi.NewClient(cfg); e != nil {
-// 		return e
-// 	}
-
-// 	if m.services, e = m.client.Agent().Services(); e != nil {
-// 		return
-// 	}
-
-// if len(m.services) == 0 {
-// 	return errors.New("there is no services found in consul cluster")
-// }
-
-// service := m.services["cache-cloud-ingress"]
-// gLog.Debug().Msgf("service found %s:%d", service.Address, service.Port)
-
-// - catalog
-// catalog, _, e := m.client.Catalog().Service("cache-cloud-ingress", "", nil)
-// if e != nil {
-// 	return e
-// }
-
-// gLog.Debug().Msgf("catalog count %d", len(catalog))
-
-// for _, service := range catalog {
-// 	gLog.Debug().Msgf("tagged addresses for %s", service.ID)
-// 	for k, addr := range service.TaggedAddresses {
-// 		gLog.Debug().Msgf("tagged %s - %s", k, addr)
-// 	}
-
-// 	gLog.Debug().Msg("node meta")
-// 	for k, v := range service.NodeMeta {
-// 		gLog.Debug().Msgf("node meta - %s %s", k, v)
-// 	}
-
-// 	gLog.Debug().Msgf("service checks %d:", len(service.Checks))
-// 	for k, check := range service.Checks {
-// 		gLog.Debug().Msgf("health check %d %s %s", k, check.Name, check.Status)
-// 	}
-
-// 	gLog.Debug().Msgf("status - %s", service.Checks.AggregatedStatus())
-
-// 	gLog.Debug().Msg("========[END]========")
-// }
-
-// gLog.Debug().Msg("========[END]========")
-// gLog.Debug().Msg("========[END]========")
-// gLog.Debug().Msg("========[END]========")
-// gLog.Debug().Msg("========[END]========")
-
-// 	entries, _, e := m.client.Health().Service("cache-cloud-ingress", "", true, nil)
-// 	if e != nil {
-// 		return e
-// 	}
-
-// 	for _, entry := range entries {
-// 		gLog.Debug().Msgf("new health entry %s:%d", entry.Node.Address, entry.Service.Port)
-
-// 		for _, check := range entry.Checks {
-// 			gLog.Debug().Msgf("entry health %s - status %s", check.Name, check.Status)
-// 		}
-// 	}
-
-// 	return
-// }
+func (m *consulClient) watchForKVChanges(ctx context.Context, idx uint64) (e error) {
+	return
+}

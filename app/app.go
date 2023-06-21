@@ -47,10 +47,9 @@ var gQualityLevel = titleQualityFHD
 var gLotteryChance = 0
 
 type App struct {
-	cache   *CachedTitlesBucket
-	banlist *blocklist
-
-	balancer *iplist
+	cache    *CachedTitlesBucket
+	banlist  *blocklist
+	balancer *balancer
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) *App {
@@ -96,7 +95,7 @@ func (m *App) Bootstrap() (e error) {
 	go fasthttp.ListenAndServe(":8089", m.hlpHandler)
 
 	// balancer
-	m.balancer = newIplist(newIpam())
+	m.balancer = newBalancer()
 
 	// consul
 	if gConsul, e = newConsulClient(m.balancer); e != nil {
@@ -206,13 +205,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 
 	// debug methods
 	if string(ctx.Request.RequestURI()) == "/debug/ipam" {
-		fmt.Fprint(ctx, m.balancer.getServersStats())
-		ctx.SetContentType("text/plain; charset=utf8")
-		ctx.Response.SetStatusCode(fasthttp.StatusOK)
-		return
-	}
-	if string(ctx.Request.RequestURI()) == "/debug/router" {
-		fmt.Fprint(ctx, m.balancer.getRouterStats())
+		fmt.Fprint(ctx, m.balancer.getUpstreamStats())
 		ctx.SetContentType("text/plain; charset=utf8")
 		ctx.Response.SetStatusCode(fasthttp.StatusOK)
 		return
@@ -321,10 +314,10 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	if gCli.Bool("consul-managed") {
 		// lottery
 		if gLotteryChance >= rand.Intn(99)+1 {
-			ip, s := m.balancer.getIp(uri)
-			if ip != nil {
+			ip, s := m.balancer.getOrCreateRouter(uri)
+			if ip != "" {
 				srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
-				gLog.Trace().Msgf("test new consul balancing %s %s", ip.String(), srv)
+				gLog.Trace().Msgf("test new consul balancing %s %s", ip, srv)
 			} else {
 				gLog.Debug().Msg("consul has no servers for balancing, fallback to old method")
 			}
