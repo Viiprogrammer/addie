@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -116,6 +117,7 @@ func main() {
 		&cli.BoolFlag{
 			Name:  "ip-ban-disable",
 			Usage: "",
+			Value: true,
 		},
 		&cli.DurationFlag{
 			Name:  "ip-ban-time",
@@ -145,9 +147,10 @@ func main() {
 			Name: "consul-ignore-errors",
 		},
 		&cli.StringFlag{
-			Name:  "consul-address",
-			Usage: "consul API uri",
-			Value: "http://127.0.0.1:8500",
+			Name:    "consul-address",
+			Usage:   "consul API uri",
+			Value:   "http://127.0.0.1:8500",
+			EnvVars: []string{"CONSUL_ADDRESS"},
 		},
 		&cli.StringFlag{
 			Name:  "consul-service-name",
@@ -161,7 +164,11 @@ func main() {
 		&cli.IntFlag{
 			Name:  "consul-ab-split",
 			Usage: "percent",
-			Value: 50,
+			Value: 100,
+		},
+		&cli.StringFlag{
+			Name:  "consul-kv-prefix",
+			Value: fmt.Sprintf("anilibria/%s", app.Name),
 		},
 	}
 

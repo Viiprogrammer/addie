@@ -3,20 +3,24 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
 )
 
 type consulClient struct {
 	*capi.Client
-	balancer *iplist
+	ctx context.Context
+
+	balancer *balancer
 }
 
-func newConsulClient(b *iplist) (client *consulClient, e error) {
+func newConsulClient(b *balancer) (client *consulClient, e error) {
 	cfg := capi.DefaultConfig()
 
 	cfg.Address = gCli.String("consul-address")
@@ -39,7 +43,8 @@ func newConsulClient(b *iplist) (client *consulClient, e error) {
 func (m *consulClient) bootstrap() {
 	gLog.Debug().Msg("consul bootrap started")
 
-	eventCtx, eventDone := context.WithCancel(context.Background())
+	var eventDone context.CancelFunc
+	m.ctx, eventDone = context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	var errs = make(chan error, 1)
 
@@ -47,10 +52,26 @@ func (m *consulClient) bootstrap() {
 	go func() {
 		gLog.Debug().Msg("consul event listener started")
 
-		if e := m.listenEvents(eventCtx); e != nil {
+		if e := m.listenEvents(); e != nil {
 			errs <- e
 		}
 
+		wg.Done()
+	}()
+
+	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (lottery)")
+		m.listenRuntimeConfigKey(utils.CfgLotteryChance, cfgchan)
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (quality)")
+		m.listenRuntimeConfigKey(utils.CfxQualityLevel, cfgchan)
 		wg.Done()
 	}()
 
@@ -72,22 +93,24 @@ loop:
 }
 
 // !! context
-func (m *consulClient) listenEvents(ctx context.Context) (e error) {
+func (m *consulClient) listenEvents() (e error) {
 	var idx uint64
 	var servers map[string]net.IP
 	var fails uint8
 
 	for {
 		if gCtx.Err() != nil {
-			break
+			return
 		}
 
 		if fails > uint8(3) && !gCli.Bool("consul-ignore-errors") {
 			gLog.Error().Msg("too many unsuccessfully tempts of serverlist receiving")
-			break
+			return
 		}
 
-		if servers, idx, e = m.getHealthServiceServers(ctx, idx); e != nil {
+		if servers, idx, e = m.getHealthServiceServers(idx); errors.Is(e, context.Canceled) {
+			return
+		} else if e != nil {
 			gLog.Warn().Uint8("fails", fails).Err(e).
 				Msg("there some problems with serverlist receiving from consul")
 			fails = fails + 1
@@ -111,18 +134,19 @@ func (m *consulClient) listenEvents(ctx context.Context) (e error) {
 			}
 		}
 
-		m.balancer.syncIps(servers)
+		m.balancer.updateUpstream(servers)
 	}
-
-	return
 }
 
-func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) (_ map[string]net.IP, _ uint64, e error) {
+func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
 	opts := &capi.QueryOptions{
-		WaitIndex: idx,
+		WaitIndex:         idx,
+		AllowStale:        true,
+		UseCache:          true,
+		RequireConsistent: false,
 	}
 
-	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(ctx))
+	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(m.ctx))
 	if e != nil {
 		return nil, idx, e
 	}
@@ -145,71 +169,50 @@ func (m *consulClient) getHealthServiceServers(ctx context.Context, idx uint64) 
 	return servers, meta.LastIndex, e
 }
 
-// func (m *consulClient) bootstrap() (e error) {
-// 	cfg := capi.DefaultConfig()
-// 	cfg.Address = "http://116.202.101.219:8500"
+func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
+	var opts = &capi.QueryOptions{
+		AllowStale:        true,
+		UseCache:          true,
+		RequireConsistent: false,
+	}
 
-// 	if m.client, e = capi.NewClient(cfg); e != nil {
-// 		return e
-// 	}
+	var idx uint64
+	var ckey = fmt.Sprintf("%s/settings/%s", gCli.String("consul-kv-prefix"), key)
 
-// 	if m.services, e = m.client.Agent().Services(); e != nil {
-// 		return
-// 	}
+loop:
+	for {
+		select {
+		case <-m.ctx.Done():
+			break loop
+		default:
+			opts.WaitIndex = idx
+			pair, meta, e := m.KV().Get(ckey, opts.WithContext(m.ctx))
 
-// if len(m.services) == 0 {
-// 	return errors.New("there is no services found in consul cluster")
-// }
+			if errors.Is(e, context.Canceled) {
+				break loop
+			} else if e != nil {
+				gLog.Error().Err(e).Msgf("could not get consul value for %s key", key)
+				time.Sleep(5 * time.Second)
+				continue
+			}
 
-// service := m.services["cache-cloud-ingress"]
-// gLog.Debug().Msgf("service found %s:%d", service.Address, service.Port)
+			if pair == nil {
+				gLog.Warn().Msg("consul sent empty values while runtime config getting")
+				time.Sleep(5 * time.Second)
+				continue
+			}
 
-// - catalog
-// catalog, _, e := m.client.Catalog().Service("cache-cloud-ingress", "", nil)
-// if e != nil {
-// 	return e
-// }
+			rconfig := &runtimeConfig{}
 
-// gLog.Debug().Msgf("catalog count %d", len(catalog))
+			switch key {
+			case utils.CfgLotteryChance:
+				rconfig.lotteryChance = pair.Value
+			case utils.CfxQualityLevel:
+				rconfig.qualityLevel = pair.Value
+			}
 
-// for _, service := range catalog {
-// 	gLog.Debug().Msgf("tagged addresses for %s", service.ID)
-// 	for k, addr := range service.TaggedAddresses {
-// 		gLog.Debug().Msgf("tagged %s - %s", k, addr)
-// 	}
-
-// 	gLog.Debug().Msg("node meta")
-// 	for k, v := range service.NodeMeta {
-// 		gLog.Debug().Msgf("node meta - %s %s", k, v)
-// 	}
-
-// 	gLog.Debug().Msgf("service checks %d:", len(service.Checks))
-// 	for k, check := range service.Checks {
-// 		gLog.Debug().Msgf("health check %d %s %s", k, check.Name, check.Status)
-// 	}
-
-// 	gLog.Debug().Msgf("status - %s", service.Checks.AggregatedStatus())
-
-// 	gLog.Debug().Msg("========[END]========")
-// }
-
-// gLog.Debug().Msg("========[END]========")
-// gLog.Debug().Msg("========[END]========")
-// gLog.Debug().Msg("========[END]========")
-// gLog.Debug().Msg("========[END]========")
-
-// 	entries, _, e := m.client.Health().Service("cache-cloud-ingress", "", true, nil)
-// 	if e != nil {
-// 		return e
-// 	}
-
-// 	for _, entry := range entries {
-// 		gLog.Debug().Msgf("new health entry %s:%d", entry.Node.Address, entry.Service.Port)
-
-// 		for _, check := range entry.Checks {
-// 			gLog.Debug().Msgf("entry health %s - status %s", check.Name, check.Status)
-// 		}
-// 	}
-
-// 	return
-// }
+			payload <- rconfig
+			idx = meta.LastIndex
+		}
+	}
+}

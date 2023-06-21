@@ -2,36 +2,40 @@ package app
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
 
+	capi "github.com/hashicorp/consul/api"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+var (
+	routerLocker   sync.RWMutex
+	upstreamLocker sync.RWMutex
+	balancerLocker sync.RWMutex
+)
+
 type (
+	balancerRouter   map[string]string
+	balancerUpstream map[string]*server
+	balancer         struct {
+		router   *balancerRouter
+		upstream *balancerUpstream
+
+		balancer []net.IP
+
+		idx, midx int64
+		//
+	}
 	server struct {
 		name string
 
 		sync.RWMutex
 		lastRequestTime time.Time
 		proxiedRequests uint64
-	}
-
-	ipam struct {
-		sync.RWMutex
-		ipam map[string]*server
-	}
-
-	iplist struct {
-		ipam *ipam
-
-		sync.RWMutex
-		idx, midx uint64
-
-		list   []net.IP
-		router map[string]*net.IP
 	}
 )
 
@@ -52,124 +56,162 @@ func (m *server) updateStat() {
 	m.RUnlock()
 }
 
-func newIpam() *ipam {
-	return &ipam{
-		ipam: make(map[string]*server),
+func newBalancer() *balancer {
+	router, upstream := make(balancerRouter), make(balancerUpstream)
+	return &balancer{
+		router:   &router,
+		upstream: &upstream,
 	}
 }
 
-func (m *ipam) getServer(ip *net.IP) (s *server) {
-	gLog.Trace().Msgf("getServer ip - %s", ip.String())
-	m.RLock()
-	s = m.ipam[ip.String()]
-	m.RUnlock()
-	return
-}
+func (m *balancer) updateUpstream(servers map[string]net.IP) {
+	gLog.Debug().Msg("upstream update triggered")
+	gLog.Trace().Interface("servers", servers).Msg("")
 
-func (m *ipam) putServer(ip *net.IP, s *server) {
-	m.Lock()
-	m.ipam[ip.String()] = s
-	m.Unlock()
-}
-
-func (m *ipam) getIpamCopy() (serverlist map[string]*server) {
-	m.RLock()
-	serverlist = m.ipam
-	m.RUnlock()
-
-	return serverlist
-}
-
-func newIplist(i *ipam) *iplist {
-	return &iplist{
-		ipam: i,
-	}
-}
-
-func (m *iplist) syncIps(srvs map[string]net.IP) {
-	gLog.Debug().Msg("syncIps has been triggered")
-	gLog.Trace().Interface("ips", srvs).Msg("")
-
-	var newlist []net.IP
-	for name, ip := range srvs {
-
-		if s := m.ipam.getServer(&ip); s == nil {
-			s = newServer(name)
-			m.ipam.putServer(&ip, s)
+	var newbalancer []net.IP
+	for hostname, ip := range servers {
+		if server := m.upstream.get(ip.String()); server == nil {
+			server = newServer(hostname)
+			m.upstream.set(ip.String(), server)
 		}
 
-		gLog.Info().Msgf("appending new server to iplist: %s", ip.String())
-		newlist = append(newlist, ip)
-		gLog.Trace().Interface("newlist", newlist).Msg("")
+		gLog.Debug().Msgf("new server appending to balancer : %s", ip.String())
+		newbalancer = append(newbalancer, ip)
 	}
 
-	m.commitNewList(&newlist)
+	m.commitUpstream(&newbalancer)
 }
 
-func (m *iplist) commitNewList(list *[]net.IP) {
+func (m *balancer) commitUpstream(newbalancer *[]net.IP) {
 	gLog.Info().Msg("new list commiting...")
 
-	m.Lock()
-	m.list = *list
-	m.midx = uint64(len(*list))
-	m.router = make(map[string]*net.IP)
-	m.Unlock()
+	balancerLocker.Lock()
+	m.balancer = *newbalancer
+	m.midx = int64(len(*newbalancer))
+	// m.router = make(map[string]*net.IP)
+	balancerLocker.Unlock()
 
 	gLog.Debug().Msgf("new list has been commited, srvs: %d", m.midx)
 }
 
-func (m *iplist) addRouterEntry(k string, ip *net.IP) {
-	m.Lock()
-	m.router[k] = ip
-	m.Unlock()
+func (m *balancer) getServer(key string) (s *server) {
+	if s = m.upstream.get(key); s == nil {
+		return
+	}
+
+	s.updateStat()
+	return
 }
 
-func (m *iplist) getRouterEntry(k string) (ip *net.IP) {
-	m.RLock()
-	ip = m.router[k]
-	m.RUnlock()
+// ! can be empty
+func (m *balancer) getOrCreateRouter(key string) (serverip string, server *server) {
+	if serverip = m.getRoute(key); serverip != "" {
+		return serverip, m.getServer(serverip)
+	}
+
+	serverip = m.createRoute(key)
+	return serverip, m.getServer(serverip)
+}
+
+func (m *balancer) getRoute(key string) (server string) {
+	if server = m.router.get(key); server != "" {
+		return
+	}
+
+	gLog.Trace().Msg("no cache for route, trying to get it from consul")
+
+	var e error
+	if server, e = m.getRouteFromConsul(key); e != nil {
+		gLog.Error().Err(e).Msg("could not get value from consul")
+		return
+	}
+
+	gLog.Trace().Msg("no route for this key")
 
 	return
 }
 
-func (m *iplist) getIpByKey(k string) (ip *net.IP) {
-	if ip = m.getRouterEntry(k); ip != nil {
+func (m *balancer) createRoute(key string) (server string) {
+	var serverip *net.IP
+	if serverip = m.getNextServer(); serverip == nil {
+		gLog.Warn().Msg("there is no servers in upstream, fallback to legacy balancing...")
 		return
 	}
 
-	m.Lock()
+	server = serverip.String()
+
+	if ok, e := m.storeRouteToConsul(key, server); e != nil {
+		gLog.Error().Err(e).Msg("could not acquire route, fallback to legacy balancing...")
+		return
+	} else if !ok {
+		gLog.Warn().Msg("consul api sent nonok while router storing, trying to get router from cache...")
+
+		if server, e = m.getRouteFromConsul(key); e != nil {
+			gLog.Error().Err(e).Msg("could not get route from consul after CAS, fallback to legacy balancing...")
+			return
+		}
+	}
+
+	m.router.set(key, server)
+	return
+}
+
+func (m *balancer) getNextServer() *net.IP {
+	balancerLocker.Lock()
+	defer balancerLocker.Unlock()
+
 	if m.midx == 0 {
-		m.Unlock()
 		return nil
 	}
 
 	if m.idx = m.idx + 1; m.idx >= m.midx {
-		gLog.Trace().Msg("idx reseted")
 		m.idx = 0
 	}
 
-	gLog.Trace().Msgf("idx - %d", m.idx)
-
-	ip = &m.list[m.idx]
-	gLog.Trace().Interface("asd", m.list).Msg("")
-	m.Unlock()
-
-	m.addRouterEntry(k, ip)
-	return
+	return &m.balancer[m.idx]
 }
 
-func (m *iplist) getIp(k string) (ip *net.IP, s *server) {
-	if ip = m.getIpByKey(k); ip == nil {
+func (m *balancer) storeRouteToConsul(key, server string) (ok bool, e error) {
+	p := &capi.KVPair{
+		Key:   fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key),
+		Value: []byte(server),
+	}
+
+	var meta *capi.WriteMeta
+	if ok, meta, e = gConsul.KV().CAS(p, nil); e != nil {
 		return
 	}
 
-	s = m.ipam.getServer(ip)
-	s.updateStat()
-
+	gLog.Trace().Dur("took", meta.RequestTime).Msgf("consul write wrote with %s status", ok)
 	return
 }
 
-func (m *iplist) getServersStats() io.ReadWriter {
+func (m *balancer) getRouteFromConsul(key string) (value string, e error) {
+	var opts = &capi.QueryOptions{
+		AllowStale:        true,
+		UseCache:          true,
+		RequireConsistent: false,
+	}
+
+	var kv *capi.KVPair
+	var meta *capi.QueryMeta
+	ckey := fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key)
+	if kv, meta, e = gConsul.KV().Get(ckey, opts); e != nil {
+		return
+	}
+
+	if kv == nil {
+		gLog.Warn().Msg("consul sent empty KV while get route is called")
+		return
+	}
+
+	value = string(kv.Value)
+	m.router.set(key, string(kv.Value))
+	gLog.Trace().Dur("took", meta.RequestTime).Msg("consul get from KV debug")
+	return
+}
+
+func (m *balancer) getUpstreamStats() io.ReadWriter {
 	tb := table.NewWriter()
 	defer tb.Render()
 
@@ -179,8 +221,12 @@ func (m *iplist) getServersStats() io.ReadWriter {
 		"Address", "Name", "Requests", "LastRequest",
 	})
 
-	var serverlist = m.ipam.getIpamCopy()
-	for ip, server := range serverlist {
+	var upstream *balancerUpstream
+	balancerLocker.RLock()
+	upstream = m.upstream
+	balancerLocker.RUnlock()
+
+	for ip, server := range *upstream {
 		tb.AppendRow([]interface{}{
 			ip, server.name, server.proxiedRequests, server.lastRequestTime.String(),
 		})
@@ -189,35 +235,6 @@ func (m *iplist) getServersStats() io.ReadWriter {
 	tb.SortBy([]table.SortBy{
 		{Number: 3, Mode: table.Dsc},
 	})
-
-	tb.Style().Options.SeparateRows = true
-
-	return buf
-}
-
-func (m *iplist) getRouterStats() io.ReadWriter {
-	tb := table.NewWriter()
-	defer tb.Render()
-
-	buf := bytes.NewBuffer(nil)
-	tb.SetOutputMirror(buf)
-	tb.AppendHeader(table.Row{
-		"URI", "Server",
-	})
-
-	m.RLock()
-	router := m.router
-	m.RUnlock()
-
-	for uri, server := range router {
-		tb.AppendRow([]interface{}{
-			uri, server.String(),
-		})
-	}
-
-	// tb.SortBy([]table.SortBy{
-	// 	{Number: 2, Mode: table.Asc},
-	// })
 
 	tb.Style().Options.SeparateRows = true
 
