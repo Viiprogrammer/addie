@@ -7,18 +7,11 @@ import (
 	"sync"
 	"time"
 
+	capi "github.com/hashicorp/consul/api"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 type (
-	server struct {
-		name string
-
-		sync.RWMutex
-		lastRequestTime time.Time
-		proxiedRequests uint64
-	}
-
 	ipam struct {
 		sync.RWMutex
 		ipam map[string]*server
@@ -222,4 +215,131 @@ func (m *iplist) getRouterStats() io.ReadWriter {
 	tb.Style().Options.SeparateRows = true
 
 	return buf
+}
+
+var (
+	routerLocker   sync.RWMutex
+	upstreamLocker sync.RWMutex
+	balancerLocker sync.RWMutex
+)
+
+type (
+	balancerRouter   map[string]string
+	balancerUpstream map[string]*server
+	balancer         struct {
+		router   *balancerRouter
+		upstream *balancerUpstream
+
+		balancer []net.IP
+
+		idx, midx int64
+		//
+	}
+	server struct {
+		name string
+
+		sync.RWMutex
+		lastRequestTime time.Time
+		proxiedRequests uint64
+	}
+)
+
+func newBalancer() *balancer {
+	return &balancer{
+		router:   new(balancerRouter),
+		upstream: new(balancerUpstream),
+	}
+}
+
+func (m *balancer) updateUpstream(servers map[string]net.IP) {
+	gLog.Debug().Msg("upstream update triggered")
+	gLog.Trace().Interface("servers", servers).Msg("")
+
+	var newbalancer []net.IP
+	for hostname, ip := range servers {
+		if server := m.upstream.get(ip.String()); server == nil {
+			server = newServer(hostname)
+			m.upstream.set(ip.String(), server)
+		}
+
+		gLog.Debug().Msgf("new server appending to balancer : %s", ip.String())
+		newbalancer = append(newbalancer, ip)
+	}
+
+	m.commitUpstream(&newbalancer)
+}
+
+func (m *balancer) commitUpstream(newbalancer *[]net.IP) {
+	gLog.Info().Msg("new list commiting...")
+
+	balancerLocker.Lock()
+	m.balancer = *newbalancer
+	m.midx = int64(len(*newbalancer))
+	// m.router = make(map[string]*net.IP)
+	balancerLocker.Unlock()
+
+	gLog.Debug().Msgf("new list has been commited, srvs: %d", m.midx)
+}
+
+func (m *balancer) getOrCreateRouter(key string) (serverip string, server *server) {
+	if serverip = m.router.get(key); serverip != "" {
+		return serverip, m.upstream.get(serverip)
+	}
+
+	serverip = m.createRoute(key)
+	return serverip, m.upstream.get(serverip)
+}
+
+func (m *balancer) createRoute(key string) (server string) {
+	var serverip *net.IP
+	if serverip = m.getNextServer(); serverip == nil {
+		gLog.Warn().Msg("there is no servers in upstream, fallback to legacy balancing...")
+		return
+	}
+
+	if ok, e := m.storeRouteToConsul(key, serverip.String()); e != nil {
+		gLog.Error().Err(e).Msg("could not acquire route, fallback to legacy balancing...")
+		return
+	} else if !ok {
+		gLog.Warn().Msg("consul api sent nonok while router storing, trying to get router from cache...")
+
+		if server = m.router.get(key); server == "" {
+			gLog.Error().
+				Msg("could not get server from cache after consul nonok, fallback to legacy balancing...")
+			return
+		}
+
+		return
+	}
+
+	return serverip.String()
+}
+
+func (m *balancer) getNextServer() *net.IP {
+	balancerLocker.Lock()
+	defer balancerLocker.Unlock()
+
+	if m.idx == 0 {
+		return nil
+	}
+
+	if m.midx-m.idx == 0 {
+		m.idx = 0
+	}
+	m.idx = m.idx + 1
+
+	return &m.balancer[m.idx]
+}
+
+func (m *balancer) storeRouteToConsul(key, server string) (ok bool, e error) {
+	var p *capi.KVPair
+	p = &capi.KVPair{Key: gCli.String("consul-kv-prefix") + key, Value: []byte(server)}
+
+	var meta *capi.WriteMeta
+	if ok, meta, e = gConsul.KV().CAS(p, nil); e != nil {
+		return
+	}
+
+	gLog.Trace().Dur("took", meta.RequestTime).Msgf("consul write wrote with %s status", ok)
+	return
 }

@@ -30,6 +30,8 @@ var (
 	gCtx   context.Context
 	gAbort context.CancelFunc
 
+	gConsul *consulClient
+
 	gAniApi *ApiClient
 )
 
@@ -48,7 +50,6 @@ type App struct {
 	cache   *CachedTitlesBucket
 	banlist *blocklist
 
-	consul   *consulClient
 	balancer *iplist
 }
 
@@ -98,13 +99,13 @@ func (m *App) Bootstrap() (e error) {
 	m.balancer = newIplist(newIpam())
 
 	// consul
-	if m.consul, e = newConsulClient(m.balancer); e != nil {
+	if gConsul, e = newConsulClient(m.balancer); e != nil {
 		return
 	}
 
 	wg.Add(1)
 	go func(adone func()) {
-		m.consul.bootstrap()
+		gConsul.bootstrap()
 		adone()
 	}(wg.Done)
 

@@ -163,6 +163,10 @@ func main() {
 			Usage: "percent",
 			Value: 50,
 		},
+		&cli.StringFlag{
+			Name:  "consul-kv-prefix",
+			Value: "anilibria/" + app.Name + "/balancer/",
+		},
 	}
 
 	app.Action = func(c *cli.Context) (e error) {
