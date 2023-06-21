@@ -56,9 +56,10 @@ func (m *server) updateStat() {
 }
 
 func newBalancer() *balancer {
+	router, upstream := make(balancerRouter), make(balancerUpstream)
 	return &balancer{
-		router:   new(balancerRouter),
-		upstream: new(balancerUpstream),
+		router:   &router,
+		upstream: &upstream,
 	}
 }
 
@@ -155,7 +156,7 @@ func (m *balancer) getNextServer() *net.IP {
 	balancerLocker.Lock()
 	defer balancerLocker.Unlock()
 
-	if m.idx == 0 {
+	if m.midx == 0 {
 		return nil
 	}
 

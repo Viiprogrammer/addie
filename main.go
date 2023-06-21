@@ -116,6 +116,7 @@ func main() {
 		&cli.BoolFlag{
 			Name:  "ip-ban-disable",
 			Usage: "",
+			Value: true,
 		},
 		&cli.DurationFlag{
 			Name:  "ip-ban-time",
@@ -161,7 +162,7 @@ func main() {
 		&cli.IntFlag{
 			Name:  "consul-ab-split",
 			Usage: "percent",
-			Value: 50,
+			Value: 100,
 		},
 		&cli.StringFlag{
 			Name:  "consul-kv-prefix",
