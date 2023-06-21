@@ -172,8 +172,7 @@ func (m *balancer) getNextServer() *net.IP {
 }
 
 func (m *balancer) storeRouteToConsul(key, server string) (ok bool, e error) {
-	var p *capi.KVPair
-	p = &capi.KVPair{
+	p := &capi.KVPair{
 		Key:   fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key),
 		Value: []byte(server),
 	}
