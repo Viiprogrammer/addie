@@ -278,19 +278,11 @@ func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 
 	// debug methods
-	if string(ctx.Request.RequestURI()) == "/debug/ipam" {
+	if string(ctx.Request.RequestURI()) == "/debug/upstream" {
 		fmt.Fprint(ctx, m.balancer.getUpstreamStats())
 		ctx.SetContentType("text/plain; charset=utf8")
 		ctx.Response.SetStatusCode(fasthttp.StatusOK)
 		return
-	}
-
-	// lottery API
-	if q := ctx.Request.Header.Peek("X-Consul-Lottery"); len(q) != 0 {
-	}
-
-	// quality cooler API
-	if q := ctx.Request.Header.Peek("X-Quality-Cooldown"); len(q) != 0 {
 	}
 
 	// client IP parsing

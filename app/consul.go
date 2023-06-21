@@ -136,8 +136,6 @@ func (m *consulClient) listenEvents() (e error) {
 
 		m.balancer.updateUpstream(servers)
 	}
-
-	return
 }
 
 func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
