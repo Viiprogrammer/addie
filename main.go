@@ -149,6 +149,7 @@ func main() {
 			Name:  "consul-address",
 			Usage: "consul API uri",
 			Value: "http://127.0.0.1:8500",
+			EnvVars: []string{"CONSUL_ADDRESS"},
 		},
 		&cli.StringFlag{
 			Name:  "consul-service-name",

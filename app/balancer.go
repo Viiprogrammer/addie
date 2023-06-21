@@ -133,23 +133,22 @@ func (m *balancer) createRoute(key string) (server string) {
 		return
 	}
 
-	if ok, e := m.storeRouteToConsul(key, serverip.String()); e != nil {
+	server = serverip.String()
+
+	if ok, e := m.storeRouteToConsul(key, server); e != nil {
 		gLog.Error().Err(e).Msg("could not acquire route, fallback to legacy balancing...")
 		return
 	} else if !ok {
 		gLog.Warn().Msg("consul api sent nonok while router storing, trying to get router from cache...")
 
-		if server = m.router.get(key); server == "" {
-			gLog.Error().
-				Msg("could not get server from cache after consul nonok, fallback to legacy balancing...")
+		if server, e = m.getRouteFromConsul(key); e != nil {
+			gLog.Error().Err(e).Msg("could not get route from consul after CAS, fallback to legacy balancing...")
 			return
 		}
-
-		return
 	}
 
-	m.router.set(key, serverip.String())
-	return serverip.String()
+	m.router.set(key, server)
+	return
 }
 
 func (m *balancer) getNextServer() *net.IP {
@@ -160,10 +159,9 @@ func (m *balancer) getNextServer() *net.IP {
 		return nil
 	}
 
-	if m.midx-m.idx == 0 {
+	if m.idx = m.idx + 1; m.idx >= m.midx {
 		m.idx = 0
 	}
-	m.idx = m.idx + 1
 
 	return &m.balancer[m.idx]
 }
@@ -190,7 +188,12 @@ func (m *balancer) getRouteFromConsul(key string) (value string, e error) {
 
 	var kv *capi.KVPair
 	var meta *capi.QueryMeta
-	if kv, meta, e = gConsul.KV().Get(key, opts); e != nil {
+	if kv, meta, e = gConsul.KV().Get(gCli.String("consul-kv-prefix")+key, opts); e != nil {
+		return
+	}
+
+	if kv == nil {
+		gLog.Warn().Msg("consul sent empty KV while get route is called")
 		return
 	}
 

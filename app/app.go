@@ -314,7 +314,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	if gCli.Bool("consul-managed") {
 		// lottery
 		if gLotteryChance >= rand.Intn(99)+1 {
-			ip, s := m.balancer.getOrCreateRouter(uri)
+			ip, s := m.balancer.getOrCreateRouter(strings.ReplaceAll(uri, "/videos/media/ts/", ""))
 			if ip != "" {
 				srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
 				gLog.Trace().Msgf("test new consul balancing %s %s", ip, srv)
