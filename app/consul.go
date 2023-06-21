@@ -100,15 +100,17 @@ func (m *consulClient) listenEvents() (e error) {
 
 	for {
 		if gCtx.Err() != nil {
-			break
+			return
 		}
 
 		if fails > uint8(3) && !gCli.Bool("consul-ignore-errors") {
 			gLog.Error().Msg("too many unsuccessfully tempts of serverlist receiving")
-			break
+			return
 		}
 
-		if servers, idx, e = m.getHealthServiceServers(idx); e != nil {
+		if servers, idx, e = m.getHealthServiceServers(idx); errors.Is(e, context.Canceled) {
+			return
+		} else if e != nil {
 			gLog.Warn().Uint8("fails", fails).Err(e).
 				Msg("there some problems with serverlist receiving from consul")
 			fails = fails + 1
@@ -188,8 +190,7 @@ loop:
 			opts.WaitIndex = idx
 			pair, meta, e := m.KV().Get(ckey, opts.WithContext(m.ctx))
 
-			if errors.Is(context.Canceled, e) {
-				gLog.Trace().Msg("exit 2delete")
+			if errors.Is(e, context.Canceled) {
 				break loop
 			} else if e != nil {
 				gLog.Error().Err(e).Msgf("could not get consul value for %s key", key)
