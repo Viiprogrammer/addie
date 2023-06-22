@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -10,12 +9,10 @@ import (
 	"sync"
 	"time"
 
-	capi "github.com/hashicorp/consul/api"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 var (
-	routerLocker   sync.RWMutex
 	upstreamLocker sync.RWMutex
 	balancerLocker sync.RWMutex
 )
@@ -40,6 +37,20 @@ type (
 		proxiedRequests uint64
 	}
 )
+
+func (m balancerUpstream) get(k string) (v *server) {
+	upstreamLocker.RLock()
+	v = m[k]
+	upstreamLocker.RUnlock()
+
+	return
+}
+
+func (m balancerUpstream) set(k string, v *server) {
+	upstreamLocker.Lock()
+	m[k] = v
+	upstreamLocker.Unlock()
+}
 
 func newServer(name string) *server {
 	return &server{
@@ -105,96 +116,6 @@ func (m *balancer) getServer(key string) (s *server) {
 	return
 }
 
-// ! can be empty
-func (m *balancer) getOrCreateRouter(key string) (serverip string, server *server) {
-	if serverip = m.router.get(key); serverip != "" {
-		return serverip, m.getServer(serverip)
-	}
-
-	serverip = m.createRoute(key)
-	return serverip, m.getServer(serverip)
-}
-
-func (m *balancer) createRoute(key string) (server string) {
-	var serverip *net.IP
-	if serverip = m.getNextServer(); serverip == nil {
-		gLog.Warn().Msg("there is no servers in upstream, fallback to legacy balancing...")
-		return
-	}
-
-	server = serverip.String()
-
-	if ok, e := m.storeRouteToConsul(key, server); e != nil {
-		gLog.Error().Err(e).Msg("could not acquire route, fallback to legacy balancing...")
-		return
-	} else if !ok {
-		gLog.Warn().Msg("consul api sent nonok while router storing, trying to get router from cache...")
-
-		if server, e = m.getRouteFromConsul(key); e != nil {
-			gLog.Error().Err(e).Msg("could not get route from consul after CAS, fallback to legacy balancing...")
-			return
-		}
-	}
-
-	m.router.set(key, server)
-	return
-}
-
-func (m *balancer) getNextServer() *net.IP {
-	balancerLocker.Lock()
-	defer balancerLocker.Unlock()
-
-	if m.midx == 0 {
-		return nil
-	}
-
-	if m.idx = m.idx + 1; m.idx >= m.midx {
-		m.idx = 0
-	}
-
-	return &m.balancer[m.idx]
-}
-
-func (m *balancer) storeRouteToConsul(key, server string) (ok bool, e error) {
-	p := &capi.KVPair{
-		Key:   fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key),
-		Value: []byte(server),
-	}
-
-	var meta *capi.WriteMeta
-	if ok, meta, e = gConsul.KV().CAS(p, nil); e != nil {
-		return
-	}
-
-	gLog.Trace().Dur("took", meta.RequestTime).Msgf("consul write wrote with %s status", ok)
-	return
-}
-
-func (m *balancer) getRouteFromConsul(key string) (value string, e error) {
-	var opts = &capi.QueryOptions{
-		AllowStale:        true,
-		UseCache:          false,
-		RequireConsistent: false,
-	}
-
-	var kv *capi.KVPair
-	var meta *capi.QueryMeta
-	ckey := fmt.Sprintf("%s/balancer/%s", gCli.String("consul-kv-prefix"), key)
-	if kv, meta, e = gConsul.KV().Get(ckey, opts); e != nil {
-		return
-	}
-
-	if kv == nil {
-		gLog.Warn().Msgf("consul sent empty KV while get route is called for key %s", key)
-		return
-	}
-
-	value = string(kv.Value)
-	m.router.set(key, string(kv.Value))
-	gLog.Trace().Dur("took", meta.RequestTime).Msg("consul get from KV debug")
-	return
-}
-
 func (m *balancer) getUpstreamStats() io.ReadWriter {
 	tb := table.NewWriter()
 	defer tb.Render()
@@ -225,31 +146,32 @@ func (m *balancer) getUpstreamStats() io.ReadWriter {
 	return buf
 }
 
-func (m *balancer) getServerByChunkName(chunk string) (sip string, server *server) {
+func (m *balancer) getServerByChunkName(chunk string) (_ string, server *server) {
+	var buf string
+
 	if strings.Contains(chunk, "_") {
-		sip = strings.Split(chunk, "_")[1]
+		buf = strings.Split(chunk, "_")[1]
 	} else if strings.Contains(chunk, "fff") {
-		sip = strings.ReplaceAll(chunk, "fff", "")
+		buf = strings.ReplaceAll(chunk, "fff", "")
 	} else {
 		gLog.Warn().Msgf("could not get server because of invalid chunk name '%s'; fallback to legacy balancing", chunk)
 		return
 	}
 
-	gLog.Trace().Msgf("sip - %s", sip)
-
-	sid, e := strconv.Atoi(sip)
+	sid, e := strconv.Atoi(buf)
 	if e != nil {
 		return
 	}
 
-	gLog.Trace().Msgf("sid - %d", sid)
+	var ip *net.IP
+	if ip = m.getNextServer(sid); ip == nil {
+		return
+	}
 
-	sip = m.getNextServer2(sid).String()
-	gLog.Trace().Msgf("sip - %s", sip)
-	return sip, m.getServer(sip)
+	return ip.String(), m.getServer(ip.String())
 }
 
-func (m *balancer) getNextServer2(idx int) (_ *net.IP) {
+func (m *balancer) getNextServer(idx int) (_ *net.IP) {
 	balancerLocker.RLock()
 	defer balancerLocker.RUnlock()
 
@@ -257,14 +179,5 @@ func (m *balancer) getNextServer2(idx int) (_ *net.IP) {
 		return
 	}
 
-	gLog.Trace().Msgf("m.midx - %d", int(m.midx))
-
-	idx = idx % int(m.midx)
-	gLog.Trace().Msgf("m.idx - %d", idx)
-	// idx = idx + 1
-	gLog.Trace().Msgf("m.idx - %d", idx)
-
-	gLog.Trace().Msgf("------------m.idx - %d------------", m.idx)
-
-	return &m.balancer[idx]
+	return &m.balancer[idx%int(m.midx)]
 }

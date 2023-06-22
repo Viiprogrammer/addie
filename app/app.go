@@ -348,8 +348,14 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	if gCli.Bool("consul-managed") {
 		// lottery
 		if gLotteryChance >= rand.Intn(99)+1 {
-			ip, s := m.balancer.getServerByChunkName(string(m.chunkRegexp.FindSubmatch(ctx.Request.Header.Peek("X-Client-URI"))[chunkName]))
-			// ip, s := m.balancer.getOrCreateRouter(strings.ReplaceAll(uri, "/videos/media/ts/", ""))
+			ip, s := m.balancer.getServerByChunkName(
+				string(
+					m.chunkRegexp.FindSubmatch(
+						ctx.Request.Header.Peek("X-Client-URI"),
+					)[chunkName],
+				),
+			)
+
 			if ip != "" {
 				srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
 				gLog.Trace().Msgf("test new consul balancing %s %s", ip, srv)
