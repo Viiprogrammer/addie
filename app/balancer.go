@@ -183,7 +183,7 @@ func (m *balancer) getRouteFromConsul(key string) (value string, e error) {
 	}
 
 	if kv == nil {
-		gLog.Warn().Msg("consul sent empty KV while get route is called")
+		gLog.Warn().Msgf("consul sent empty KV while get route is called for key %s", key)
 		return
 	}
 
