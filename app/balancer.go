@@ -105,30 +105,12 @@ func (m *balancer) getServer(key string) (s *server) {
 
 // ! can be empty
 func (m *balancer) getOrCreateRouter(key string) (serverip string, server *server) {
-	if serverip = m.getRoute(key); serverip != "" {
+	if serverip = m.router.get(key); serverip != "" {
 		return serverip, m.getServer(serverip)
 	}
 
 	serverip = m.createRoute(key)
 	return serverip, m.getServer(serverip)
-}
-
-func (m *balancer) getRoute(key string) (server string) {
-	if server = m.router.get(key); server != "" {
-		return
-	}
-
-	gLog.Trace().Msg("no cache for route, trying to get it from consul")
-
-	var e error
-	if server, e = m.getRouteFromConsul(key); e != nil {
-		gLog.Error().Err(e).Msg("could not get value from consul")
-		return
-	}
-
-	gLog.Trace().Msg("no route for this key")
-
-	return
 }
 
 func (m *balancer) createRoute(key string) (server string) {
