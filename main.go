@@ -164,7 +164,7 @@ func main() {
 		&cli.IntFlag{
 			Name:  "consul-ab-split",
 			Usage: "percent",
-			Value: 100,
+			Value: 0,
 		},
 		&cli.StringFlag{
 			Name:  "consul-kv-prefix",
