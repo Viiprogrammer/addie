@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,21 +37,23 @@ var (
 )
 
 var (
-	errHlpBadIp      = errors.New("got a problem in parsing X-Forwarded-For request")
-	errHlpBadInput   = errors.New("there are empty headers in the request")
-	errHlpBadUid     = errors.New("got a problem in uid parsing")
-	errHlpBanIp      = errors.New("your ip address has reached download limits; try again later")
+	errHlpBadIp    = errors.New("got a problem in parsing X-Forwarded-For request")
+	errHlpBadInput = errors.New("there are empty headers in the request")
+	errHlpBadUid   = errors.New("got a problem in uid parsing")
+	errHlpBanIp    = errors.New("your ip address has reached download limits; try again later")
 )
 
 var (
-	gQualityLevel        = titleQualityFHD
-	gLotteryChance       = 0
+	gQualityLevel  = titleQualityFHD
+	gLotteryChance = 0
 )
 
 type App struct {
 	cache    *CachedTitlesBucket
 	banlist  *blocklist
 	balancer *balancer
+
+	chunkRegexp *regexp.Regexp
 }
 
 type runtimeConfig struct {
@@ -63,6 +66,14 @@ func NewApp(c *cli.Context, l *zerolog.Logger) *App {
 	gLotteryChance = gCli.Int("consul-ab-split")
 	return &App{}
 }
+
+const (
+	chunkPath = iota + 1
+	chunkTitleId
+	chunkEpisodeId
+	chunkQualityLevel
+	chunkName
+)
 
 func (m *App) Bootstrap() (e error) {
 	var wg sync.WaitGroup
@@ -81,6 +92,10 @@ func (m *App) Bootstrap() (e error) {
 	defer gAbort()
 
 	// BOOTSTRAP SECTION:
+	// common
+	const chunksplit = `^(\/[^\/]+\/[^\/]+\/[^\/]+\/)([^\/]+)\/([^\/]+)\/([^\/]+)\/([^.\/]+)\.ts`
+	m.chunkRegexp = regexp.MustCompile(chunksplit)
+
 	// anilibria API
 	if gAniApi, e = NewApiClient(gCli, gLog); e != nil {
 		return
@@ -188,6 +203,7 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 
 	gLog.Info().Msgf("runtime config - applied lottery chance %s", string(input))
 	gLotteryChance = chance
+	gLotteryChance = 100
 	return
 }
 
@@ -333,7 +349,8 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	if gCli.Bool("consul-managed") {
 		// lottery
 		if gLotteryChance >= rand.Intn(99)+1 {
-			ip, s := m.balancer.getOrCreateRouter(strings.ReplaceAll(uri, "/videos/media/ts/", ""))
+			ip, s := m.balancer.getServerByChunkName(string(m.chunkRegexp.FindSubmatch(ctx.Request.Header.Peek("X-Client-URI"))[chunkName]))
+			// ip, s := m.balancer.getOrCreateRouter(strings.ReplaceAll(uri, "/videos/media/ts/", ""))
 			if ip != "" {
 				srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
 				gLog.Trace().Msgf("test new consul balancing %s %s", ip, srv)

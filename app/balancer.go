@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -221,4 +223,48 @@ func (m *balancer) getUpstreamStats() io.ReadWriter {
 	tb.Style().Options.SeparateRows = true
 
 	return buf
+}
+
+func (m *balancer) getServerByChunkName(chunk string) (sip string, server *server) {
+	if strings.Contains(chunk, "_") {
+		sip = strings.Split(chunk, "_")[1]
+	} else if strings.Contains(chunk, "fff") {
+		sip = strings.ReplaceAll(chunk, "fff", "")
+	} else {
+		gLog.Warn().Msgf("could not get server because of invalid chunk name '%s'; fallback to legacy balancing", chunk)
+		return
+	}
+
+	gLog.Trace().Msgf("sip - %s", sip)
+
+	sid, e := strconv.Atoi(sip)
+	if e != nil {
+		return
+	}
+
+	gLog.Trace().Msgf("sid - %d", sid)
+
+	sip = m.getNextServer2(sid).String()
+	gLog.Trace().Msgf("sip - %s", sip)
+	return sip, m.getServer(sip)
+}
+
+func (m *balancer) getNextServer2(idx int) (_ *net.IP) {
+	balancerLocker.RLock()
+	defer balancerLocker.RUnlock()
+
+	if m.midx == 0 {
+		return
+	}
+
+	gLog.Trace().Msgf("m.midx - %d", int(m.midx))
+
+	idx = idx % int(m.midx)
+	gLog.Trace().Msgf("m.idx - %d", idx)
+	// idx = idx + 1
+	gLog.Trace().Msgf("m.idx - %d", idx)
+
+	gLog.Trace().Msgf("------------m.idx - %d------------", m.idx)
+
+	return &m.balancer[idx]
 }
