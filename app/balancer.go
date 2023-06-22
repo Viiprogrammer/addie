@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -89,6 +91,18 @@ func (m *balancer) updateUpstream(servers map[string]net.IP) {
 
 		gLog.Debug().Msgf("new server appending to balancer : %s", ip.String())
 		newbalancer = append(newbalancer, ip)
+	}
+
+	sort.Slice(newbalancer, func(i, j int) bool {
+		return newbalancer[i].String() < newbalancer[j].String()
+	})
+
+	if zerolog.GlobalLevel() <= zerolog.TraceLevel {
+		gLog.Trace().Msg("sorted upstream debug")
+
+		for _, v := range newbalancer {
+			gLog.Trace().Msgf("upstream server - %s", v.String())
+		}
 	}
 
 	m.commitUpstream(&newbalancer)

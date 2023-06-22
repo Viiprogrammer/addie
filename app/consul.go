@@ -92,7 +92,6 @@ loop:
 	wg.Wait()
 }
 
-// !! context
 func (m *consulClient) listenEvents() (e error) {
 	var idx uint64
 	var servers map[string]net.IP
