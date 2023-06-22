@@ -203,7 +203,6 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 
 	gLog.Info().Msgf("runtime config - applied lottery chance %s", string(input))
 	gLotteryChance = chance
-	gLotteryChance = 100
 	return
 }
 
