@@ -171,7 +171,7 @@ func (m *balancer) storeRouteToConsul(key, server string) (ok bool, e error) {
 func (m *balancer) getRouteFromConsul(key string) (value string, e error) {
 	var opts = &capi.QueryOptions{
 		AllowStale:        true,
-		UseCache:          true,
+		UseCache:          false,
 		RequireConsistent: false,
 	}
 

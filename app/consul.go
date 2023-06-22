@@ -142,7 +142,7 @@ func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP,
 	opts := &capi.QueryOptions{
 		WaitIndex:         idx,
 		AllowStale:        true,
-		UseCache:          true,
+		UseCache:          false,
 		RequireConsistent: false,
 	}
 
@@ -172,7 +172,7 @@ func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP,
 func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
 	var opts = &capi.QueryOptions{
 		AllowStale:        true,
-		UseCache:          true,
+		UseCache:          false,
 		RequireConsistent: false,
 	}
 
