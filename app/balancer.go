@@ -26,8 +26,7 @@ type (
 
 		balancer []net.IP
 
-		idx, midx int64
-		//
+		midx int64
 	}
 	server struct {
 		name string
