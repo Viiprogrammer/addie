@@ -39,6 +39,7 @@ var (
 var (
 	errHlpBadIp    = errors.New("got a problem in parsing X-Forwarded-For request")
 	errHlpBadInput = errors.New("there are empty headers in the request")
+	errHlpBadUri   = errors.New("invalid uri")
 	errHlpBadUid   = errors.New("got a problem in uid parsing")
 	errHlpBanIp    = errors.New("your ip address has reached download limits; try again later")
 )
@@ -334,6 +335,13 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		gLog.Debug().Str("uid", uid).Str("remote_addr", ctx.RemoteIP().String()).
 			Str("x_forwarded_for", cip).Msg("")
 		m.hlpRespondError(&ctx.Response, errHlpBadUid, fasthttp.StatusBadRequest)
+		return
+	}
+
+	if !m.chunkRegexp.Match(ctx.Request.Header.Peek("X-Client-URI")) {
+		gLog.Debug().Str("uri", uri).Str("remote_addr", ctx.RemoteIP().String()).
+			Str("x_forwarded_for", cip).Msg("")
+		m.hlpRespondError(&ctx.Response, errHlpBadUri, fasthttp.StatusBadRequest)
 		return
 	}
 
