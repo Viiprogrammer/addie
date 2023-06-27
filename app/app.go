@@ -114,8 +114,7 @@ const (
 )
 
 func (m *App) fiberConfigure() {
-
-	// recover
+	// panic recover for all handlers
 	m.fb.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
@@ -145,7 +144,6 @@ func (m *App) fiberConfigure() {
 	}
 
 	// Routes
-
 	// controll api
 	api := m.fb.Group("/api")
 	api.Get("/upstream", m.fbHndApiUpstream)
@@ -155,8 +153,7 @@ func (m *App) fiberConfigure() {
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
 	media.Use(
 		m.fbMidAppFakeQuality,
-		m.fbMidAppConsulLottery,
-	)
+		m.fbMidAppConsulLottery)
 	media.Use(m.fbHndAppRequestSign)
 }
 
