@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 
@@ -203,8 +204,15 @@ func main() {
 			zerolog.SetGlobalLevel(zerolog.Disabled)
 		}
 
-		log.Debug().Msg("ready...")
-		log.Debug().Strs("args", os.Args).Msg("")
+		if !fiber.IsChild() {
+			log.Info().Msg("ready...")
+			log.Info().Msgf("system cpu count %d", runtime.NumCPU())
+			log.Info().Strs("args", os.Args).Msg("")
+		} else {
+			log.Info().Msgf("system cpu count %d", runtime.NumCPU())
+			log.Info().Msgf("old cpu count %d", runtime.GOMAXPROCS(1))
+			log.Info().Msgf("new cpu count %d", runtime.GOMAXPROCS(1))
+		}
 
 		return application.NewApp(c, &log).Bootstrap()
 	}

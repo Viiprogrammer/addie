@@ -17,6 +17,7 @@ func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
 	m.balancer.resetServersStats()
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
 
+	gLog.Debug().Msg("servers reset")
 	ctx.SendString("OK")
 	return ctx.SendStatus(fiber.StatusOK)
 }

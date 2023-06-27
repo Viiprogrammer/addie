@@ -85,6 +85,9 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
+	gQualityLock.RLock()
+	defer gQualityLock.RUnlock()
+
 	log.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(gQualityLevel)).
 		Msg("quality check")
 	if tsr.getTitleQuality() <= gQualityLevel {
@@ -101,10 +104,13 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	gLog.Trace().Msg("consul lottery")
 
+	gLotteryLock.RLock()
 	if gLotteryChance < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
+		gLotteryLock.RUnlock()
 		return ctx.Next()
 	}
+	gLotteryLock.RUnlock()
 
 	ip, s := m.balancer.getServerByChunkName(
 		string(m.chunkRegexp.FindSubmatch(

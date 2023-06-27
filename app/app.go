@@ -52,7 +52,10 @@ var (
 )
 
 var (
-	gQualityLevel  = titleQualityFHD
+	gQualityLock  sync.RWMutex
+	gQualityLevel = titleQualityFHD
+
+	gLotteryLock   sync.RWMutex
 	gLotteryChance = 0
 )
 
@@ -308,12 +311,19 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 	}
 
 	gLog.Info().Msgf("runtime config - applied lottery chance %s", string(input))
+
+	gLotteryLock.Lock()
 	gLotteryChance = chance
+	gLotteryLock.Unlock()
+
 	return
 }
 
 func (*App) applyQualityLevel(input []byte) (e error) {
 	log.Info().Msg("quality settings change requested")
+
+	gQualityLock.Lock()
+	defer gQualityLock.Unlock()
 
 	switch string(input) {
 	case "480":
