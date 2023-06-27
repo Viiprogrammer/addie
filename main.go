@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
@@ -20,10 +18,6 @@ import (
 var version = "devel" // -ldflags="-X 'main.version=X.X.X'"
 
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6068", nil))
-	}()
-
 	// logger
 	log := zerolog.New(zerolog.ConsoleWriter{
 		Out: os.Stderr,
@@ -99,6 +93,32 @@ func main() {
 		&cli.BoolFlag{
 			Name:  "http-debug",
 			Usage: "",
+		},
+
+		// fiber settings
+		&cli.StringFlag{
+			Name:  "http-listen-addr",
+			Usage: "Ex: 127.0.0.1:8080, :8080",
+			Value: "127.0.0.1:8080",
+		},
+		&cli.StringFlag{
+			Name:  "http-trusted-proxies",
+			Usage: "Ex: 10.0.0.0/8; Separated by comma",
+		},
+		&cli.BoolFlag{
+			Name: "http-prefork",
+			Usage: `Enables use of the SO_REUSEPORT socket option;
+			if enabled, the application will need to be ran
+			through a shell because prefork mode sets environment variables`,
+		},
+		&cli.BoolFlag{
+			Name:  "http-cors",
+			Usage: "enable cors requests serving",
+			Value: true,
+		},
+		&cli.StringFlag{
+			Name:  "http-pprof-enable",
+			Usage: "enable golang http-pprof methods",
 		},
 
 		// anilibria settings

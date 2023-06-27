@@ -19,6 +19,12 @@ import (
 	"time"
 
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/favicon"
+	"github.com/gofiber/fiber/v2/middleware/pprof"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/skip"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 	"github.com/valyala/fasthttp"
@@ -50,6 +56,7 @@ var (
 )
 
 type App struct {
+	fb       *fiber.App
 	cache    *CachedTitlesBucket
 	banlist  *blocklist
 	balancer *balancer
@@ -62,10 +69,37 @@ type runtimeConfig struct {
 	qualityLevel  []byte
 }
 
-func NewApp(c *cli.Context, l *zerolog.Logger) *App {
+func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 	gCli, gLog = c, l
 	gLotteryChance = gCli.Int("consul-ab-split")
-	return &App{}
+
+	app = &App{}
+	app.fb = fiber.New(fiber.Config{
+		EnableTrustedProxyCheck: len(gCli.String("http-trusted-proxies")) > 0,
+		TrustedProxies:          strings.Split(gCli.String("http-trusted-proxies"), ","),
+		ProxyHeader:             fiber.HeaderXForwardedFor,
+
+		AppName:      gCli.App.Name,
+		ServerHeader: gCli.App.Name,
+
+		StrictRouting:             true,
+		DisableDefaultContentType: true,
+		DisableDefaultDate:        true,
+
+		Prefork:      gCli.Bool("http-prefork"),
+		IdleTimeout:  300 * time.Second,
+		ReadTimeout:  1000 * time.Millisecond,
+		WriteTimeout: 200 * time.Millisecond,
+
+		RequestMethods: []string{
+			fiber.MethodHead,
+			fiber.MethodGet,
+		},
+	})
+
+	app.fiberConfigure()
+
+	return app
 }
 
 const (
@@ -75,6 +109,58 @@ const (
 	chunkQualityLevel
 	chunkName
 )
+
+func (m *App) fiberConfigure() {
+
+	// recover
+	m.fb.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
+			gLog.Error().Interface("stack", e).Msg("PANIC! panic has been caught")
+		},
+	}))
+
+	// debug
+	if gCli.Bool("http-pprof-enable") {
+		m.fb.Use(pprof.New())
+	}
+
+	// favicon disable
+	m.fb.Use(favicon.New(favicon.ConfigDefault))
+
+	// CORS serving
+	if gCli.Bool("http-cors") {
+		m.fb.Use(cors.New(cors.Config{
+			AllowHeaders: strings.Join([]string{
+				fiber.HeaderContentType,
+			}, ","),
+			AllowOrigins: "*",
+			// AllowMethods: strings.Join([]string{
+			// 	fiber.MethodPost,
+			// }, ","),
+		}))
+	}
+
+	// Routes
+
+	// controll api
+	api := m.fb.Group("/api")
+	api.Get("/upstream", m.fbHndApiUpstream)
+	api.Get("/reset", m.fbHndApiReset)
+
+	// app
+	media := m.fb.Group("/videos/media/ts", skip.New(nil, m.fbMidAppPreCond))
+	media.Use(
+		m.fbMidAppFakeQuality,
+		m.fbMidAppConsulLottery,
+	)
+	media.Get("/", m.fbHndAppRequestSign)
+
+	// root / other
+	m.fb.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Hello World")
+	})
+}
 
 func (m *App) Bootstrap() (e error) {
 	var wg sync.WaitGroup
@@ -98,38 +184,52 @@ func (m *App) Bootstrap() (e error) {
 	m.chunkRegexp = regexp.MustCompile(chunksplit)
 
 	// anilibria API
+	gLog.Info().Msg("starting anilibria api client...")
 	if gAniApi, e = NewApiClient(gCli, gLog); e != nil {
 		return
 	}
 
+	// fake quality cooler cache
+	gLog.Info().Msg("starting fake quality cache buckets...")
+	m.cache = NewCachedTitlesBucket()
+
+	// balancer
+	gLog.Info().Msg("starting balancer...")
+	m.balancer = newBalancer()
+
+	// consul
+	gLog.Info().Msg("starting consul client...")
+	if gConsul, e = newConsulClient(m.balancer); e != nil {
+		return
+	}
+
+	// consul bootstrap
+	gLog.Info().Msg("bootstrap consul subsystems...")
+	wg.Add(1)
+	go func(adone func()) {
+		gConsul.bootstrap()
+		adone()
+	}(wg.Done)
+
 	// ban subsystem
+	gLog.Info().Msg("bootstrap ban subsystem...")
 	wg.Add(1)
 	go func(adone func()) {
 		m.banlist = newBlocklist(!ccx.Bool("ban-ip-disable"))
 		m.banlist.run(adone)
 	}(wg.Done)
 
-	// cache
-	m.cache = NewCachedTitlesBucket()
-
-	// !!!
-	// TODO
-	// fix this shit
-	// main http server
-	go fasthttp.ListenAndServe(":8089", m.hlpHandler)
-
-	// balancer
-	m.balancer = newBalancer()
-
-	// consul
-	if gConsul, e = newConsulClient(m.balancer); e != nil {
-		return
-	}
-
+	// http
 	wg.Add(1)
 	go func(adone func()) {
-		gConsul.bootstrap()
-		adone()
+		defer adone()
+
+		gLog.Debug().Msg("starting fiber http server...")
+		defer gLog.Debug().Msg("fiber http server has been stopped")
+
+		if e = m.fb.Listen(gCli.String("http-listen-addr")); e != nil {
+			gLog.Error().Err(e).Msg("fiber internal error")
+		}
 	}(wg.Done)
 
 	// another subsystems
@@ -149,7 +249,7 @@ func (m *App) loop(_ chan error, done func()) {
 	kernSignal := make(chan os.Signal, 1)
 	signal.Notify(kernSignal, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGQUIT)
 
-	gLog.Debug().Msg("initiate main event loop")
+	gLog.Debug().Msg("initiate main event loop...")
 	defer gLog.Debug().Msg("main event loop has been closed")
 
 	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
@@ -172,6 +272,12 @@ LOOP:
 			gLog.Info().Msg("internal abort() has been caught; initiate application closing...")
 			break LOOP
 		}
+	}
+
+	// http destruct (wtf fiber?)
+	// ShutdownWithContext() may be called only after fiber.Listen is running (O_o)
+	if e := m.fb.ShutdownWithContext(gCtx); e != nil {
+		gLog.Error().Err(e).Msg("fiber Shutdown() error")
 	}
 }
 
@@ -357,7 +463,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	//
 
 	// quality cooler:
-	uri = m.getUriWithFakeQuality(uri, gQualityLevel)
+	// uri = m.getUriWithFakeQuality(nil, uri, gQualityLevel)
 
 	// consul managing
 	if gCli.Bool("consul-managed") {
@@ -410,19 +516,7 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
 }
 
-func (m *App) getUriWithFakeQuality(uri string, quality titleQuality) string {
-	log.Debug().Msg("called fake quality")
-	tsr := NewTitleSerieRequest(uri)
-
-	if !tsr.isValid() {
-		return uri
-	}
-
-	log.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).Msg("quality check")
-	if tsr.getTitleQuality() <= quality {
-		return uri
-	}
-
+func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality titleQuality) string {
 	log.Debug().Msg("format check")
 	if tsr.isOldFormat() && !tsr.isM3U8() {
 		log.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
