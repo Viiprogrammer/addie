@@ -106,7 +106,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 	})
 
 	// storage setup for fiber's limiter
-	if gCli.Bool("http-limiter-bbolt") {
+	if gCli.Bool("limiter-use-bbolt") {
 		var prefix string
 		if prefix := gCli.String("database-prefix"); prefix == "" {
 			prefix = "."

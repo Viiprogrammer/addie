@@ -120,12 +120,12 @@ func main() {
 			Name:  "http-pprof-enable",
 			Usage: "enable golang http-pprof methods",
 		},
-		&cli.BoolFlag{
-			Name:  "http-limiter-bbolt",
-			Usage: "use bbolt key\value file database instead of memory database",
-		},
 
 		// limiter settings
+		&cli.BoolFlag{
+			Name:  "limiter-use-bbolt",
+			Usage: "use bbolt key\value file database instead of memory database",
+		},
 		&cli.IntFlag{
 			Name:  "limiter-max-req",
 			Value: 10,
