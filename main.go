@@ -116,7 +116,7 @@ func main() {
 			Usage: "enable cors requests serving",
 			Value: true,
 		},
-		&cli.StringFlag{
+		&cli.BoolFlag{
 			Name:  "http-pprof-enable",
 			Usage: "enable golang http-pprof methods",
 		},

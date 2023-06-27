@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,8 +80,9 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		TrustedProxies:          strings.Split(gCli.String("http-trusted-proxies"), ","),
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 
-		AppName:      gCli.App.Name,
-		ServerHeader: gCli.App.Name,
+		AppName:               gCli.App.Name,
+		ServerHeader:          gCli.App.Name,
+		DisableStartupMessage: true,
 
 		StrictRouting:             true,
 		DisableDefaultContentType: true,
@@ -91,9 +93,14 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		ReadTimeout:  1000 * time.Millisecond,
 		WriteTimeout: 200 * time.Millisecond,
 
+		GETOnly: true,
 		RequestMethods: []string{
 			fiber.MethodHead,
 			fiber.MethodGet,
+		},
+
+		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+			return ctx.SendStatus(fiber.StatusInternalServerError)
 		},
 	})
 
@@ -116,7 +123,8 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
-			gLog.Error().Interface("stack", e).Msg("PANIC! panic has been caught")
+			gLog.Error().Str("stack", c.Request().String()).Msg("PANIC! panic has been caught")
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
 		},
 	}))
 
@@ -131,13 +139,7 @@ func (m *App) fiberConfigure() {
 	// CORS serving
 	if gCli.Bool("http-cors") {
 		m.fb.Use(cors.New(cors.Config{
-			AllowHeaders: strings.Join([]string{
-				fiber.HeaderContentType,
-			}, ","),
 			AllowOrigins: "*",
-			// AllowMethods: strings.Join([]string{
-			// 	fiber.MethodPost,
-			// }, ","),
 		}))
 	}
 
@@ -149,17 +151,12 @@ func (m *App) fiberConfigure() {
 	api.Get("/reset", m.fbHndApiReset)
 
 	// app
-	media := m.fb.Group("/videos/media/ts", skip.New(nil, m.fbMidAppPreCond))
+	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
 	media.Use(
 		m.fbMidAppFakeQuality,
 		m.fbMidAppConsulLottery,
 	)
-	media.Get("/", m.fbHndAppRequestSign)
-
-	// root / other
-	m.fb.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello World")
-	})
+	media.Use(m.fbHndAppRequestSign)
 }
 
 func (m *App) Bootstrap() (e error) {
@@ -180,7 +177,7 @@ func (m *App) Bootstrap() (e error) {
 
 	// BOOTSTRAP SECTION:
 	// common
-	const chunksplit = `^(\/[^\/]+\/[^\/]+\/[^\/]+\/)([^\/]+)\/([^\/]+)\/([^\/]+)\/([^.\/]+)\.ts`
+	const chunksplit = `^(\/[^\/]+\/[^\/]+\/[^\/]+\/)([^\/]+)\/([^\/]+)\/([^\/]+)\/([^.\/]+)\.ts$`
 	m.chunkRegexp = regexp.MustCompile(chunksplit)
 
 	// anilibria API
@@ -212,12 +209,14 @@ func (m *App) Bootstrap() (e error) {
 	}(wg.Done)
 
 	// ban subsystem
-	gLog.Info().Msg("bootstrap ban subsystem...")
-	wg.Add(1)
-	go func(adone func()) {
-		m.banlist = newBlocklist(!ccx.Bool("ban-ip-disable"))
-		m.banlist.run(adone)
-	}(wg.Done)
+	if !gCli.Bool("ip-ban-disable") {
+		gLog.Info().Msg("bootstrap ban subsystem...")
+		wg.Add(1)
+		go func(adone func()) {
+			m.banlist = newBlocklist(!ccx.Bool("ban-ip-disable"))
+			m.banlist.run(adone)
+		}(wg.Done)
+	}
 
 	// http
 	wg.Add(1)

@@ -10,17 +10,24 @@ import (
 
 var (
 	errApiPreBadHeaders = errors.New("could not parse required headers")
+	errApiPreBadUri     = errors.New("invalid uri")
+	errApiPreBadId      = errors.New("invalid id")
+	errApiPreBadServer  = errors.New("invalid server")
+	errApiPreUidParse   = errors.New("got a problem in uid parsing")
+	errApiPreUriRegexp  = errors.New("regexp matching failure")
 )
 
 const (
-	apiHeaderUri      = "X-Client-URI"
-	apiHeaderId       = "X-Client-ID"
+	apiHeaderUri      = "X-Client-Uri"
+	apiHeaderId       = "X-Client-Id"
 	apiHeaderServer   = "X-Cache-Server"
 	apiHeaderLocation = "X-Location"
 )
 
+type appMidError uint8
+
 const (
-	errMidAppPreHeaderUri = 1 << iota
+	errMidAppPreHeaderUri appMidError = 1 << iota
 	errMidAppPreHeaderId
 	errMidAppPreHeaderServer
 	errMidAppPreUidFromReq
@@ -29,17 +36,21 @@ const (
 
 // API precondition check
 func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
-	var errs int
+	var errs appMidError
 
+	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("debug")
 	switch h := ctx.GetReqHeaders(); {
 	case h[apiHeaderUri] == "":
-		ctx.Locals("errors", errs|errMidAppPreHeaderUri)
+		errs = errs | errMidAppPreHeaderUri
+		ctx.Locals("errors", errs)
 		return
 	case h[apiHeaderId] == "":
-		ctx.Locals("errors", errs|errMidAppPreHeaderId)
+		errs = errs | errMidAppPreHeaderId
+		ctx.Locals("errors", errs)
 		return
 	case h[apiHeaderServer] == "":
-		ctx.Locals("errors", errs|errMidAppPreHeaderServer)
+		errs = errs | errMidAppPreHeaderServer
+		ctx.Locals("errors", errs)
 		return
 	}
 
@@ -47,14 +58,16 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 	uid := m.getUidFromRequest(ctx.Get(apiHeaderUri))
 	if uid == "" {
 		ctx.Locals("errs", errs|errMidAppPreUidFromReq)
-		return false
+		return
 	}
 
 	ctx.Locals("uid", uid)
+	ctx.Locals("srv", ctx.Get(apiHeaderServer))
 
 	// match uri
 	if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
 		ctx.Locals("errs", errs|errMidAppPreUriRegexp)
+		return
 	}
 
 	return true
@@ -86,6 +99,8 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 
 // consul lottery
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
+	gLog.Trace().Msg("consul lottery")
+
 	if gLotteryChance < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
 		return ctx.Next()
