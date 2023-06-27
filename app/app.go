@@ -17,6 +17,7 @@ import (
 
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
@@ -130,6 +131,11 @@ func (m *App) fiberConfigure() {
 
 	// favicon disable
 	m.fb.Use(favicon.New(favicon.ConfigDefault))
+
+	// compress support
+	m.fb.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
 
 	// CORS serving
 	if gCli.Bool("http-cors") {
