@@ -178,6 +178,7 @@ func (m *App) fiberConfigure() {
 	// app limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
+			// add emergency stop for limiter
 			return c.IP() == "127.0.0.1" || gCli.App.Version == "devel"
 		},
 

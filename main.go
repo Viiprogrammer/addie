@@ -128,11 +128,11 @@ func main() {
 		},
 		&cli.IntFlag{
 			Name:  "limiter-max-req",
-			Value: 10,
+			Value: 200,
 		},
 		&cli.DurationFlag{
 			Name:  "limiter-records-duration",
-			Value: 1 * time.Minute,
+			Value: 5 * time.Minute,
 		},
 
 		// bbolt settings
