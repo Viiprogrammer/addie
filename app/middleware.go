@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	errApiPreBadHeaders = errors.New("could not parse required headers")
+	// errApiPreBadHeaders = errors.New("could not parse required headers")
 	errApiPreBadUri     = errors.New("invalid uri")
 	errApiPreBadId      = errors.New("invalid id")
 	errApiPreBadServer  = errors.New("invalid server")

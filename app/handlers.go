@@ -22,6 +22,15 @@ func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
+// func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
+// 	status = append(status, fasthttp.StatusInternalServerError)
+
+// 	r.Header.Set("X-Error", err.Error())
+// 	r.SetStatusCode(status[0])
+
+// 	gLog.Error().Err(err).Msg("")
+// }
+
 func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 	switch ctx.Locals("errors").(appMidError) {
 	case errMidAppPreHeaderUri:

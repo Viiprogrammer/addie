@@ -24,7 +24,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/skip"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
-	"github.com/valyala/fasthttp"
 )
 
 var (
@@ -334,72 +333,6 @@ func (*App) applyQualityLevel(input []byte) (e error) {
 	return
 }
 
-func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
-	status = append(status, fasthttp.StatusInternalServerError)
-
-	r.Header.Set("X-Error", err.Error())
-	r.SetStatusCode(status[0])
-
-	gLog.Error().Err(err).Msg("")
-}
-
-// func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
-// 	// client IP parsing
-// 	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
-// 	if cip == "" || cip == "127.0.0.1" {
-// 		gLog.Debug().Str("remote_addr", ctx.RemoteIP().String()).Str("x_forwarded_for", cip).Msg("")
-// 		m.hlpRespondError(&ctx.Response, errHlpBadIp)
-// 		return
-// 	}
-
-// 	// blocklist
-// 	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) && len(ctx.Request.Header.Peek("X-ReqLimit-Status")) != 0 {
-// 		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
-// 			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
-
-// 		if !m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
-// 			log.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
-// 		}
-
-// 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
-// 		return
-// 	}
-
-// 	if m.banlist.isExists(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
-// 		log.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
-
-// 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
-// 		return
-// 	}
-// }
-
-func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality titleQuality) string {
-	log.Debug().Msg("format check")
-	if tsr.isOldFormat() && !tsr.isM3U8() {
-		log.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
-		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
-	}
-
-	log.Debug().Msg("trying to complete tsr")
-	title, e := m.doTitleSerieRequest(tsr)
-	if e != nil {
-		log.Error().Err(e).Msg("could not rewrite quality for the request")
-		return uri
-	}
-
-	log.Debug().Msg("trying to get hash")
-	hash, ok := tsr.getTitleHash()
-	if !ok {
-		return uri
-	}
-
-	log.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
-	return strings.ReplaceAll(
-		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/"),
-		hash, title.QualityHashes[quality],
-	)
-}
-
 // getHlpExtra() simply is a secure_link implementation
 //
 // docs:
@@ -445,6 +378,33 @@ func (*App) getHlpExtra(uri, cip, sip, uid string) (expires, extra string) {
 	return
 }
 
+func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality titleQuality) string {
+	log.Debug().Msg("format check")
+	if tsr.isOldFormat() && !tsr.isM3U8() {
+		log.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
+		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
+	}
+
+	log.Debug().Msg("trying to complete tsr")
+	title, e := m.doTitleSerieRequest(tsr)
+	if e != nil {
+		log.Error().Err(e).Msg("could not rewrite quality for the request")
+		return uri
+	}
+
+	log.Debug().Msg("trying to get hash")
+	hash, ok := tsr.getTitleHash()
+	if !ok {
+		return uri
+	}
+
+	log.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
+	return strings.ReplaceAll(
+		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/"),
+		hash, title.QualityHashes[quality],
+	)
+}
+
 func (*App) getUidFromRequest(payload string) (uid string) {
 	if uid = strings.TrimSpace(payload); uid != "" {
 		return
@@ -452,3 +412,33 @@ func (*App) getUidFromRequest(payload string) (uid string) {
 
 	return strings.TrimLeft(uid, "=")
 }
+
+// func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+// 	// client IP parsing
+// 	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
+// 	if cip == "" || cip == "127.0.0.1" {
+// 		gLog.Debug().Str("remote_addr", ctx.RemoteIP().String()).Str("x_forwarded_for", cip).Msg("")
+// 		m.hlpRespondError(&ctx.Response, errHlpBadIp)
+// 		return
+// 	}
+
+// 	// blocklist
+// 	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) && len(ctx.Request.Header.Peek("X-ReqLimit-Status")) != 0 {
+// 		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
+// 			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
+
+// 		if !m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
+// 			log.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
+// 		}
+
+// 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
+// 		return
+// 	}
+
+// 	if m.banlist.isExists(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
+// 		log.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
+
+// 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
+// 		return
+// 	}
+// }
