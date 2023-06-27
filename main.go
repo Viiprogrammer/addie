@@ -120,6 +120,26 @@ func main() {
 			Name:  "http-pprof-enable",
 			Usage: "enable golang http-pprof methods",
 		},
+		&cli.BoolFlag{
+			Name:  "http-limiter-bbolt",
+			Usage: "use bbolt key\value file database instead of memory database",
+		},
+
+		// limiter settings
+		&cli.IntFlag{
+			Name:  "limiter-max-req",
+			Value: 10,
+		},
+		&cli.DurationFlag{
+			Name:  "limiter-records-duration",
+			Value: 1 * time.Minute,
+		},
+
+		// bbolt settings
+		&cli.StringFlag{
+			Name:  "database-prefix",
+			Value: ".",
+		},
 
 		// anilibria settings
 		&cli.StringFlag{

@@ -20,9 +20,12 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/skip"
+	bolt "github.com/gofiber/storage/bbolt"
+	"github.com/gofiber/storage/memory"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 )
@@ -53,7 +56,9 @@ var (
 )
 
 type App struct {
-	fb       *fiber.App
+	fb     *fiber.App
+	fbstor fiber.Storage
+
 	cache    *CachedTitlesBucket
 	banlist  *blocklist
 	balancer *balancer
@@ -100,8 +105,26 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		},
 	})
 
-	app.fiberConfigure()
+	// storage setup for fiber's limiter
+	if gCli.Bool("http-limiter-bbolt") {
+		var prefix string
+		if prefix := gCli.String("database-prefix"); prefix == "" {
+			prefix = "."
+		}
 
+		app.fbstor = bolt.New(bolt.Config{
+			Database: fmt.Sprintf("%s/%s.db", prefix, gCli.App.Name),
+			Bucket:   "application-limiter",
+			Reset:    false,
+		})
+	} else {
+		app.fbstor = memory.New(memory.Config{
+			GCInterval: 1 * time.Minute,
+		})
+	}
+
+	// router configuration
+	app.fiberConfigure()
 	return app
 }
 
@@ -151,9 +174,32 @@ func (m *App) fiberConfigure() {
 
 	// app
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
+
+	// app limiter
+	media.Use(limiter.New(limiter.Config{
+		Next: func(c *fiber.Ctx) bool {
+			return c.IP() == "127.0.0.1" || gCli.App.Version == "devel"
+		},
+
+		Max:        gCli.Int("limiter-max-req"),
+		Expiration: gCli.Duration("limiter-records-duration"),
+
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.SendStatus(fiber.StatusTooManyRequests)
+		},
+
+		Storage: m.fbstor,
+	}))
+
+	// app middlewares
 	media.Use(
 		m.fbMidAppFakeQuality,
 		m.fbMidAppConsulLottery)
+
+	// app sign handler
 	media.Use(m.fbHndAppRequestSign)
 }
 
