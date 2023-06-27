@@ -1,14 +1,10 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"math/rand"
-	"net/url"
 	"os"
 	"os/signal"
 	"regexp"
@@ -43,13 +39,10 @@ var (
 	gAniApi *ApiClient
 )
 
-var (
-	errHlpBadIp    = errors.New("got a problem in parsing X-Forwarded-For request")
-	errHlpBadInput = errors.New("there are empty headers in the request")
-	errHlpBadUri   = errors.New("invalid uri")
-	errHlpBadUid   = errors.New("got a problem in uid parsing")
-	errHlpBanIp    = errors.New("your ip address has reached download limits; try again later")
-)
+// var (
+// 	errHlpBadUid   = errors.New("got a problem in uid parsing")
+// 	errHlpBanIp    = errors.New("your ip address has reached download limits; try again later")
+// )
 
 var (
 	gQualityLock  sync.RWMutex
@@ -341,52 +334,6 @@ func (*App) applyQualityLevel(input []byte) (e error) {
 	return
 }
 
-// func (*App) checkErrorsBeforeClosing(errs chan error) {
-// 	gLog.Debug().Msg("pre-exit error chan checking for errors...")
-// 	if len(errs) == 0 {
-// 		gLog.Debug().Msg("error chan is empty, cool")
-// 		return
-// 	}
-
-// 	close(errs)
-// 	for err := range errs {
-// 		gLog.Warn().Err(err).Msg("an error has been detected while application trying close the submodules")
-// 	}
-// }
-
-// func (*App) defaultHandler(ctx *fasthttp.RequestCtx) {
-// 	fmt.Fprintf(ctx, "Hello, world!\n\n")
-
-// 	fmt.Fprintf(ctx, "Request method is %q\n", ctx.Method())
-// 	fmt.Fprintf(ctx, "RequestURI is %q\n", ctx.RequestURI())
-// 	fmt.Fprintf(ctx, "Requested path is %q\n", ctx.Path())
-// 	fmt.Fprintf(ctx, "Host is %q\n", ctx.Host())
-// 	fmt.Fprintf(ctx, "Query string is %q\n", ctx.QueryArgs())
-// 	fmt.Fprintf(ctx, "User-Agent is %q\n", ctx.UserAgent())
-// 	fmt.Fprintf(ctx, "Connection has been established at %s\n", ctx.ConnTime())
-// 	fmt.Fprintf(ctx, "Request has been started at %s\n", ctx.Time())
-// 	fmt.Fprintf(ctx, "Serial request number for the current connection is %d\n", ctx.ConnRequestNum())
-// 	fmt.Fprintf(ctx, "Your ip is %q\n\n", ctx.RemoteIP())
-
-// 	fmt.Fprintf(ctx, "Raw request is:\n---CUT---\n%s\n---CUT---", &ctx.Request)
-
-// 	ctx.Response.Header.Add("X-Location", "google.com")
-// 	ctx.Response.SetStatusCode(fasthttp.StatusOK)
-// }
-
-// 115     proxy_set_header X-Client-ID $client_id;
-// 116     proxy_set_header X-Client-URI $request_uri;
-// 117     proxy_set_header X-Cache-Server $http_x_cache_server;
-
-// root@cache-lb1 conf.d #                                                                                                                                                                                                                                                                                                      root@cache-lb1 conf.d # GET /gethtlextra HTTP/1.1                                                                                                                                                                                                                                                                            Host: cache.libria.fun                                                                                                                                                                                                                                                                                                       X-Real-IP: 138.201.93.209                                                                                                                                                                                                                                                                                                    X-Forwarded-Host: cache.libria.fun
-// X-Forwarded-Server: cache.libria.fun
-// X-Forwarded-For: 138.201.93.209
-// X-Forwarded-Proto: https
-// X-Client-ID: uid=9FCCEBA77AD66E63BE05A3A502040303
-// X-Client-URI: /lalalal/1.m3u8
-// X-Cache-Server: 95.216.116.38
-// Connection: close
-
 func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 	status = append(status, fasthttp.StatusInternalServerError)
 
@@ -396,134 +343,35 @@ func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 	gLog.Error().Err(err).Msg("")
 }
 
-func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+// func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+// 	// client IP parsing
+// 	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
+// 	if cip == "" || cip == "127.0.0.1" {
+// 		gLog.Debug().Str("remote_addr", ctx.RemoteIP().String()).Str("x_forwarded_for", cip).Msg("")
+// 		m.hlpRespondError(&ctx.Response, errHlpBadIp)
+// 		return
+// 	}
 
-	// debug methods
-	if string(ctx.Request.RequestURI()) == "/debug/upstream" {
-		fmt.Fprint(ctx, m.balancer.getUpstreamStats())
-		ctx.SetContentType("text/plain; charset=utf8")
-		ctx.Response.SetStatusCode(fasthttp.StatusOK)
-		return
-	}
+// 	// blocklist
+// 	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) && len(ctx.Request.Header.Peek("X-ReqLimit-Status")) != 0 {
+// 		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
+// 			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
 
-	if string(ctx.Request.RequestURI()) == "/debug/reset" {
-		m.balancer.resetServersStats()
-		ctx.SetContentType("text/plain; charset=utf8")
-		ctx.Response.SetStatusCode(fasthttp.StatusOK)
-		return
-	}
+// 		if !m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
+// 			log.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
+// 		}
 
-	// client IP parsing
-	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
-	if cip == "" || cip == "127.0.0.1" {
-		gLog.Debug().Str("remote_addr", ctx.RemoteIP().String()).Str("x_forwarded_for", cip).Msg("")
-		m.hlpRespondError(&ctx.Response, errHlpBadIp)
-		return
-	}
+// 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
+// 		return
+// 	}
 
-	// blocklist
-	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) && len(ctx.Request.Header.Peek("X-ReqLimit-Status")) != 0 {
-		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
-			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
+// 	if m.banlist.isExists(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
+// 		log.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
 
-		if !m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
-			log.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
-		}
-
-		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
-		return
-	}
-
-	if m.banlist.isExists(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
-		log.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
-
-		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
-		return
-	}
-
-	// another values parsing
-	uri := string(ctx.Request.Header.Peek("X-Client-URI"))
-	uid := string(ctx.Request.Header.Peek("X-Client-ID"))
-	srv := string(ctx.Request.Header.Peek("X-Cache-Server"))
-
-	if uri == "" || uid == "" || srv == "" {
-		gLog.Debug().Strs("headers", []string{uri, uid, srv}).Str("remote_addr", ctx.RemoteIP().String()).
-			Str("x_forwarded_for", cip).Msg("")
-		m.hlpRespondError(&ctx.Response, errHlpBadInput, fasthttp.StatusBadRequest)
-		return
-	}
-
-	if uid = m.getUidFromRequest(uid); uid == "" {
-		gLog.Debug().Str("uid", uid).Str("remote_addr", ctx.RemoteIP().String()).
-			Str("x_forwarded_for", cip).Msg("")
-		m.hlpRespondError(&ctx.Response, errHlpBadUid, fasthttp.StatusBadRequest)
-		return
-	}
-
-	if !m.chunkRegexp.Match(ctx.Request.Header.Peek("X-Client-URI")) {
-		gLog.Debug().Str("uri", uri).Str("remote_addr", ctx.RemoteIP().String()).
-			Str("x_forwarded_for", cip).Msg("")
-		m.hlpRespondError(&ctx.Response, errHlpBadUri, fasthttp.StatusBadRequest)
-		return
-	}
-
-	//
-	//
-	//
-
-	// quality cooler:
-	// uri = m.getUriWithFakeQuality(nil, uri, gQualityLevel)
-
-	// consul managing
-	if gCli.Bool("consul-managed") {
-		// lottery
-		if gLotteryChance >= rand.Intn(99)+1 {
-			ip, s := m.balancer.getServerByChunkName(
-				string(
-					m.chunkRegexp.FindSubmatch(
-						ctx.Request.Header.Peek("X-Client-URI"),
-					)[chunkName],
-				),
-			)
-
-			if ip != "" {
-				srv = strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
-				gLog.Trace().Msgf("test new consul balancing %s %s", ip, srv)
-			} else {
-				gLog.Debug().Msg("consul has no servers for balancing, fallback to old method")
-			}
-		} else {
-			gLog.Debug().Msg("consul lottery looser, fallback to old method")
-		}
-	}
-
-	// request signer:
-	expires, extra := m.getHlpExtra(uri, cip, srv, uid)
-
-	// furl := fasthttp.AcquireURI()
-	// furl.Parse(nil, ctx.Request.Header.Peek("X-Client-URI"))
-	// furl.Q
-
-	rrl, e := url.Parse(srv + uri)
-	if e != nil {
-		gLog.Debug().Str("url_parse", srv+uri).Str("remote_addr", ctx.RemoteIP().String()).
-			Str("x_forwarded_for", cip).Msg("")
-		m.hlpRespondError(&ctx.Response, e)
-		return
-	}
-
-	var rgs = &url.Values{}
-	rgs.Add("expires", expires)
-	rgs.Add("extra", extra)
-	rrl.RawQuery = rgs.Encode()
-
-	rrl.Scheme = "https"
-
-	gLog.Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.RemoteIP().String()).
-		Str("x_forwarded_for", cip).Msg("")
-	ctx.Response.Header.Set("X-Location", rrl.String())
-	ctx.Response.SetStatusCode(fasthttp.StatusOK)
-}
+// 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
+// 		return
+// 	}
+// }
 
 func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality titleQuality) string {
 	log.Debug().Msg("format check")
