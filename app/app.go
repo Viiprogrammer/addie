@@ -291,6 +291,13 @@ func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	if string(ctx.Request.RequestURI()) == "/debug/reset" {
+		m.balancer.resetServersStats()
+		ctx.SetContentType("text/plain; charset=utf8")
+		ctx.Response.SetStatusCode(fasthttp.StatusOK)
+		return
+	}
+
 	// client IP parsing
 	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
 	if cip == "" || cip == "127.0.0.1" {
