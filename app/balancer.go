@@ -53,6 +53,16 @@ func (m balancerUpstream) set(k string, v *server) {
 	upstreamLocker.Unlock()
 }
 
+func (m balancerUpstream) resetStats() {
+	upstreamLocker.Lock()
+
+	for _, server := range m {
+		server.resetStat()
+	}
+
+	upstreamLocker.Unlock()
+}
+
 func newServer(name string) *server {
 	return &server{
 		name:            name,
@@ -61,13 +71,23 @@ func newServer(name string) *server {
 }
 
 func (m *server) updateStat() {
-	m.RLock()
+	m.Lock()
 
 	m.proxiedRequests = m.proxiedRequests + 1
 	m.lastRequestTime = time.Now()
 
 	gLog.Trace().Msgf("new server request #%d in %s", m.proxiedRequests, m.lastRequestTime.String())
-	m.RUnlock()
+	m.Unlock()
+}
+
+func (m *server) resetStat() {
+	m.Lock()
+
+	m.proxiedRequests = 0
+	m.lastRequestTime = time.Time{}
+
+	gLog.Trace().Msg("server's stats was resetted")
+	m.Unlock()
 }
 
 func newBalancer() *balancer {
@@ -193,4 +213,12 @@ func (m *balancer) getNextServer(idx int) (_ *net.IP) {
 	}
 
 	return &m.balancer[idx%int(m.midx)]
+}
+
+func (m *balancer) resetServersStats() {
+	gLog.Debug().Msg("upstream reset stats called")
+
+	balancerLocker.Lock()
+	m.upstream.resetStats()
+	balancerLocker.Unlock()
 }
