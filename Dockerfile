@@ -18,7 +18,7 @@ RUN apk add --no-cache upx \
   && apk del upx
 
 
-FROM alpine
+FROM alpine:3
 LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
 WORKDIR /
