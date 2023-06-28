@@ -25,7 +25,7 @@ func (m *CachedTitlesBucket) PullSerie(tid, sid uint16) (serie *TitleSerie, _ er
 
 	m.locker.RLock()
 	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
-		log.Debug().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
+		gLog.Debug().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
 	}
 
 	serie = m.bucket[uint32(tid)<<16|uint32(sid)]

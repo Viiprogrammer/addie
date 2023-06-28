@@ -103,7 +103,7 @@ func getHashFromUriPath(upath string) (hash string, ok bool) {
 func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool) {
 	serie, e := m.cache.PullSerie(tsr.getTitleId(), tsr.getSerieId())
 	if e != nil {
-		log.Warn().Err(e).Msg("")
+		gLog.Warn().Err(e).Msg("")
 		return nil, false
 	}
 
@@ -125,12 +125,12 @@ func (m *App) getTitleSeriesFromApi(titleId string) (_ []*TitleSerie, e error) {
 func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 	for _, serie := range title.Player.Playlist {
 		if serie == nil {
-			log.Warn().Msg("there is an empty serie found in the api response's playlist")
+			gLog.Warn().Msg("there is an empty serie found in the api response's playlist")
 			continue
 		}
 
 		if serie.Hls == nil {
-			log.Warn().Msg("there is an empty serie.HLS found in the api response's playlist")
+			gLog.Warn().Msg("there is an empty serie.HLS found in the api response's playlist")
 			continue
 		}
 
@@ -142,19 +142,19 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 
 		if serie.Hls.Sd != "" {
 			if tserie.QualityHashes[titleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
-				log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
+				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
 			}
 		}
 
 		if serie.Hls.Hd != "" {
 			if tserie.QualityHashes[titleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
-				log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
+				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
 			}
 		}
 
 		if serie.Hls.Fhd != "" {
 			if tserie.QualityHashes[titleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
-				log.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
+				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
 			}
 		}
 
@@ -167,13 +167,13 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e error) {
 	var ok bool
 
-	log.Debug().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from cache")
+	gLog.Debug().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from cache")
 	if ts, ok = m.getTitleSerieFromCache(tsr); ok {
 		return
 	}
 
 	var tss []*TitleSerie
-	log.Info().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from api")
+	gLog.Info().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from api")
 	if tss, e = m.getTitleSeriesFromApi(tsr.getTitleIdString()); e != nil {
 		return
 	}
@@ -188,7 +188,7 @@ func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e err
 		}
 
 		if e = m.cache.PushSerie(t); e != nil {
-			log.Warn().Err(e).Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("")
+			gLog.Warn().Err(e).Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("")
 			continue
 		}
 	}
