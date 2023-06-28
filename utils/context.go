@@ -11,5 +11,5 @@ const (
 
 const (
 	CfgLotteryChance = "lottery-chance"
-	CfxQualityLevel  = "quality-level"
+	CfgQualityLevel  = "quality-level"
 )

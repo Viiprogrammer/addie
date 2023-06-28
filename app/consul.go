@@ -206,7 +206,7 @@ loop:
 			switch key {
 			case utils.CfgLotteryChance:
 				rconfig.lotteryChance = pair.Value
-			case utils.CfxQualityLevel:
+			case utils.CfgQualityLevel:
 				rconfig.qualityLevel = pair.Value
 			}
 
