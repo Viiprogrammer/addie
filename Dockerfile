@@ -13,12 +13,12 @@ RUN go mod download
 COPY . .
 RUN go build -ldflags="-s -w -X 'main.version=docker_release'" -o /anilibria-hlp-service
 
-RUN apk add --no-cache upx \
+RUN apk add --no-cache upx=4.0.2-r0 \
   && upx -9 -k /anilibria-hlp-service \
   && apk del upx
 
 
-FROM alpine
+FROM alpine:3
 LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
 WORKDIR /

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	dlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -19,7 +18,7 @@ func (m *apiResponse) parseApiResponse(schema interface{}) (e error) {
 }
 
 func (*ApiClient) debugHttpHandshake(data interface{}, withBody ...bool) {
-	if !ccx.Bool("http-debug") {
+	if !gCli.Bool("http-debug") {
 		return
 	}
 
@@ -37,14 +36,14 @@ func (*ApiClient) debugHttpHandshake(data interface{}, withBody ...bool) {
 	case *http.Response:
 		dump, _ = httputil.DumpResponse(data.(*http.Response), body)
 	default:
-		log.Error().Msgf("there is an internal application error; undefined type - %T", v)
+		gLog.Error().Msgf("there is an internal application error; undefined type - %T", v)
 	}
 
 	if err != nil {
-		log.Warn().Err(err).Msg("got an error in http debug proccess")
+		gLog.Warn().Err(err).Msg("got an error in http debug proccess")
 	}
 
-	dlog.Println(string(dump))
+	fmt.Println(string(dump))
 }
 
 func (*ApiClient) setApiRequestHeaders(req *http.Request) *http.Request {
@@ -104,7 +103,7 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 	}
 	defer func() {
 		if e := rsp.Body.Close(); e != nil {
-			log.Warn().Err(e)
+			gLog.Warn().Err(e)
 		}
 	}()
 
@@ -117,19 +116,19 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 
 	switch rsp.StatusCode {
 	case http.StatusOK:
-		log.Debug().Str("api_method", string(amethod)).Msg("api reqiest has been completed with response 200 OK")
+		gLog.Debug().Str("api_method", string(amethod)).Msg("api reqiest has been completed with response 200 OK")
 	default:
-		log.Warn().Str("api_method", string(amethod)).Int("api_response_code", rsp.StatusCode).
+		gLog.Warn().Str("api_method", string(amethod)).Int("api_response_code", rsp.StatusCode).
 			Msg("abnormal api response; trying to parse api error object...")
 
 		var aerr *apiError
 		if err := arsp.parseApiResponse(&aerr); err != nil {
-			log.Error().Err(arsp.Err()).Msg("got an error in parsing reponse error object")
+			gLog.Error().Err(arsp.Err()).Msg("got an error in parsing reponse error object")
 			arsp.err = errApiAbnormalResponse
 			return
 		}
 
-		log.Warn().Int("error_code", aerr.Error.Code).Str("error_desc", aerr.Error.Message).
+		gLog.Warn().Int("error_code", aerr.Error.Code).Str("error_desc", aerr.Error.Message).
 			Msg("api error object has been parse")
 		arsp.err = errApiAbnormalResponse
 		return

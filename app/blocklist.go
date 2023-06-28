@@ -33,17 +33,17 @@ func (m *blocklist) run(done func()) {
 		return
 	}
 
-	log.Debug().Msg("strating blocklist loop...")
+	gLog.Debug().Msg("strating blocklist loop...")
 	m.ticker = time.NewTicker(time.Minute)
 
 loop:
 	for {
 		select {
 		case <-gCtx.Done():
-			log.Warn().Msg("context done() has been caught; stopping cron subservice...")
+			gLog.Warn().Msg("context done() has been caught; stopping cron subservice...")
 			break loop
 		case <-m.ticker.C:
-			log.Trace().Msg("start searching of expired bans...")
+			gLog.Trace().Msg("start searching of expired bans...")
 
 			m.wg.Add(1)
 			m.findExpiredBans(m.wg.Done)
@@ -52,7 +52,7 @@ loop:
 
 	m.ticker.Stop()
 
-	log.Debug().Msg("waiting for goroutines with blocklist jobs...")
+	gLog.Debug().Msg("waiting for goroutines with blocklist jobs...")
 	m.wg.Wait()
 }
 
@@ -60,7 +60,7 @@ func (m *blocklist) findExpiredBans(done func()) {
 	defer done()
 
 	if !m.ticklock.TryLock() {
-		log.Debug().Msg("could not get lock for the job, seems previous call has not been completed yet")
+		gLog.Debug().Msg("could not get lock for the job, seems previous call has not been completed yet")
 		return
 	}
 	defer m.ticklock.Unlock()
@@ -73,7 +73,7 @@ func (m *blocklist) findExpiredBans(done func()) {
 	now := time.Now()
 	for addr, time := range blist {
 		if time.Before(now) {
-			log.Debug().Str("ip", addr.String()).Time("now", now).Time("ban_time", time).Msg("unblocking ip address...")
+			gLog.Debug().Str("ip", addr.String()).Time("now", now).Time("ban_time", time).Msg("unblocking ip address...")
 			m.pop(addr)
 		}
 	}
@@ -91,10 +91,10 @@ func (m *blocklist) push(ip []byte) bool {
 
 	m.locker.RLock()
 
-	m.list[addr] = time.Now().Add(ccx.Duration("ip-ban-time"))
+	m.list[addr] = time.Now().Add(gCli.Duration("ip-ban-time"))
 	m.locker.RUnlock()
 
-	log.Debug().Str("addr", addr.String()).Time("ban_time", time.Now().Add(ccx.Duration("ip-ban-time"))).
+	gLog.Debug().Str("addr", addr.String()).Time("ban_time", time.Now().Add(gCli.Duration("ip-ban-time"))).
 		Msg("ip addres has been added to blocklist")
 	return ok
 }
@@ -109,7 +109,7 @@ func (m *blocklist) pop(addr netip.Addr) {
 	delete(m.list, addr)
 	m.locker.Unlock()
 
-	log.Debug().Str("addr", addr.String()).Msg("ip addres has been remove from blocklist")
+	gLog.Debug().Str("addr", addr.String()).Msg("ip addres has been remove from blocklist")
 }
 
 func (m *blocklist) isExists(ip []byte) (ok bool) {
