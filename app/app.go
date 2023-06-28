@@ -384,11 +384,11 @@ func (*App) applyQualityLevel(input []byte) (e error) {
 }
 
 // getHlpExtra() simply is a secure_link implementation
-//
+
 // docs:
 // https://nginx.org/ru/docs/http/ngx_http_secure_link_module.html#secure_link
 //
-// unix example:
+// bash example:
 //
 //	echo -n '2147483647/s/link127.0.0.1 secret' | \
 //		openssl md5 -binary | openssl base64 | tr +/ -_ | tr -d =
