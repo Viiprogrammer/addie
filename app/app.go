@@ -227,7 +227,7 @@ func (m *App) Bootstrap() (e error) {
 
 	// anilibria API
 	gLog.Info().Msg("starting anilibria api client...")
-	if gAniApi, e = NewApiClient(gCli, gLog); e != nil {
+	if gAniApi, e = NewApiClient(); e != nil {
 		return
 	}
 
@@ -258,7 +258,7 @@ func (m *App) Bootstrap() (e error) {
 		gLog.Info().Msg("bootstrap ban subsystem...")
 		wg.Add(1)
 		go func(adone func()) {
-			m.banlist = newBlocklist(!ccx.Bool("ban-ip-disable"))
+			m.banlist = newBlocklist(!gCli.Bool("ban-ip-disable"))
 			m.banlist.run(adone)
 		}(wg.Done)
 	}
@@ -362,7 +362,7 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 }
 
 func (*App) applyQualityLevel(input []byte) (e error) {
-	log.Info().Msg("quality settings change requested")
+	gLog.Info().Msg("quality settings change requested")
 
 	gQualityLock.Lock()
 	defer gQualityLock.Unlock()
@@ -429,26 +429,26 @@ func (*App) getHlpExtra(uri, cip, sip, uid string) (expires, extra string) {
 }
 
 func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality titleQuality) string {
-	log.Debug().Msg("format check")
+	gLog.Debug().Msg("format check")
 	if tsr.isOldFormat() && !tsr.isM3U8() {
-		log.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
+		gLog.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
 		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
 	}
 
-	log.Debug().Msg("trying to complete tsr")
+	gLog.Debug().Msg("trying to complete tsr")
 	title, e := m.doTitleSerieRequest(tsr)
 	if e != nil {
-		log.Error().Err(e).Msg("could not rewrite quality for the request")
+		gLog.Error().Err(e).Msg("could not rewrite quality for the request")
 		return uri
 	}
 
-	log.Debug().Msg("trying to get hash")
+	gLog.Debug().Msg("trying to get hash")
 	hash, ok := tsr.getTitleHash()
 	if !ok {
 		return uri
 	}
 
-	log.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
+	gLog.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
 	return strings.ReplaceAll(
 		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/"),
 		hash, title.QualityHashes[quality],
@@ -474,11 +474,11 @@ func (*App) getUidFromRequest(payload string) (uid string) {
 
 // 	// blocklist
 // 	if !bytes.Equal(ctx.Request.Header.Peek("X-ReqLimit-Status"), []byte("PASSED")) && len(ctx.Request.Header.Peek("X-ReqLimit-Status")) != 0 {
-// 		log.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
+// 		gLog.Info().Str("reqlimit_status", string(ctx.Request.Header.Peek("X-ReqLimit-Status"))).Str("remote_addr", cip).
 // 			Msg("bad x-reqlimit-status detected, given ip addr will be banned immediately")
 
 // 		if !m.banlist.push(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
-// 			log.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
+// 			gLog.Warn().Str("remote_addr", cip).Msg("there is an unknown error in blocklist.push method")
 // 		}
 
 // 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
@@ -486,7 +486,7 @@ func (*App) getUidFromRequest(payload string) (uid string) {
 // 	}
 
 // 	if m.banlist.isExists(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor)) {
-// 		log.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
+// 		gLog.Debug().Str("remote_addr", cip).Msg("given remote addr has been banned")
 
 // 		m.hlpRespondError(&ctx.Response, errHlpBanIp, fasthttp.StatusForbidden)
 // 		return

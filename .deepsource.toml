@@ -1,8 +1,19 @@
 version = 1
 
+exclude_patterns = ["vendor/**"]
+
+[[analyzers]]
+name = "docker"
+
+[[analyzers]]
+name = "secrets"
+
 [[analyzers]]
 name = "go"
-enabled = true
 
   [analyzers.meta]
   import_root = "github.com/MindHunter86/anilibria-hlp-service"
+  dependencies_vendored = true
+
+[[transformers]]
+name = "gofmt"
