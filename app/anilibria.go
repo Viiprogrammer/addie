@@ -9,18 +9,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/urfave/cli/v2"
 	"golang.org/x/net/http2"
 )
 
 var (
-	ccx *cli.Context
-	log *zerolog.Logger
-)
-
-var (
-	errApiAbnormalResponse    = errors.New("there is some problems with anilibria servers communication")
+	errApiAbnormalResponse = errors.New("there is some problems with anilibria servers communication")
 )
 
 type ApiClient struct {
@@ -32,6 +25,7 @@ type ApiClient struct {
 const defaultApiMethodFilter = "id,code,names,updated,last_change,player"
 
 type ApiRequestMethod string
+
 const (
 	apiMethodGetTitle ApiRequestMethod = "/getTitle"
 )
@@ -58,28 +52,26 @@ func (m *apiResponse) Error() string {
 	return m.err.Error()
 }
 
-func NewApiClient(c *cli.Context, l *zerolog.Logger) (*ApiClient, error) {
-	ccx, log = c, l
-
+func NewApiClient() (*ApiClient, error) {
 	defaultTransportDialContext := func(dialer *net.Dialer) func(context.Context, string, string) (net.Conn, error) {
 		return dialer.DialContext
 	}
 
 	http1Transport := &http.Transport{
 		DialContext: defaultTransportDialContext(&net.Dialer{
-			Timeout:   ccx.Duration("http-tcp-timeout"),
-			KeepAlive: ccx.Duration("http-keepalive-timeout"),
+			Timeout:   gCli.Duration("http-tcp-timeout"),
+			KeepAlive: gCli.Duration("http-keepalive-timeout"),
 		}),
 
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: ccx.Bool("http-client-insecure"),
+			InsecureSkipVerify: gCli.Bool("http-client-insecure"),
 			MinVersion:         tls.VersionTLS12,
 			MaxVersion:         tls.VersionTLS12,
 		},
-		TLSHandshakeTimeout: ccx.Duration("http-tls-handshake-timeout"),
+		TLSHandshakeTimeout: gCli.Duration("http-tls-handshake-timeout"),
 
-		MaxIdleConns:    ccx.Int("http-max-idle-conns"),
-		IdleConnTimeout: ccx.Duration("http-idle-timeout"),
+		MaxIdleConns:    gCli.Int("http-max-idle-conns"),
+		IdleConnTimeout: gCli.Duration("http-idle-timeout"),
 
 		DisableCompression: false,
 		DisableKeepAlives:  false,
@@ -90,12 +82,12 @@ func NewApiClient(c *cli.Context, l *zerolog.Logger) (*ApiClient, error) {
 	http2Transport, err := http2.ConfigureTransports(http1Transport)
 	if err != nil {
 		httpTransport = http2Transport
-		log.Warn().Err(err).Msg("could not upgrade http transport to v2 because of internal error")
+		gLog.Warn().Err(err).Msg("could not upgrade http transport to v2 because of internal error")
 	}
 
 	var apiClient = &ApiClient{
 		http: &http.Client{
-			Timeout:   time.Duration(ccx.Int("http-client-timeout")) * time.Second,
+			Timeout:   time.Duration(gCli.Int("http-client-timeout")) * time.Second,
 			Transport: httpTransport,
 		},
 	}
@@ -104,6 +96,6 @@ func NewApiClient(c *cli.Context, l *zerolog.Logger) (*ApiClient, error) {
 }
 
 func (m *ApiClient) getApiBaseUrl() (e error) {
-	m.apiBaseUrl, e = url.Parse(ccx.String("anilibria-api-baseurl"))
+	m.apiBaseUrl, e = url.Parse(gCli.String("anilibria-api-baseurl"))
 	return e
 }

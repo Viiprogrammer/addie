@@ -88,7 +88,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	gQualityLock.RLock()
 	defer gQualityLock.RUnlock()
 
-	log.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(gQualityLevel)).
+	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(gQualityLevel)).
 		Msg("quality check")
 	if tsr.getTitleQuality() <= gQualityLevel {
 		ctx.Locals("uri", uri)
