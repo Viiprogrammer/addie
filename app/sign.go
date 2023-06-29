@@ -33,7 +33,7 @@ func (*App) getHlpExtra(uri, cip, sip, uid string) (expires, extra string) {
 
 	// md5 sum
 	md5sum := md5.Sum([]byte(buf))
-	gLog.Debug().Bytes("computed_md5", md5sum[:]).
+	gLog.Trace().Bytes("computed_md5", md5sum[:]).
 		Str("remote_addr", cip).Str("request_uri", uri).Msg("")
 
 	// base64 encoding

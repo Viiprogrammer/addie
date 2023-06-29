@@ -118,10 +118,6 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 		gLog.Warn().Msg(errApiPreBadServer.Error())
 		ctx.Set("X-Error", errApiPreBadServer.Error())
 		ctx.SendString(errApiPreBadServer.Error())
-	case errMidAppPreUidFromReq:
-		gLog.Warn().Msg(errApiPreUidParse.Error())
-		ctx.Set("X-Error", errApiPreUidParse.Error())
-		ctx.SendString(errApiPreUidParse.Error())
 	case errMidAppPreUriRegexp:
 		gLog.Warn().Msg(errApiPreUriRegexp.Error())
 		ctx.Set("X-Error", errApiPreUriRegexp.Error())
@@ -134,7 +130,7 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
-	gLog.Debug().Msg("new `sign request` request")
+	gLog.Trace().Msg("new `sign request` request")
 
 	srv := ctx.Locals("srv").(string)
 	expires, extra := m.getHlpExtra(

@@ -31,7 +31,6 @@ const (
 	errMidAppPreHeaderUri appMidError = 1 << iota
 	errMidAppPreHeaderId
 	errMidAppPreHeaderServer
-	errMidAppPreUidFromReq
 	errMidAppPreUriRegexp
 )
 
@@ -51,29 +50,22 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 
 	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("debug")
 	switch h := ctx.GetReqHeaders(); {
-	case h[apiHeaderUri] == "":
+	case strings.TrimSpace(h[apiHeaderUri]) == "":
 		errs = errs | errMidAppPreHeaderUri
 		ctx.Locals("errors", errs)
 		return
-	case h[apiHeaderId] == "":
+	case strings.TrimSpace(h[apiHeaderId]) == "":
 		errs = errs | errMidAppPreHeaderId
 		ctx.Locals("errors", errs)
 		return
-	case h[apiHeaderServer] == "":
+	case strings.TrimSpace(h[apiHeaderServer]) == "":
 		errs = errs | errMidAppPreHeaderServer
 		ctx.Locals("errors", errs)
 		return
 	}
 
-	// parse title uid from given request
-	uid := m.getUidFromRequest(ctx.Get(apiHeaderUri))
-	if uid == "" {
-		ctx.Locals("errors", errs|errMidAppPreUidFromReq)
-		return
-	}
-
-	ctx.Locals("uid", uid)
-	ctx.Locals("srv", ctx.Get(apiHeaderServer))
+	ctx.Locals("uid", strings.TrimSpace(ctx.Get(apiHeaderId)))
+	ctx.Locals("srv", strings.TrimSpace(ctx.Get(apiHeaderServer)))
 
 	// match uri
 	if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
