@@ -185,6 +185,7 @@ func (m *App) fiberConfigure() {
 	api := m.fb.Group("/api")
 	api.Get("/upstream", m.fbHndApiUpstream)
 	api.Get("/reset", m.fbHndApiReset)
+	api.Post("logger/level", m.fbHndApiLoggerLevel)
 
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")

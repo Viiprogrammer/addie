@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
 )
 
 func (m *App) fbHndApiUpstream(ctx *fiber.Ctx) error {
@@ -80,31 +81,50 @@ func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-// func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
-// 	status = append(status, fasthttp.StatusInternalServerError)
+func (m *App) fbHndApiLoggerLevel(ctx *fiber.Ctx) error {
+	lvl := ctx.Query("level")
 
-// 	r.Header.Set("X-Error", err.Error())
-// 	r.SetStatusCode(status[0])
+	switch lvl {
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	default:
+		return fiber.NewError(fiber.StatusBadRequest, "unknown level sent")
+	}
 
-// 	gLog.Error().Err(err).Msg("")
-// }
+	gLog.Error().Msgf("[falsepositive]> new log level applied - %s", gLog.GetLevel().String())
+
+	return ctx.SendStatus(fiber.StatusOK)
+}
 
 func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 	switch ctx.Locals("errors").(appMidError) {
 	case errMidAppPreHeaderUri:
 		gLog.Warn().Msg(errApiPreBadUri.Error())
+		ctx.Set("X-Error", errApiPreBadUri.Error())
 		ctx.SendString(errApiPreBadUri.Error())
 	case errMidAppPreHeaderId:
 		gLog.Warn().Msg(errApiPreBadId.Error())
+		ctx.Set("X-Error", errApiPreBadId.Error())
 		ctx.SendString(errApiPreBadId.Error())
 	case errMidAppPreHeaderServer:
 		gLog.Warn().Msg(errApiPreBadServer.Error())
+		ctx.Set("X-Error", errApiPreBadServer.Error())
 		ctx.SendString(errApiPreBadServer.Error())
 	case errMidAppPreUidFromReq:
 		gLog.Warn().Msg(errApiPreUidParse.Error())
+		ctx.Set("X-Error", errApiPreUidParse.Error())
 		ctx.SendString(errApiPreUidParse.Error())
 	case errMidAppPreUriRegexp:
 		gLog.Warn().Msg(errApiPreUriRegexp.Error())
+		ctx.Set("X-Error", errApiPreUriRegexp.Error())
 		ctx.SendString(errApiPreUriRegexp.Error())
 	default:
 		gLog.Warn().Msg("unknown error")
