@@ -247,9 +247,9 @@ func main() {
 		}
 
 		if !fiber.IsChild() {
-			log.Info().Msg("ready...")
 			log.Info().Msgf("system cpu count %d", runtime.NumCPU())
-			log.Info().Strs("args", os.Args).Msg("")
+			log.Info().Msgf("cmdline - %v", os.Args)
+			log.Debug().Msgf("environment - %v", os.Environ())
 		} else {
 			log.Info().Msgf("system cpu count %d", runtime.NumCPU())
 			log.Info().Msgf("old cpu count %d", runtime.GOMAXPROCS(1))

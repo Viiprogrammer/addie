@@ -183,6 +183,7 @@ func (m *App) Bootstrap() (e error) {
 	wg.Add(1)
 	go m.loop(echan, wg.Done)
 
+	gLog.Info().Msg("ready...")
 	wg.Wait()
 	return
 }

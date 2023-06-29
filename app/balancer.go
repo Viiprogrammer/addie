@@ -129,7 +129,7 @@ func (m *balancer) updateUpstream(servers map[string]net.IP) {
 }
 
 func (m *balancer) commitUpstream(newbalancer *[]net.IP) {
-	gLog.Info().Msg("new list commiting...")
+	gLog.Info().Msg("balancer - new upstream commiting...")
 
 	balancerLocker.Lock()
 	m.balancer = *newbalancer
