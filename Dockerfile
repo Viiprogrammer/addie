@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 RUN go build -ldflags="-s -w -X 'main.version=docker_release'" -o /anilibria-hlp-service
 
-RUN apk add --no-cache upx=4.0.2-r0 \
+RUN apk add --no-cache upx \
   && upx -9 -k /anilibria-hlp-service \
   && apk del upx
 
