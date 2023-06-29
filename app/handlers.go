@@ -136,7 +136,7 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
 	gLog.Debug().Msg("new `sign request` request")
 
-	srv := ctx.Get(apiHeaderServer)
+	srv := ctx.Locals("srv").(string)
 	expires, extra := m.getHlpExtra(
 		ctx.Locals("uri").(string),
 		ctx.Context().RemoteIP().String(),

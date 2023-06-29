@@ -68,7 +68,7 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 	// parse title uid from given request
 	uid := m.getUidFromRequest(ctx.Get(apiHeaderUri))
 	if uid == "" {
-		ctx.Locals("errs", errs|errMidAppPreUidFromReq)
+		ctx.Locals("errors", errs|errMidAppPreUidFromReq)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 
 	// match uri
 	if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
-		ctx.Locals("errs", errs|errMidAppPreUriRegexp)
+		ctx.Locals("errors", errs|errMidAppPreUriRegexp)
 		return
 	}
 
