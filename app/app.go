@@ -115,7 +115,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 	// storage setup for fiber's limiter
 	if gCli.Bool("limiter-use-bbolt") {
 		var prefix string
-		if prefix := gCli.String("database-prefix"); prefix == "" {
+		if prefix = gCli.String("database-prefix"); prefix == "" {
 			prefix = "."
 		}
 
@@ -212,9 +212,6 @@ func (m *App) fiberConfigure() {
 
 		KeyGenerator: func(c *fiber.Ctx) string {
 			return c.IP()
-		},
-		LimitReached: func(c *fiber.Ctx) error {
-			return c.SendStatus(fiber.StatusTooManyRequests)
 		},
 
 		Storage: m.fbstor,
