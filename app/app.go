@@ -278,16 +278,6 @@ func (m *App) Bootstrap() (e error) {
 		adone()
 	}(wg.Done)
 
-	// ban subsystem
-	if !gCli.Bool("ip-ban-disable") {
-		gLog.Info().Msg("bootstrap ban subsystem...")
-		wg.Add(1)
-		go func(adone func()) {
-			// m.banlist = newBlocklist(!gCli.Bool("ban-ip-disable"))
-			// m.banlist.run(adone)
-		}(wg.Done)
-	}
-
 	// http
 	wg.Add(1)
 	go func(adone func()) {
