@@ -22,6 +22,36 @@ func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
+func (m *App) fbHndApiBlockIp(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+
+	ip := ctx.Query("ip")
+	if ip == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "given ip is empty")
+	}
+
+	if e := gConsul.addIpToBlocklist(ip); e != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+	}
+
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
+func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+
+	ip := ctx.Query("ip")
+	if ip == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "given ip is empty")
+	}
+
+	if e := gConsul.removeIpFromBlocklist(ip); e != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+	}
+
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
 // func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 // 	status = append(status, fasthttp.StatusInternalServerError)
 

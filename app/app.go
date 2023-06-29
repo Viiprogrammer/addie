@@ -59,9 +59,9 @@ type App struct {
 	fb     *fiber.App
 	fbstor fiber.Storage
 
-	cache    *CachedTitlesBucket
-	banlist  *blocklist
-	balancer *balancer
+	cache     *CachedTitlesBucket
+	blocklist *blocklist
+	balancer  *balancer
 
 	chunkRegexp *regexp.Regexp
 }
@@ -69,6 +69,7 @@ type App struct {
 type runtimeConfig struct {
 	lotteryChance []byte
 	qualityLevel  []byte
+	blocklistIps  []byte
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
@@ -167,15 +168,21 @@ func (m *App) fiberConfigure() {
 	}
 
 	// Routes
-	// controll api
+
+	// group api - /api
 	api := m.fb.Group("/api")
 	api.Get("/upstream", m.fbHndApiUpstream)
 	api.Get("/reset", m.fbHndApiReset)
 
-	// app
+	// group blocklist - /api/blocklist
+	blist := api.Group("/blocklist")
+	blist.Post("/add", m.fbHndApiBlockIp)
+	blist.Post("/remove", m.fbHndApiUnblockIp)
+
+	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
 
-	// app limiter
+	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
 			// add emergency stop for limiter
@@ -195,12 +202,12 @@ func (m *App) fiberConfigure() {
 		Storage: m.fbstor,
 	}))
 
-	// app middlewares
+	// group media - middlewares
 	media.Use(
 		m.fbMidAppFakeQuality,
 		m.fbMidAppConsulLottery)
 
-	// app sign handler
+	// group media - sign handler
 	media.Use(m.fbHndAppRequestSign)
 }
 
@@ -258,8 +265,8 @@ func (m *App) Bootstrap() (e error) {
 		gLog.Info().Msg("bootstrap ban subsystem...")
 		wg.Add(1)
 		go func(adone func()) {
-			m.banlist = newBlocklist(!gCli.Bool("ban-ip-disable"))
-			m.banlist.run(adone)
+			// m.banlist = newBlocklist(!gCli.Bool("ban-ip-disable"))
+			// m.banlist.run(adone)
 		}(wg.Done)
 	}
 
@@ -338,6 +345,22 @@ func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
 		}
 	}
 
+	if len(cfg.blocklistIps) != 0 {
+		//
+	}
+
+	return
+}
+
+func (m *App) applyBlocklistChanges(input []byte) (e error) {
+	gLog.Debug().Msgf("runtime config - blocklist update requested")
+	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.size())
+
+	ips := strings.Split(string(input), ",")
+	m.blocklist.update(ips...)
+
+	gLog.Info().Msg("runtime config - blocklist update completed")
+	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.size())
 	return
 }
 

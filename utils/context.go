@@ -12,4 +12,5 @@ const (
 const (
 	CfgLotteryChance = "lottery-chance"
 	CfgQualityLevel  = "quality-level"
+	CfgBlockList     = "block-list"
 )
