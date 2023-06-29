@@ -135,7 +135,6 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
 	srv := ctx.Locals("srv").(string)
 	expires, extra := m.getHlpExtra(
 		ctx.Locals("uri").(string),
-		ctx.Context().RemoteIP().String(),
 		srv,
 		ctx.Locals("uid").(string),
 	)
