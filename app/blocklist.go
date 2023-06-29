@@ -2,10 +2,6 @@ package app
 
 import "sync"
 
-type blocker struct {
-	list *blocklist
-}
-
 type blocklist []string
 
 var blLocker sync.RWMutex

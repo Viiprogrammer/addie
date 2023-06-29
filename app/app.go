@@ -182,6 +182,7 @@ func (m *App) fiberConfigure() {
 	blist := api.Group("/blocklist")
 	blist.Post("/add", m.fbHndApiBlockIp)
 	blist.Post("/remove", m.fbHndApiUnblockIp)
+	blist.Post("/switch", m.fbHndApiBListSwitch)
 
 	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
