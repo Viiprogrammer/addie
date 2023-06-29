@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -33,6 +34,16 @@ const (
 	errMidAppPreUidFromReq
 	errMidAppPreUriRegexp
 )
+
+// func (m *App) hlpHandler(ctx *fasthttp.RequestCtx) {
+// 	// client IP parsing
+// 	cip := string(ctx.Request.Header.Peek(fasthttp.HeaderXForwardedFor))
+// 	if cip == "" || cip == "127.0.0.1" {
+// 		gLog.Debug().Str("remote_addr", ctx.RemoteIP().String()).Str("x_forwarded_for", cip).Msg("")
+// 		m.hlpRespondError(&ctx.Response, errHlpBadIp)
+// 		return
+// 	}
+// }
 
 // API precondition check
 func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
@@ -115,7 +126,7 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	ip, s := m.balancer.getServerByChunkName(
 		string(m.chunkRegexp.FindSubmatch(
 			[]byte(ctx.Locals("uri").(string)),
-		)[chunkName]),
+		)[utils.ChunkName]),
 	)
 
 	if ip == "" {

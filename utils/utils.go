@@ -15,3 +15,11 @@ const (
 	CfgBlockList         = "block-list"
 	CfgBlockListSwitcher = "block-list-switcher"
 )
+
+const (
+	ChunkPath = iota + 1
+	ChunkTitleId
+	ChunkEpisodeId
+	ChunkQualityLevel
+	ChunkName
+)
