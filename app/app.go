@@ -31,11 +31,6 @@ var (
 	gAniApi *ApiClient
 )
 
-// var (
-// 	errHlpBadUid   = errors.New("got a problem in uid parsing")
-// 	errHlpBanIp    = errors.New("your ip address has reached download limits; try again later")
-// )
-
 var (
 	gQualityLock  sync.RWMutex
 	gQualityLevel = titleQualityFHD

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/syslog"
 	"os"
 	"runtime"
 	"sort"
@@ -55,6 +56,20 @@ func main() {
 			Aliases: []string{"q"},
 			Usage:   "Flag is equivalent to --log-level=quite",
 		},
+		&cli.StringFlag{
+			Name:    "syslog-server",
+			Value:   "",
+			EnvVars: []string{"SYSLOG_ADDRESS"},
+		},
+		&cli.StringFlag{
+			Name:  "syslog-proto",
+			Value: "tcp",
+		},
+		&cli.StringFlag{
+			Name:  "syslog-tag",
+			Value: "",
+		},
+
 		// http client settings
 		&cli.BoolFlag{
 			Name:  "http-client-insecure",
@@ -95,7 +110,7 @@ func main() {
 			Usage: "",
 		},
 
-		// fiber settings
+		// fiber (http server) settings
 		&cli.StringFlag{
 			Name:  "http-listen-addr",
 			Usage: "Ex: 127.0.0.1:8080, :8080",
@@ -155,14 +170,15 @@ func main() {
 
 		// ...
 		&cli.DurationFlag{
-			Name:  "link-expiration",
-			Usage: "",
-			Value: 10 * time.Second,
+			Name:    "link-expiration",
+			Usage:   "",
+			Value:   10 * time.Second,
+			EnvVars: []string{"LINK_EXPIRATION"},
 		},
 		&cli.StringFlag{
 			Name:        "link-secret",
 			Usage:       "",
-			Value:       "TZj3Ts1LsvkX",
+			Value:       "TZj3Ts1Lsvk",
 			EnvVars:     []string{"SIGN_SECRET"},
 			DefaultText: "CHANGE DEFAULT SECRET",
 		},
@@ -203,12 +219,36 @@ func main() {
 	app.Action = func(c *cli.Context) (e error) {
 		var lvl zerolog.Level
 		if lvl, e = zerolog.ParseLevel(c.String("log-level")); e != nil {
-			log.Fatal().Err(e)
+			log.Fatal().Err(e).Msg("")
 		}
 
 		zerolog.SetGlobalLevel(lvl)
 		if c.Bool("quite") {
 			zerolog.SetGlobalLevel(zerolog.Disabled)
+		}
+
+		if len(c.String("syslog-server")) != 0 {
+			log.Debug().Msg("Connecting to syslog server ...")
+
+			var sylog *syslog.Writer
+			if sylog, e = syslog.Dial(
+				c.String("syslog-proto"),
+				c.String("syslog-server"),
+				syslog.LOG_INFO,
+				c.String("syslog-tag"),
+			); e != nil {
+				return
+			}
+
+			log.Debug().Msg("syslog connection established; reset zerolog for MultiLevelWriter set ...")
+			defer log.Info().Msg("Zerolog reinitialized! Starting commands...")
+
+			log = zerolog.New(zerolog.MultiLevelWriter(
+				zerolog.ConsoleWriter{
+					Out: os.Stderr,
+				},
+				sylog,
+			)).With().Timestamp().Logger().Hook(SeverityHook{})
 		}
 
 		if !fiber.IsChild() {
