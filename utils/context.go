@@ -10,7 +10,8 @@ const (
 )
 
 const (
-	CfgLotteryChance = "lottery-chance"
-	CfgQualityLevel  = "quality-level"
-	CfgBlockList     = "block-list"
+	CfgLotteryChance     = "lottery-chance"
+	CfgQualityLevel      = "quality-level"
+	CfgBlockList         = "block-list"
+	CfgBlockListSwitcher = "block-list-switcher"
 )

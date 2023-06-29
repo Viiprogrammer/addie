@@ -52,6 +52,24 @@ func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
+func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+
+	enabled := ctx.Query("enabled")
+	switch enabled {
+	case "0":
+		fallthrough
+	case "1":
+		if e := gConsul.updateBlocklistSwitcher(enabled); e != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+		}
+	default:
+		return fiber.NewError(fiber.StatusBadRequest, "enabled query can be only 0 or 1")
+	}
+
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
 // func (*App) hlpRespondError(r *fasthttp.Response, err error, status ...int) {
 // 	status = append(status, fasthttp.StatusInternalServerError)
 

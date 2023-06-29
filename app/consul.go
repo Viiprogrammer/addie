@@ -178,6 +178,14 @@ func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP,
 	return servers, meta.LastIndex, e
 }
 
+func (m *consulClient) updateBlocklistSwitcher(enabled string) (e error) {
+	kv := &capi.KVPair{}
+	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockListSwitcher), []byte(enabled)
+
+	_, e = m.KV().Put(kv, nil)
+	return e
+}
+
 func (m *consulClient) addIpToBlocklist(ip string) (e error) {
 	var kv *capi.KVPair
 	if kv, e = m.getBlocklistIps(); e != nil {

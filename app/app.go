@@ -53,6 +53,9 @@ var (
 
 	gLotteryLock   sync.RWMutex
 	gLotteryChance = 0
+
+	gBListLock        sync.RWMutex
+	gBlocklistEnabled = 0
 )
 
 type App struct {
@@ -67,9 +70,10 @@ type App struct {
 }
 
 type runtimeConfig struct {
-	lotteryChance []byte
-	qualityLevel  []byte
-	blocklistIps  []byte
+	lotteryChance     []byte
+	qualityLevel      []byte
+	blocklistIps      []byte
+	blocklistSwitcher []byte
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
@@ -181,6 +185,9 @@ func (m *App) fiberConfigure() {
 
 	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
+
+	// group media - blocklist
+	media.Use(m.fbMidAppBlocklist)
 
 	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
@@ -332,6 +339,18 @@ LOOP:
 	}
 }
 
+func (*App) isBlocklistEnabled() bool {
+	gBListLock.RLock()
+	defer gBListLock.RUnlock()
+
+	switch gBlocklistEnabled {
+	case 1:
+		return true
+	default:
+		return false
+	}
+}
+
 func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
 	if len(cfg.lotteryChance) != 0 {
 		if e = m.applyLotteryChance(cfg.lotteryChance); e != nil {
@@ -346,7 +365,15 @@ func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
 	}
 
 	if len(cfg.blocklistIps) != 0 {
-		//
+		if e = m.applyBlocklistChanges(cfg.blocklistIps); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (blocklist ips)")
+		}
+	}
+
+	if len(cfg.blocklistSwitcher) != 0 {
+		if e = m.applyBlocklistSwitch(cfg.blocklistSwitcher); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (blocklist switch)")
+		}
 	}
 
 	return
@@ -361,6 +388,27 @@ func (m *App) applyBlocklistChanges(input []byte) (e error) {
 
 	gLog.Info().Msg("runtime config - blocklist update completed")
 	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.size())
+	return
+}
+
+func (*App) applyBlocklistSwitch(input []byte) (e error) {
+	var enabled int
+	if enabled, e = strconv.Atoi(string(input)); e != nil {
+		return
+	}
+
+	switch enabled {
+	case 0:
+		fallthrough
+	case 1:
+		gBListLock.Lock()
+		gBlocklistEnabled = enabled
+		gBListLock.Unlock()
+	default:
+		gLog.Warn().Int("enabled", enabled).
+			Msg("runtime config - blocklist switcher could not be non 0 or non 1")
+		return
+	}
 	return
 }
 
