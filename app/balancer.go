@@ -133,9 +133,11 @@ func (m *balancer) commitUpstream(newbalancer *[]net.IP) {
 
 	balancerLocker.Lock()
 	m.balancer = *newbalancer
-	m.midx = int64(len(*newbalancer))
-	// m.router = make(map[string]*net.IP)
 	balancerLocker.Unlock()
+
+	balancerLocker.RLock()
+	m.midx = int64(len(*newbalancer))
+	balancerLocker.RUnlock()
 
 	gLog.Debug().Msgf("new list has been commited, srvs: %d", m.midx)
 }
@@ -205,7 +207,10 @@ func (m *balancer) getServerByChunkName(chunk string) (_ string, server *server)
 }
 
 func (m *balancer) getNextServer(idx int) (_ *net.IP) {
-	balancerLocker.RLock()
+	if !balancerLocker.TryRLock() {
+		gLog.Warn().Msg("could not get lock for reading upstream; fallback to legacy balancing")
+		return nil
+	}
 	defer balancerLocker.RUnlock()
 
 	if m.midx == 0 {

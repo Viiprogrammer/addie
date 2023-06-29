@@ -87,7 +87,10 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	gQualityLock.RLock()
+	if !gQualityLock.TryRLock() {
+		gLog.Warn().Msg("could not get lock for reading quality level; skipping fake quality chain")
+		return ctx.Next()
+	}
 	defer gQualityLock.RUnlock()
 
 	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(gQualityLevel)).
@@ -106,7 +109,11 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	gLog.Trace().Msg("consul lottery")
 
-	gLotteryLock.RLock()
+	if !gLotteryLock.TryRLock() {
+		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
+		return ctx.Next()
+	}
+
 	if gLotteryChance < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
 		gLotteryLock.RUnlock()
