@@ -14,7 +14,6 @@ var (
 	errApiPreBadUri    = errors.New("invalid uri")
 	errApiPreBadId     = errors.New("invalid id")
 	errApiPreBadServer = errors.New("invalid server")
-	errApiPreUidParse  = errors.New("got a problem in uid parsing")
 	errApiPreUriRegexp = errors.New("regexp matching failure")
 )
 

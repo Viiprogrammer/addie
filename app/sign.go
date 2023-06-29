@@ -52,11 +52,3 @@ func (*App) getHlpExtra(uri, cip, sip, uid string) (expires, extra string) {
 	gLog.Debug().Str("computed_trim", extra).Str("remote_addr", cip).Str("request_uri", uri).Msg("")
 	return
 }
-
-func (*App) getUidFromRequest(payload string) (uid string) {
-	if uid = strings.TrimSpace(payload); uid != "" {
-		return
-	}
-
-	return strings.TrimLeft(uid, "=")
-}
