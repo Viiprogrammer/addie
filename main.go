@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log/syslog"
 	"os"
 	"runtime"
 	"sort"
@@ -14,6 +13,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	application "github.com/MindHunter86/anilibria-hlp-service/app"
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 )
 
 var version = "devel" // -ldflags="-X 'main.version=X.X.X'"
@@ -228,27 +228,22 @@ func main() {
 		}
 
 		if len(c.String("syslog-server")) != 0 {
-			log.Debug().Msg("Connecting to syslog server ...")
+			if runtime.GOOS == "windows" {
+				log.Error().Msg("sorry, but syslog is not worked for windows; golang does not support syslog for win systems")
+				return os.ErrProcessDone
+			}
 
-			var sylog *syslog.Writer
-			if sylog, e = syslog.Dial(
-				c.String("syslog-proto"),
-				c.String("syslog-server"),
-				syslog.LOG_INFO,
-				c.String("syslog-tag"),
-			); e != nil {
+			log.Debug().Msg("connecting to syslog server ...")
+
+			var sylog *zerolog.Logger
+			if sylog, e = utils.SetUpSyslogWriter(c); e != nil {
 				return
 			}
 
 			log.Debug().Msg("syslog connection established; reset zerolog for MultiLevelWriter set ...")
-			defer log.Info().Msg("Zerolog reinitialized! Starting commands...")
 
-			log = zerolog.New(zerolog.MultiLevelWriter(
-				zerolog.ConsoleWriter{
-					Out: os.Stderr,
-				},
-				sylog,
-			)).With().Timestamp().Logger().Hook(SeverityHook{})
+			log = sylog.Hook(SeverityHook{})
+			log.Info().Msg("zerolog reinitialized; starting app...")
 		}
 
 		if !fiber.IsChild() {
