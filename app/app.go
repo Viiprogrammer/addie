@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -99,15 +100,16 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		ReadTimeout:  1000 * time.Millisecond,
 		WriteTimeout: 200 * time.Millisecond,
 
-		GETOnly: true,
 		RequestMethods: []string{
 			fiber.MethodHead,
 			fiber.MethodGet,
+			fiber.MethodOptions,
+			fiber.MethodPost,
 		},
 
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return ctx.SendStatus(fiber.StatusInternalServerError)
-		},
+		// ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+		// 	return ctx.SendStatus(fiber.StatusInternalServerError)
+		// },
 	})
 
 	// storage setup for fiber's limiter
@@ -168,6 +170,12 @@ func (m *App) fiberConfigure() {
 	if gCli.Bool("http-cors") {
 		m.fb.Use(cors.New(cors.Config{
 			AllowOrigins: "*",
+			AllowHeaders: strings.Join([]string{
+				fiber.HeaderContentType,
+			}, ","),
+			AllowMethods: strings.Join([]string{
+				fiber.MethodPost,
+			}, ","),
 		}))
 	}
 
@@ -183,6 +191,7 @@ func (m *App) fiberConfigure() {
 	blist.Post("/add", m.fbHndApiBlockIp)
 	blist.Post("/remove", m.fbHndApiUnblockIp)
 	blist.Post("/switch", m.fbHndApiBListSwitch)
+	blist.Post("/reset", m.fbHndApiBlockReset)
 
 	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
@@ -249,6 +258,9 @@ func (m *App) Bootstrap() (e error) {
 	// fake quality cooler cache
 	gLog.Info().Msg("starting fake quality cache buckets...")
 	m.cache = NewCachedTitlesBucket()
+
+	// blocklist
+	m.blocklist = newBlocklist()
 
 	// balancer
 	gLog.Info().Msg("starting balancer...")
@@ -317,7 +329,7 @@ LOOP:
 	for {
 		select {
 		case cfg := <-cfgchan:
-			gLog.Info().Msg("new configuration detected, applying...")
+			gLog.Debug().Msg("new configuration detected, applying...")
 			m.applyRuntimeConfig(cfg)
 		case <-kernSignal:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
@@ -384,8 +396,14 @@ func (m *App) applyBlocklistChanges(input []byte) (e error) {
 	gLog.Debug().Msgf("runtime config - blocklist update requested")
 	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.size())
 
+	if bytes.Equal(input, []byte("_")) {
+		m.blocklist.reset()
+		gLog.Info().Msg("runtime config - blocklist has been reseted")
+		return
+	}
+
 	ips := strings.Split(string(input), ",")
-	m.blocklist.update(ips...)
+	m.blocklist.push(ips...)
 
 	gLog.Info().Msg("runtime config - blocklist update completed")
 	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.size())
@@ -398,12 +416,19 @@ func (*App) applyBlocklistSwitch(input []byte) (e error) {
 		return
 	}
 
+	gLog.Trace().Msgf("runtime config - blocklist apply value %d", enabled)
+
 	switch enabled {
 	case 0:
 		fallthrough
 	case 1:
 		gBListLock.Lock()
+
 		gBlocklistEnabled = enabled
+
+		gLog.Info().Msg("runtime config - blocklist status updated")
+		gLog.Debug().Msgf("apply blocklist - updated size - %d", gBlocklistEnabled)
+
 		gBListLock.Unlock()
 	default:
 		gLog.Warn().Int("enabled", enabled).
@@ -434,7 +459,7 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 }
 
 func (*App) applyQualityLevel(input []byte) (e error) {
-	gLog.Info().Msg("quality settings change requested")
+	gLog.Debug().Msg("quality settings change requested")
 
 	gQualityLock.Lock()
 	defer gQualityLock.Unlock()

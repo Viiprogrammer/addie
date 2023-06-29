@@ -89,6 +89,13 @@ func (m *consulClient) bootstrap() {
 		wg.Done()
 	}()
 
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (blocklist switch)")
+		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, cfgchan)
+		wg.Done()
+	}()
+
 loop:
 	for {
 		select {
@@ -152,7 +159,7 @@ func (m *consulClient) listenEvents() (e error) {
 }
 
 func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
-	opts := defaultOpts
+	opts := *defaultOpts
 	opts.WaitIndex = idx
 
 	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(m.ctx))
@@ -227,12 +234,20 @@ func (m *consulClient) removeIpFromBlocklist(ip string) (e error) {
 	return m.setBlocklistIps(kv)
 }
 
+func (m *consulClient) resetIpsInBlocklist() (e error) {
+	kv := &capi.KVPair{}
+	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockList), []byte("")
+
+	_, e = m.KV().Put(kv, nil)
+	return e
+}
+
 func (*consulClient) getPrefixeSettingsdKey(key string) string {
 	return fmt.Sprintf("%s/settings/%s", gCli.String("consul-kv-prefix"), key)
 }
 
 func (m *consulClient) getBlocklistIps() (kv *capi.KVPair, e error) {
-	opts, ckey := defaultOpts, m.getPrefixeSettingsdKey(utils.CfgBlockList)
+	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(utils.CfgBlockList)
 
 	if kv, _, e = m.KV().Get(ckey, opts.WithContext(m.ctx)); errors.Is(e, context.Canceled) {
 		gLog.Trace().Msg("context deadline for blocklist KV get")
@@ -242,7 +257,7 @@ func (m *consulClient) getBlocklistIps() (kv *capi.KVPair, e error) {
 		return
 	} else if kv == nil {
 		gLog.Warn().Msg("consul sent empty values for blocklist; is blocklist empty?")
-		return
+		return &capi.KVPair{}, e
 	}
 
 	return
@@ -264,7 +279,7 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 
 func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
 	var idx uint64
-	opts, ckey := defaultOpts, m.getPrefixeSettingsdKey(key)
+	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
 
 loop:
 	for {
@@ -296,8 +311,13 @@ loop:
 				rconfig.lotteryChance = pair.Value
 			case utils.CfgQualityLevel:
 				rconfig.qualityLevel = pair.Value
+			case utils.CfgBlockListSwitcher:
+				rconfig.blocklistSwitcher = pair.Value
 			case utils.CfgBlockList:
 				rconfig.blocklistIps = pair.Value
+				if len(rconfig.blocklistIps) == 0 {
+					rconfig.blocklistIps = []byte("_")
+				}
 			}
 
 			payload <- rconfig

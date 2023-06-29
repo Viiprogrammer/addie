@@ -6,8 +6,16 @@ type blocklist []string
 
 var blLocker sync.RWMutex
 
-func (m blocklist) push(ips ...string) {
-	if ips = append(ips, ""); ips[0] == "" {
+func newBlocklist() *blocklist {
+	return &blocklist{}
+}
+
+func (m *blocklist) reset() {
+	*m = blocklist{}
+}
+
+func (m *blocklist) push(ips ...string) {
+	if len(ips) == 0 {
 		gLog.Warn().Interface("ips", ips).Msg("internal error, empty slice in blocklist")
 		return
 	}
@@ -15,40 +23,23 @@ func (m blocklist) push(ips ...string) {
 	gLog.Trace().Strs("ips", ips).Msg("blocklist push has been called")
 
 	blLocker.Lock()
-	for _, ip := range ips {
-		m = append(m, ip)
-	}
-	blLocker.Unlock()
-}
-
-func (m blocklist) reset() bool {
-	blLocker.Lock()
 	defer blLocker.Unlock()
 
-	gLog.Trace().Msg("blocklist reset has been called")
+	m.reset()
 
-	m = nil
-	return len(m) == 0
-}
+	for _, ip := range ips {
+		if ip == "" {
+			continue
+		}
 
-func (m blocklist) update(ips ...string) bool {
-	if ips = append(ips, ""); ips[0] == "" {
-		gLog.Warn().Interface("ips", ips).Msg("internal error, empty slice in blocklist")
-		return false
+		gLog.Trace().Str("ip", ip).Msg("new ip commited to blocklist")
+		*m = append(*m, ip)
 	}
 
-	gLog.Trace().Strs("ips", ips).Msg("blocklist update has been called")
-
-	if !m.reset() {
-		gLog.Warn().Msg("internal error, blocklist reset failure")
-		return false
-	}
-
-	m.push(ips...)
-	return true
+	gLog.Trace().Strs("ips", ips).Msg("blocklist push has been called")
 }
 
-func (m blocklist) isExists(ip string) (ok bool) {
+func (m *blocklist) isExists(ip string) (ok bool) {
 	if ip == "" {
 		gLog.Warn().Str("ip", ip).Msg("internal error, empty string in blocklist")
 		return
@@ -57,7 +48,7 @@ func (m blocklist) isExists(ip string) (ok bool) {
 	gLog.Trace().Str("ip", ip).Msg("blocklist isExists has been called")
 
 	blLocker.RLock()
-	for _, v := range m {
+	for _, v := range *m {
 		if v == ip {
 			ok = true
 		}
@@ -67,11 +58,11 @@ func (m blocklist) isExists(ip string) (ok bool) {
 	return
 }
 
-func (m blocklist) size() (size int) {
+func (m *blocklist) size() (size int) {
 	gLog.Trace().Msg("blocklist size has been called")
 
 	blLocker.RLock()
-	size = len(m)
+	size = len(*m)
 	blLocker.RUnlock()
 
 	return

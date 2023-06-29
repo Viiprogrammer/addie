@@ -52,6 +52,16 @@ func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
+func (m *App) fbHndApiBlockReset(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+
+	if e := gConsul.resetIpsInBlocklist(); e != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+	}
+
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
 func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
 
