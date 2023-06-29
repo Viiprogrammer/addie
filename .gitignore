@@ -37,6 +37,7 @@ p2p/
 .bash_history
 data/
 test/
+*.db
 *.sock
 *.cert
 *.crt
