@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -20,9 +21,12 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/skip"
+	bolt "github.com/gofiber/storage/bbolt"
+	"github.com/gofiber/storage/memory"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 )
@@ -50,20 +54,27 @@ var (
 
 	gLotteryLock   sync.RWMutex
 	gLotteryChance = 0
+
+	gBListLock        sync.RWMutex
+	gBlocklistEnabled = 0
 )
 
 type App struct {
-	fb       *fiber.App
-	cache    *CachedTitlesBucket
-	banlist  *blocklist
-	balancer *balancer
+	fb     *fiber.App
+	fbstor fiber.Storage
+
+	cache     *CachedTitlesBucket
+	blocklist *blocklist
+	balancer  *balancer
 
 	chunkRegexp *regexp.Regexp
 }
 
 type runtimeConfig struct {
-	lotteryChance []byte
-	qualityLevel  []byte
+	lotteryChance     []byte
+	qualityLevel      []byte
+	blocklistIps      []byte
+	blocklistSwitcher []byte
 }
 
 func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
@@ -89,19 +100,38 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		ReadTimeout:  1000 * time.Millisecond,
 		WriteTimeout: 200 * time.Millisecond,
 
-		GETOnly: true,
 		RequestMethods: []string{
 			fiber.MethodHead,
 			fiber.MethodGet,
+			fiber.MethodOptions,
+			fiber.MethodPost,
 		},
 
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return ctx.SendStatus(fiber.StatusInternalServerError)
-		},
+		// ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+		// 	return ctx.SendStatus(fiber.StatusInternalServerError)
+		// },
 	})
 
-	app.fiberConfigure()
+	// storage setup for fiber's limiter
+	if gCli.Bool("limiter-use-bbolt") {
+		var prefix string
+		if prefix = gCli.String("database-prefix"); prefix == "" {
+			prefix = "."
+		}
 
+		app.fbstor = bolt.New(bolt.Config{
+			Database: fmt.Sprintf("%s/%s.db", prefix, gCli.App.Name),
+			Bucket:   "application-limiter",
+			Reset:    false,
+		})
+	} else {
+		app.fbstor = memory.New(memory.Config{
+			GCInterval: 1 * time.Minute,
+		})
+	}
+
+	// router configuration
+	app.fiberConfigure()
 	return app
 }
 
@@ -140,20 +170,59 @@ func (m *App) fiberConfigure() {
 	if gCli.Bool("http-cors") {
 		m.fb.Use(cors.New(cors.Config{
 			AllowOrigins: "*",
+			AllowHeaders: strings.Join([]string{
+				fiber.HeaderContentType,
+			}, ","),
+			AllowMethods: strings.Join([]string{
+				fiber.MethodPost,
+			}, ","),
 		}))
 	}
 
 	// Routes
-	// controll api
+
+	// group api - /api
 	api := m.fb.Group("/api")
 	api.Get("/upstream", m.fbHndApiUpstream)
 	api.Get("/reset", m.fbHndApiReset)
+	api.Post("logger/level", m.fbHndApiLoggerLevel)
 
-	// app
+	// group blocklist - /api/blocklist
+	blist := api.Group("/blocklist")
+	blist.Post("/add", m.fbHndApiBlockIp)
+	blist.Post("/remove", m.fbHndApiUnblockIp)
+	blist.Post("/switch", m.fbHndApiBListSwitch)
+	blist.Post("/reset", m.fbHndApiBlockReset)
+
+	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
+
+	// group media - blocklist
+	media.Use(m.fbMidAppBlocklist)
+
+	// group media - limiter
+	media.Use(limiter.New(limiter.Config{
+		Next: func(c *fiber.Ctx) bool {
+			// add emergency stop for limiter
+			return c.IP() == "127.0.0.1" || gCli.App.Version == "devel"
+		},
+
+		Max:        gCli.Int("limiter-max-req"),
+		Expiration: gCli.Duration("limiter-records-duration"),
+
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+
+		Storage: m.fbstor,
+	}))
+
+	// group media - middlewares
 	media.Use(
 		m.fbMidAppFakeQuality,
 		m.fbMidAppConsulLottery)
+
+	// group media - sign handler
 	media.Use(m.fbHndAppRequestSign)
 }
 
@@ -188,6 +257,9 @@ func (m *App) Bootstrap() (e error) {
 	gLog.Info().Msg("starting fake quality cache buckets...")
 	m.cache = NewCachedTitlesBucket()
 
+	// blocklist
+	m.blocklist = newBlocklist()
+
 	// balancer
 	gLog.Info().Msg("starting balancer...")
 	m.balancer = newBalancer()
@@ -211,8 +283,8 @@ func (m *App) Bootstrap() (e error) {
 		gLog.Info().Msg("bootstrap ban subsystem...")
 		wg.Add(1)
 		go func(adone func()) {
-			m.banlist = newBlocklist(!gCli.Bool("ban-ip-disable"))
-			m.banlist.run(adone)
+			// m.banlist = newBlocklist(!gCli.Bool("ban-ip-disable"))
+			// m.banlist.run(adone)
 		}(wg.Done)
 	}
 
@@ -255,7 +327,7 @@ LOOP:
 	for {
 		select {
 		case cfg := <-cfgchan:
-			gLog.Info().Msg("new configuration detected, applying...")
+			gLog.Debug().Msg("new configuration detected, applying...")
 			m.applyRuntimeConfig(cfg)
 		case <-kernSignal:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
@@ -278,6 +350,18 @@ LOOP:
 	}
 }
 
+func (*App) isBlocklistEnabled() bool {
+	gBListLock.RLock()
+	defer gBListLock.RUnlock()
+
+	switch gBlocklistEnabled {
+	case 1:
+		return true
+	default:
+		return false
+	}
+}
+
 func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
 	if len(cfg.lotteryChance) != 0 {
 		if e = m.applyLotteryChance(cfg.lotteryChance); e != nil {
@@ -291,6 +375,64 @@ func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
 		}
 	}
 
+	if len(cfg.blocklistIps) != 0 {
+		if e = m.applyBlocklistChanges(cfg.blocklistIps); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (blocklist ips)")
+		}
+	}
+
+	if len(cfg.blocklistSwitcher) != 0 {
+		if e = m.applyBlocklistSwitch(cfg.blocklistSwitcher); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (blocklist switch)")
+		}
+	}
+
+	return
+}
+
+func (m *App) applyBlocklistChanges(input []byte) (e error) {
+	gLog.Debug().Msgf("runtime config - blocklist update requested")
+	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.size())
+
+	if bytes.Equal(input, []byte("_")) {
+		m.blocklist.reset()
+		gLog.Info().Msg("runtime config - blocklist has been reseted")
+		return
+	}
+
+	ips := strings.Split(string(input), ",")
+	m.blocklist.push(ips...)
+
+	gLog.Info().Msg("runtime config - blocklist update completed")
+	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.size())
+	return
+}
+
+func (*App) applyBlocklistSwitch(input []byte) (e error) {
+	var enabled int
+	if enabled, e = strconv.Atoi(string(input)); e != nil {
+		return
+	}
+
+	gLog.Trace().Msgf("runtime config - blocklist apply value %d", enabled)
+
+	switch enabled {
+	case 0:
+		fallthrough
+	case 1:
+		gBListLock.Lock()
+
+		gBlocklistEnabled = enabled
+
+		gLog.Info().Msg("runtime config - blocklist status updated")
+		gLog.Debug().Msgf("apply blocklist - updated size - %d", gBlocklistEnabled)
+
+		gBListLock.Unlock()
+	default:
+		gLog.Warn().Int("enabled", enabled).
+			Msg("runtime config - blocklist switcher could not be non 0 or non 1")
+		return
+	}
 	return
 }
 
@@ -315,7 +457,7 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 }
 
 func (*App) applyQualityLevel(input []byte) (e error) {
-	gLog.Info().Msg("quality settings change requested")
+	gLog.Debug().Msg("quality settings change requested")
 
 	gQualityLock.Lock()
 	defer gQualityLock.Unlock()
@@ -337,11 +479,11 @@ func (*App) applyQualityLevel(input []byte) (e error) {
 }
 
 // getHlpExtra() simply is a secure_link implementation
-//
+
 // docs:
 // https://nginx.org/ru/docs/http/ngx_http_secure_link_module.html#secure_link
 //
-// unix example:
+// bash example:
 //
 //	echo -n '2147483647/s/link127.0.0.1 secret' | \
 //		openssl md5 -binary | openssl base64 | tr +/ -_ | tr -d =

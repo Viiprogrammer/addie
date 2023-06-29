@@ -10,11 +10,11 @@ import (
 
 var (
 	// errApiPreBadHeaders = errors.New("could not parse required headers")
-	errApiPreBadUri     = errors.New("invalid uri")
-	errApiPreBadId      = errors.New("invalid id")
-	errApiPreBadServer  = errors.New("invalid server")
-	errApiPreUidParse   = errors.New("got a problem in uid parsing")
-	errApiPreUriRegexp  = errors.New("regexp matching failure")
+	errApiPreBadUri    = errors.New("invalid uri")
+	errApiPreBadId     = errors.New("invalid id")
+	errApiPreBadServer = errors.New("invalid server")
+	errApiPreUidParse  = errors.New("got a problem in uid parsing")
+	errApiPreUriRegexp = errors.New("regexp matching failure")
 )
 
 const (
@@ -125,6 +125,20 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 
 	srv := strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
 	ctx.Locals("srv", srv)
+
+	return ctx.Next()
+}
+
+// blocklist
+func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
+	if !m.isBlocklistEnabled() {
+		return ctx.Next()
+	}
+
+	if m.blocklist.isExists(ctx.IP()) {
+		gLog.Debug().Str("cip", ctx.IP()).Msg("client has been banned, forbid request")
+		return fiber.NewError(fiber.StatusForbidden)
+	}
 
 	return ctx.Next()
 }

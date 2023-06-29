@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +13,12 @@ import (
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
 )
+
+var defaultOpts = &capi.QueryOptions{
+	AllowStale:        true,
+	UseCache:          false,
+	RequireConsistent: false,
+}
 
 type consulClient struct {
 	*capi.Client
@@ -71,7 +78,21 @@ func (m *consulClient) bootstrap() {
 	wg.Add(1)
 	go func() {
 		gLog.Debug().Msg("consul config listener started (quality)")
-		m.listenRuntimeConfigKey(utils.CfxQualityLevel, cfgchan)
+		m.listenRuntimeConfigKey(utils.CfgQualityLevel, cfgchan)
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (blocklist)")
+		m.listenRuntimeConfigKey(utils.CfgBlockList, cfgchan)
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (blocklist switch)")
+		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, cfgchan)
 		wg.Done()
 	}()
 
@@ -138,12 +159,8 @@ func (m *consulClient) listenEvents() (e error) {
 }
 
 func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
-	opts := &capi.QueryOptions{
-		WaitIndex:         idx,
-		AllowStale:        true,
-		UseCache:          false,
-		RequireConsistent: false,
-	}
+	opts := *defaultOpts
+	opts.WaitIndex = idx
 
 	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(m.ctx))
 	if e != nil {
@@ -168,15 +185,101 @@ func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP,
 	return servers, meta.LastIndex, e
 }
 
-func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
-	var opts = &capi.QueryOptions{
-		AllowStale:        true,
-		UseCache:          false,
-		RequireConsistent: false,
+func (m *consulClient) updateBlocklistSwitcher(enabled string) (e error) {
+	kv := &capi.KVPair{}
+	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockListSwitcher), []byte(enabled)
+
+	_, e = m.KV().Put(kv, nil)
+	return e
+}
+
+func (m *consulClient) addIpToBlocklist(ip string) (e error) {
+	var kv *capi.KVPair
+	if kv, e = m.getBlocklistIps(); e != nil {
+		return
 	}
 
+	if len(kv.Value) != 0 {
+		ips := strings.Split(string(kv.Value), ",")
+		ips = append(ips, ip)
+		kv.Value = []byte(strings.Join(ips, ","))
+	} else {
+		kv.Value = []byte(ip)
+	}
+
+	return m.setBlocklistIps(kv)
+}
+
+func (m *consulClient) removeIpFromBlocklist(ip string) (e error) {
+	var kv *capi.KVPair
+	if kv, e = m.getBlocklistIps(); e != nil {
+		return
+	}
+
+	if kv == nil || len(kv.Value) == 0 {
+		return errors.New("there is no data from consul received")
+	}
+
+	ips, newips := strings.Split(string(kv.Value), ","), []string{}
+	for _, v := range ips {
+		if v == ip {
+			gLog.Debug().Msg("given ip is found, removing from blocklist...")
+			continue
+		}
+
+		newips = append(newips, v)
+	}
+
+	kv.Value = []byte(strings.Join(newips, ","))
+	return m.setBlocklistIps(kv)
+}
+
+func (m *consulClient) resetIpsInBlocklist() (e error) {
+	kv := &capi.KVPair{}
+	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockList), []byte("")
+
+	_, e = m.KV().Put(kv, nil)
+	return e
+}
+
+func (*consulClient) getPrefixeSettingsdKey(key string) string {
+	return fmt.Sprintf("%s/settings/%s", gCli.String("consul-kv-prefix"), key)
+}
+
+func (m *consulClient) getBlocklistIps() (kv *capi.KVPair, e error) {
+	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(utils.CfgBlockList)
+
+	if kv, _, e = m.KV().Get(ckey, opts.WithContext(m.ctx)); errors.Is(e, context.Canceled) {
+		gLog.Trace().Msg("context deadline for blocklist KV get")
+		return
+	} else if e != nil {
+		gLog.Error().Err(e).Msgf("could not get consul value for blocklist")
+		return
+	} else if kv == nil {
+		gLog.Warn().Msg("consul sent empty values for blocklist; is blocklist empty?")
+		return &capi.KVPair{}, e
+	}
+
+	return
+}
+
+func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
+	kv.Key = m.getPrefixeSettingsdKey(utils.CfgBlockList)
+
+	if _, e = m.KV().Put(kv, nil); errors.Is(e, context.Canceled) {
+		gLog.Trace().Msg("context deadline for blocklist KV get")
+		return
+	} else if e != nil {
+		gLog.Error().Err(e).Msgf("could not get consul value for blocklist")
+		return
+	}
+
+	return
+}
+
+func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
 	var idx uint64
-	var ckey = fmt.Sprintf("%s/settings/%s", gCli.String("consul-kv-prefix"), key)
+	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
 
 loop:
 	for {
@@ -206,8 +309,15 @@ loop:
 			switch key {
 			case utils.CfgLotteryChance:
 				rconfig.lotteryChance = pair.Value
-			case utils.CfxQualityLevel:
+			case utils.CfgQualityLevel:
 				rconfig.qualityLevel = pair.Value
+			case utils.CfgBlockListSwitcher:
+				rconfig.blocklistSwitcher = pair.Value
+			case utils.CfgBlockList:
+				rconfig.blocklistIps = pair.Value
+				if len(rconfig.blocklistIps) == 0 {
+					rconfig.blocklistIps = []byte("_")
+				}
 			}
 
 			payload <- rconfig
