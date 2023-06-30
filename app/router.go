@@ -55,7 +55,7 @@ func (m *App) fiberConfigure() {
 			"Setup %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
 			setup, routing, precond, blist, fquality, clottery, reqsign)
 		gLog.Debug().Msgf("Total %s", stop.Sub(start).Round(time.Microsecond))
-		gLog.Debug().Msgf("Time Collector %s", time.Now().Sub(stop).Round(time.Microsecond))
+		gLog.Debug().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
 
 		return
 	})
