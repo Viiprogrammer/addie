@@ -45,7 +45,7 @@ const (
 
 // API precondition check
 func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
-	m.lapRequestTimer(ctx, utils.FbCtxReqPreCond)
+	m.lapRequestTimer(ctx, utils.FbReqTmrPreCond)
 	var errs appMidError
 
 	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("debug")
@@ -78,7 +78,7 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 
 // fake quality check
 func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbCtxReqFakeQuality)
+	m.lapRequestTimer(ctx, utils.FbReqTmrFakeQuality)
 	gLog.Trace().Msg("fake quality check")
 
 	uri := ctx.Get(apiHeaderUri)
@@ -109,7 +109,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 
 // consul lottery
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbCtxReqConsulLottery)
+	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")
 
 	if !gLotteryLock.TryRLock() {
@@ -143,7 +143,7 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 
 // blocklist
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbCtxReqBlocklist)
+	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
 
 	if !m.isBlocklistEnabled() {
 		return ctx.Next()

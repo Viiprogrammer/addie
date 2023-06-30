@@ -27,7 +27,7 @@ func (m *App) fiberConfigure() {
 
 		c.SetUserContext(context.WithValue(
 			c.UserContext(),
-			utils.FbCtxRequestTimer,
+			utils.FbReqTmruestTimer,
 			make(map[utils.ContextKey]time.Time),
 		))
 
@@ -35,12 +35,12 @@ func (m *App) fiberConfigure() {
 		stop := time.Now()
 
 		total := stop.Sub(start)
-		setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqBeforeRoute)).Round(time.Microsecond)
-		routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqPreCond)).Round(time.Microsecond)
-		precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqBlocklist)).Round(time.Microsecond)
-		blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqFakeQuality)).Round(time.Microsecond)
-		fquality := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqConsulLottery)).Round(time.Microsecond)
-		clottery := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqReqSign)).Round(time.Microsecond)
+		setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBeforeRoute)).Round(time.Microsecond)
+		routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
+		precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond)
+		blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrFakeQuality)).Round(time.Microsecond)
+		fquality := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrConsulLottery)).Round(time.Microsecond)
+		clottery := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrReqSign)).Round(time.Microsecond)
 		reqsign := stop.Sub(stop).Round(time.Microsecond)
 
 		reqsign = clottery - reqsign
@@ -107,7 +107,7 @@ func (m *App) fiberConfigure() {
 
 	// time collector - Before routing
 	m.fb.Use(func(c *fiber.Ctx) error {
-		m.lapRequestTimer(c, utils.FbCtxReqBeforeRoute)
+		m.lapRequestTimer(c, utils.FbReqTmrBeforeRoute)
 		return c.Next()
 	})
 
@@ -163,10 +163,10 @@ func (m *App) fiberConfigure() {
 
 func (*App) lapRequestTimer(c *fiber.Ctx, k utils.ContextKey) {
 	c.UserContext().
-		Value(utils.FbCtxRequestTimer).(map[utils.ContextKey]time.Time)[k] = time.Now()
+		Value(utils.FbReqTmruestTimer).(map[utils.ContextKey]time.Time)[k] = time.Now()
 }
 
 func (*App) getRequestTimerSegment(c *fiber.Ctx, k utils.ContextKey) time.Time {
 	return c.UserContext().
-		Value(utils.FbCtxRequestTimer).(map[utils.ContextKey]time.Time)[k]
+		Value(utils.FbReqTmruestTimer).(map[utils.ContextKey]time.Time)[k]
 }

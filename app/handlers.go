@@ -131,7 +131,7 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbCtxReqReqSign)
+	m.lapRequestTimer(ctx, utils.FbReqTmrReqSign)
 	gLog.Trace().Msg("new `sign request` request")
 
 	srv := ctx.Locals("srv").(string)

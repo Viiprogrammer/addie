@@ -10,16 +10,16 @@ const (
 )
 
 const (
-	FbCtxRequestTimer ContextKey = iota
+	FbReqTmruestTimer ContextKey = iota
 )
 
 const (
-	FbCtxReqBeforeRoute ContextKey = iota
-	FbCtxReqPreCond
-	FbCtxReqBlocklist
-	FbCtxReqFakeQuality
-	FbCtxReqConsulLottery
-	FbCtxReqReqSign
+	FbReqTmrBeforeRoute ContextKey = iota
+	FbReqTmrPreCond
+	FbReqTmrBlocklist
+	FbReqTmrFakeQuality
+	FbReqTmrConsulLottery
+	FbReqTmrReqSign
 )
 
 const (
