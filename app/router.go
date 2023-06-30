@@ -104,7 +104,6 @@ func (m *App) fiberConfigure() {
 	// time collector - Before routing
 	m.fb.Use(func(c *fiber.Ctx) error {
 		m.lapRequestTimer(c, utils.FbCtxReqBeforeRoute)
-		// c.SetUserContext(context.WithValue(c.UserContext(), utils.FbCtxReqBeforeRoute, time.Now()))
 		return c.Next()
 	})
 
