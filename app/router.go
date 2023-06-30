@@ -1,12 +1,14 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime/debug"
 	"strings"
 	"time"
 
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -19,6 +21,44 @@ import (
 )
 
 func (m *App) fiberConfigure() {
+	// time collector
+	m.fb.Use(func(c *fiber.Ctx) (e error) {
+
+		c.SetUserContext(context.WithValue(
+			c.UserContext(),
+			utils.FbCtxRequestTimer,
+			make(map[utils.ContextKey]time.Time),
+		))
+
+		start, e := time.Now(), c.Next()
+		stop := time.Now()
+
+		total := stop.Sub(start)
+		setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqBeforeRoute)).Round(time.Microsecond)
+		routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqPreCond)).Round(time.Microsecond)
+		precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqBlocklist)).Round(time.Microsecond)
+		blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqFakeQuality)).Round(time.Microsecond)
+		fquality := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqConsulLottery)).Round(time.Microsecond)
+		clottery := stop.Sub(m.getRequestTimerSegment(c, utils.FbCtxReqReqSign)).Round(time.Microsecond)
+		reqsign := stop.Sub(stop).Round(time.Microsecond)
+
+		reqsign = clottery - reqsign
+		clottery = fquality - clottery
+		fquality = blist - fquality
+		blist = precond - blist
+		precond = routing - precond
+		routing = setup - routing
+		setup = total - setup
+
+		gLog.Debug().Msgf(
+			"Setup %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
+			setup, routing, precond, blist, fquality, clottery, reqsign)
+		gLog.Debug().Msgf("Total %s", stop.Sub(start).Round(time.Microsecond))
+		gLog.Debug().Msgf("Time Collector %s", time.Now().Sub(stop).Round(time.Microsecond))
+
+		return
+	})
+
 	// panic recover for all handlers
 	m.fb.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
@@ -61,6 +101,13 @@ func (m *App) fiberConfigure() {
 		}))
 	}
 
+	// time collector - Before routing
+	m.fb.Use(func(c *fiber.Ctx) error {
+		m.lapRequestTimer(c, utils.FbCtxReqBeforeRoute)
+		// c.SetUserContext(context.WithValue(c.UserContext(), utils.FbCtxReqBeforeRoute, time.Now()))
+		return c.Next()
+	})
+
 	// Routes
 
 	// group api - /api
@@ -85,7 +132,10 @@ func (m *App) fiberConfigure() {
 	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
+			// !!!
 			// add emergency stop for limiter
+			// if gLimiterStop == true --> return true
+			// !!!
 			return c.IP() == "127.0.0.1" || gCli.App.Version == "devel"
 		},
 
@@ -106,4 +156,14 @@ func (m *App) fiberConfigure() {
 
 	// group media - sign handler
 	media.Use(m.fbHndAppRequestSign)
+}
+
+func (*App) lapRequestTimer(c *fiber.Ctx, k utils.ContextKey) {
+	c.UserContext().
+		Value(utils.FbCtxRequestTimer).(map[utils.ContextKey]time.Time)[k] = time.Now()
+}
+
+func (*App) getRequestTimerSegment(c *fiber.Ctx, k utils.ContextKey) time.Time {
+	return c.UserContext().
+		Value(utils.FbCtxRequestTimer).(map[utils.ContextKey]time.Time)[k]
 }

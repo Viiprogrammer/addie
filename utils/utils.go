@@ -10,6 +10,19 @@ const (
 )
 
 const (
+	FbCtxRequestTimer ContextKey = iota
+)
+
+const (
+	FbCtxReqBeforeRoute ContextKey = iota
+	FbCtxReqPreCond
+	FbCtxReqBlocklist
+	FbCtxReqFakeQuality
+	FbCtxReqConsulLottery
+	FbCtxReqReqSign
+)
+
+const (
 	CfgLotteryChance     = "lottery-chance"
 	CfgQualityLevel      = "quality-level"
 	CfgBlockList         = "block-list"

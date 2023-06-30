@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )
@@ -99,7 +100,7 @@ func (m *App) fbHndApiLoggerLevel(ctx *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "unknown level sent")
 	}
 
-	gLog.Error().Msgf("[falsepositive]> new log level applied - %s", gLog.GetLevel().String())
+	gLog.Error().Msgf("[falsepositive]> new log level applied - %s", lvl)
 
 	return ctx.SendStatus(fiber.StatusOK)
 }
@@ -130,6 +131,8 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
+	m.lapRequestTimer(ctx, utils.FbCtxReqReqSign)
+	// ctx.SetUserContext(context.WithValue(ctx.UserContext(), utils.FbCtxReqReqSign, time.Now()))
 	gLog.Trace().Msg("new `sign request` request")
 
 	srv := ctx.Locals("srv").(string)
