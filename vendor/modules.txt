@@ -22,6 +22,7 @@ github.com/gofiber/fiber/v2/middleware/limiter
 github.com/gofiber/fiber/v2/middleware/logger
 github.com/gofiber/fiber/v2/middleware/pprof
 github.com/gofiber/fiber/v2/middleware/recover
+github.com/gofiber/fiber/v2/middleware/requestid
 github.com/gofiber/fiber/v2/middleware/skip
 github.com/gofiber/fiber/v2/utils
 # github.com/gofiber/storage/bbolt v1.3.4

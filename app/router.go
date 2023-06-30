@@ -17,6 +17,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/skip"
 )
 
@@ -73,10 +74,13 @@ func (m *App) fiberConfigure() {
 		m.fb.Use(pprof.New())
 	}
 
+	// request id
+	m.fb.Use(requestid.New())
+
 	// http logger
 	m.fb.Use(logger.New(logger.Config{
 		TimeFormat: time.RFC3339,
-		Format:     "[${time}] ${status} - ${latency} ${method} ${path}\n",
+		Format:     "[${time}] ${requestid} ${status} - ${latency} ${method} ${path}\n",
 		Output:     gLog,
 	}))
 
