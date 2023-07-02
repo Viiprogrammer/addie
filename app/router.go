@@ -14,15 +14,15 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/fiber/v2/middleware/skip"
+	"github.com/rs/zerolog"
 )
 
 func (m *App) fiberConfigure() {
-	// time collector
+	// time collector + logger
 	m.fb.Use(func(c *fiber.Ctx) (e error) {
 
 		c.SetUserContext(context.WithValue(
@@ -34,7 +34,7 @@ func (m *App) fiberConfigure() {
 		start, e := time.Now(), c.Next()
 		stop := time.Now()
 
-		total := stop.Sub(start)
+		total := stop.Sub(start).Round(time.Microsecond)
 		setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBeforeRoute)).Round(time.Microsecond)
 		routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
 		precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond)
@@ -51,11 +51,37 @@ func (m *App) fiberConfigure() {
 		routing = setup - routing
 		setup = total - setup
 
-		gLog.Debug().Msgf(
-			"Setup %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
-			setup, routing, precond, blist, fquality, clottery, reqsign)
-		gLog.Debug().Msgf("Total %s", stop.Sub(start).Round(time.Microsecond))
-		gLog.Debug().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
+		if gLog.GetLevel() <= zerolog.DebugLevel {
+			gLog.Debug().
+				Str("id", c.Locals("requestid").(string)).
+				Dur("setup", setup).
+				Dur("routing", routing).
+				Dur("precond", precond).
+				Dur("blist", blist).
+				Dur("fquality", fquality).
+				Dur("clottery", clottery).
+				Dur("reqsign", reqsign).
+				Dur("total", total).
+				Dur("timer", time.Since(stop).Round(time.Microsecond)).
+				Msg("")
+
+			gLog.Trace().Msgf(
+				"Total: %s, Setup %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
+				total, setup, routing, precond, blist, fquality, clottery, reqsign)
+			gLog.Trace().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
+		}
+
+		if gLog.GetLevel() <= zerolog.InfoLevel {
+			gLog.Info().
+				Int("status", c.Response().StatusCode()).
+				Str("method", c.Method()).
+				Str("path", c.Path()).
+				Str("id", c.Locals("requestid").(string)).
+				Str("ip", c.IP()).
+				Dur("latency", total).
+				Str("user-agent", c.Get(fiber.HeaderUserAgent)).
+				Msg("")
+		}
 
 		return
 	})
@@ -76,13 +102,6 @@ func (m *App) fiberConfigure() {
 
 	// request id
 	m.fb.Use(requestid.New())
-
-	// http logger
-	m.fb.Use(logger.New(logger.Config{
-		TimeFormat: time.RFC3339,
-		Format:     "[${time}] ${requestid} ${status} - ${latency} ${method} ${path}\n",
-		Output:     gLog,
-	}))
 
 	// favicon disable
 	m.fb.Use(favicon.New(favicon.ConfigDefault))
