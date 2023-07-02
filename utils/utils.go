@@ -27,6 +27,7 @@ const (
 	CfgQualityLevel      = "quality-level"
 	CfgBlockList         = "block-list"
 	CfgBlockListSwitcher = "block-list-switcher"
+	CfgLimiterSwitcher   = "limiter-switcher"
 )
 
 const (

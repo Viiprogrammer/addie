@@ -136,7 +136,9 @@ func (m *App) fiberConfigure() {
 	api := m.fb.Group("/api")
 	api.Get("/upstream", m.fbHndApiUpstream)
 	api.Get("/reset", m.fbHndApiReset)
+
 	api.Post("logger/level", m.fbHndApiLoggerLevel)
+	api.Post("limiter/switch", m.fbHndApiLimiterSwitch)
 
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")
@@ -154,10 +156,13 @@ func (m *App) fiberConfigure() {
 	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
-			// !!!
-			// add emergency stop for limiter
-			// if gLimiterStop == true --> return true
-			// !!!
+			gLimiterLock.RLock()
+			defer gLimiterLock.RUnlock() // +40-80ns
+
+			if gLimiterEnabled == 0 {
+				return true
+			}
+
 			return c.IP() == "127.0.0.1" || gCli.App.Version == "devel"
 		},
 

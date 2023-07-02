@@ -82,6 +82,24 @@ func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
+func (m *App) fbHndApiLimiterSwitch(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+
+	enabled := ctx.Query("enabled")
+	switch enabled {
+	case "0":
+		fallthrough
+	case "1":
+		if e := gConsul.updateLimiterSwitcher(enabled); e != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+		}
+	default:
+		return fiber.NewError(fiber.StatusBadRequest, "enabled query can be only 0 or 1")
+	}
+
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
 func (m *App) fbHndApiLoggerLevel(ctx *fiber.Ctx) error {
 	lvl := ctx.Query("level")
 

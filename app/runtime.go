@@ -11,6 +11,7 @@ type runtimeConfig struct {
 	qualityLevel      []byte
 	blocklistIps      []byte
 	blocklistSwitcher []byte
+	limiterSwitch     []byte
 }
 
 func (*App) isBlocklistEnabled() bool {
@@ -50,6 +51,12 @@ func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
 		}
 	}
 
+	if len(cfg.limiterSwitch) != 0 {
+		if e = m.applyLimitterSwitch(cfg.limiterSwitch); e != nil {
+			gLog.Error().Err(e).Msg("could not apply runtime configuration (limiter switch)")
+		}
+	}
+
 	return
 }
 
@@ -84,16 +91,40 @@ func (*App) applyBlocklistSwitch(input []byte) (e error) {
 		fallthrough
 	case 1:
 		gBListLock.Lock()
-
 		gBlocklistEnabled = enabled
+		gBListLock.Unlock()
 
 		gLog.Info().Msg("runtime config - blocklist status updated")
-		gLog.Debug().Msgf("apply blocklist - updated size - %d", gBlocklistEnabled)
-
-		gBListLock.Unlock()
+		gLog.Debug().Msgf("apply blocklist - updated value - %d", enabled)
 	default:
 		gLog.Warn().Int("enabled", enabled).
 			Msg("runtime config - blocklist switcher could not be non 0 or non 1")
+		return
+	}
+	return
+}
+
+func (*App) applyLimitterSwitch(input []byte) (e error) {
+	var enabled int
+	if enabled, e = strconv.Atoi(string(input)); e != nil {
+		return
+	}
+
+	gLog.Trace().Msgf("runtime config - limiter apply value %d", enabled)
+
+	switch enabled {
+	case 0:
+		fallthrough
+	case 1:
+		gLimiterLock.Lock()
+		gLimiterEnabled = enabled
+		gLimiterLock.Unlock()
+
+		gLog.Info().Msg("runtime config - limiter status updated")
+		gLog.Debug().Msgf("apply limiter - updated value - %d", enabled)
+	default:
+		gLog.Warn().Int("enabled", enabled).
+			Msg("runtime config - limiter switcher could not be non 0 or non 1")
 		return
 	}
 	return
