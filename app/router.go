@@ -34,6 +34,11 @@ func (m *App) fiberConfigure() {
 		start, e := time.Now(), c.Next()
 		stop := time.Now()
 
+		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
+			gLog.Trace().Msg("non sign request detected, skipping timings...")
+			return
+		}
+
 		total := stop.Sub(start).Round(time.Microsecond)
 		setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBeforeRoute)).Round(time.Microsecond)
 		routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
