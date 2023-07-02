@@ -40,6 +40,9 @@ var (
 
 	gBListLock        sync.RWMutex
 	gBlocklistEnabled = 0
+
+	gLimiterLock     sync.RWMutex
+	gLimiterEnabled = 1
 )
 
 type App struct {

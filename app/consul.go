@@ -96,6 +96,13 @@ func (m *consulClient) bootstrap() {
 		wg.Done()
 	}()
 
+	wg.Add(1)
+	go func() {
+		gLog.Debug().Msg("consul config listener started (blocklist limiter)")
+		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, cfgchan)
+		wg.Done()
+	}()
+
 loop:
 	for {
 		select {
@@ -188,6 +195,14 @@ func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP,
 func (m *consulClient) updateBlocklistSwitcher(enabled string) (e error) {
 	kv := &capi.KVPair{}
 	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockListSwitcher), []byte(enabled)
+
+	_, e = m.KV().Put(kv, nil)
+	return e
+}
+
+func (m *consulClient) updateLimiterSwitcher(enabled string) (e error) {
+	kv := &capi.KVPair{}
+	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgLimiterSwitcher), []byte(enabled)
 
 	_, e = m.KV().Put(kv, nil)
 	return e
@@ -304,6 +319,8 @@ loop:
 				continue
 			}
 
+			// TODO:
+			// ? maybe use here  map with key from utils.Cfg*
 			rconfig := &runtimeConfig{}
 
 			switch key {
@@ -318,6 +335,12 @@ loop:
 				if len(rconfig.blocklistIps) == 0 {
 					rconfig.blocklistIps = []byte("_")
 				}
+			case utils.CfgLimiterSwitcher:
+				rconfig.limiterSwitch = pair.Value
+			default:
+				gLog.Warn().Msgf("consul sent undefined key:value pair; key - %s", key)
+				idx = meta.LastIndex
+				continue
 			}
 
 			payload <- rconfig

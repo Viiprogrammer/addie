@@ -45,6 +45,7 @@ const (
 
 // API precondition check
 func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
+	m.lapRequestTimer(ctx, utils.FbReqTmrPreCond)
 	var errs appMidError
 
 	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("debug")
@@ -77,6 +78,7 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 
 // fake quality check
 func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
+	m.lapRequestTimer(ctx, utils.FbReqTmrFakeQuality)
 	gLog.Trace().Msg("fake quality check")
 
 	uri := ctx.Get(apiHeaderUri)
@@ -91,22 +93,24 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		gLog.Warn().Msg("could not get lock for reading quality level; skipping fake quality chain")
 		return ctx.Next()
 	}
-	defer gQualityLock.RUnlock()
+	quality := gQualityLevel
+	gQualityLock.RUnlock()
 
-	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(gQualityLevel)).
+	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")
-	if tsr.getTitleQuality() <= gQualityLevel {
+	if tsr.getTitleQuality() <= quality {
 		ctx.Locals("uri", uri)
 		return ctx.Next()
 	}
 
 	// precondition finished; quality cool down
-	ctx.Locals("uri", m.getUriWithFakeQuality(tsr, uri, gQualityLevel))
+	ctx.Locals("uri", m.getUriWithFakeQuality(tsr, uri, quality))
 	return ctx.Next()
 }
 
 // consul lottery
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
+	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")
 
 	if !gLotteryLock.TryRLock() {
@@ -140,6 +144,8 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 
 // blocklist
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
+	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
+
 	if !m.isBlocklistEnabled() {
 		return ctx.Next()
 	}

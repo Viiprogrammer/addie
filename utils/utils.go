@@ -10,10 +10,24 @@ const (
 )
 
 const (
+	FbReqTmruestTimer ContextKey = iota
+)
+
+const (
+	FbReqTmrBeforeRoute ContextKey = iota
+	FbReqTmrPreCond
+	FbReqTmrBlocklist
+	FbReqTmrFakeQuality
+	FbReqTmrConsulLottery
+	FbReqTmrReqSign
+)
+
+const (
 	CfgLotteryChance     = "lottery-chance"
 	CfgQualityLevel      = "quality-level"
 	CfgBlockList         = "block-list"
 	CfgBlockListSwitcher = "block-list-switcher"
+	CfgLimiterSwitcher   = "limiter-switcher"
 )
 
 const (
