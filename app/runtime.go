@@ -122,20 +122,23 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 func (*App) applyQualityLevel(input []byte) (e error) {
 	gLog.Debug().Msg("quality settings change requested")
 
-	gQualityLock.Lock()
-	defer gQualityLock.Unlock()
+	var quality titleQuality
 
 	switch string(input) {
 	case "480":
-		gQualityLevel = titleQualitySD
+		quality = titleQualitySD
 	case "720":
-		gQualityLevel = titleQualityHD
+		quality = titleQualityHD
 	case "1080":
-		gQualityLevel = titleQualityFHD
+		quality = titleQualityFHD
 	default:
 		gLog.Warn().Str("input", string(input)).Msg("qulity level can be 480 720 or 1080 only")
 		return
 	}
+
+	gQualityLock.Lock()
+	gQualityLevel = quality
+	gQualityLock.Unlock()
 
 	gLog.Info().Msgf("runtime config - applied quality %s", string(input))
 	return
