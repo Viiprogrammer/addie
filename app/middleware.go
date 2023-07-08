@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"errors"
 	"math/rand"
 	"strings"
@@ -125,12 +126,15 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	}
 	gLotteryLock.RUnlock()
 
-	ip, s := m.balancer.getServerByChunkName(
-		string(m.chunkRegexp.FindSubmatch(
-			[]byte(ctx.Locals("uri").(string)),
-		)[utils.ChunkName]),
-	)
+	var prefixbuf bytes.Buffer
+	uri := []byte(ctx.Locals("uri").(string))
 
+	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
+	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
+
+	ip, s := m.balancer.getServerByChunkName(
+		prefixbuf.String(),
+		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
 	if ip == "" {
 		gLog.Debug().Msg("consul has no servers for balancing, fallback to old method")
 		return ctx.Next()

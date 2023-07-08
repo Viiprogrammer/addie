@@ -181,7 +181,7 @@ func (m *balancer) getUpstreamStats() io.ReadWriter {
 	return buf
 }
 
-func (m *balancer) getServerByChunkName(chunk string) (_ string, server *server) {
+func (m *balancer) getServerByChunkName(prefix, chunk string) (_ string, server *server) {
 	var buf string
 
 	if strings.Contains(chunk, "_") {
@@ -193,7 +193,7 @@ func (m *balancer) getServerByChunkName(chunk string) (_ string, server *server)
 		return
 	}
 
-	sid, e := strconv.Atoi(buf)
+	sid, e := strconv.Atoi(prefix + buf)
 	if e != nil {
 		return
 	}
