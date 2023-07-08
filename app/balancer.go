@@ -33,6 +33,9 @@ type (
 	server struct {
 		name string
 
+		isActive      bool
+		statusChanged time.Time
+
 		sync.RWMutex
 		lastRequestTime time.Time
 		proxiedRequests uint64
@@ -53,6 +56,14 @@ func (m balancerUpstream) set(k string, v *server) {
 	upstreamLocker.Unlock()
 }
 
+func (m balancerUpstream) copy() (bupstream balancerUpstream) {
+	upstreamLocker.RLock()
+	bupstream = m
+	upstreamLocker.RUnlock()
+
+	return
+}
+
 func (m balancerUpstream) resetStats() {
 	upstreamLocker.Lock()
 
@@ -67,6 +78,9 @@ func newServer(name string) *server {
 	return &server{
 		name:            name,
 		lastRequestTime: time.Now(),
+
+		isActive:      true,
+		statusChanged: time.Now(),
 	}
 }
 
@@ -88,6 +102,22 @@ func (m *server) resetStat() {
 
 	gLog.Trace().Msg("server's stats was resetted")
 	m.Unlock()
+}
+
+func (m *server) disableServer() {
+	m.Lock()
+	defer m.Unlock()
+
+	m.isActive = false
+	m.statusChanged = time.Now()
+}
+
+func (m *server) enableServer() {
+	m.Lock()
+	defer m.Unlock()
+
+	m.isActive = true
+	m.statusChanged = time.Now()
 }
 
 func newBalancer() *balancer {
@@ -126,6 +156,33 @@ func (m *balancer) updateUpstream(servers map[string]net.IP) {
 	}
 
 	m.commitUpstream(&newbalancer)
+}
+
+// get new servers, then check upstream existance. Set isActive = true
+// get current servers, then check current server existance in new servers; if !found = set isActive = false
+func (m *balancer) updateUpstream2(servers map[string]net.IP) {
+	var keys []string
+	for k := range servers {
+		keys = append(keys, k)
+	}
+
+	upstream := m.upstream.copy()
+
+	// check new servers; if no server in current upstream - add new server to it
+	for k, v := range servers {
+		if _, found := upstream[k]; !found {
+			srv := newServer(k)
+			upstream[v.String()] = srv
+		}
+	}
+
+	// check current upstream; if there is no server in a new upstream - set server.isAlive = false
+	for k := range upstream {
+		if _, found := servers[k]; !found {
+			upstream[k].isActive = false
+			upstream[k].statusChanged = time.Now()
+		}
+	}
 }
 
 func (m *balancer) commitUpstream(newbalancer *[]net.IP) {
@@ -195,6 +252,7 @@ func (m *balancer) getServerByChunkName(prefix, chunk string) (_ string, server 
 
 	sid, e := strconv.Atoi(prefix + buf)
 	if e != nil {
+		gLog.Warn().Err(e).Msgf("could not get server because of Atoi error (%s); fallback to legacy balancing", chunk)
 		return
 	}
 
