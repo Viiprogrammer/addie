@@ -163,9 +163,41 @@ func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 }
 
 // balancer api
-func (m *App) fbMidAppBalancerNode(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbReqTmrBalance)
-	gLog.Trace().Msg("cache-node-internal balancer")
+func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
+	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
+	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-node-internal balancer")
+
+	var errs appMidError
+
+	if huri := strings.TrimSpace(ctx.Get(apiHeaderUri)); huri == "" {
+		errs = errs | errMidAppPreHeaderUri
+	} else if !m.chunkRegexp.Match([]byte(huri)) {
+		errs = errs | errMidAppPreUriRegexp
+	} else {
+		ctx.Locals("payload", &huri)
+	}
+
+	ctx.Locals("errors", errs)
+	return errs == 0
+}
+
+// !! Temporary function payload!
+func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
+
+	uri := ctx.Locals("uri").(*string)
+	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
+
+	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	buf.Write(sub[utils.ChunkQualityLevel])
+
+	_, server, e := m.cloudBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
+	if errors.Is(e, balancer.ErrServerUnavailable) {
+		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
+		return ctx.Next()
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	ctx.Locals("srv", srv)
 
 	return ctx.Next()
 }

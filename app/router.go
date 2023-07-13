@@ -147,7 +147,9 @@ func (m *App) fiberConfigure() {
 	upstr.Get("/stats", m.fbHndApiUpstream)
 	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
 	upstr.Post("/reset", m.fbHndApiReset)
-	upstr.Get("/cluster/cache-node-internal", m.fbMidAppBalancerNode)
+
+	// upstrCluster := upstr.Group("/cluster/", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
+	upstr.Group("/cluster/", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
 
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")
