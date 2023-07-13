@@ -16,7 +16,7 @@ type timeManager struct {
 }
 
 func (m *timeManager) bootstrap(ctx context.Context) {
-	m.tick = time.NewTicker(1 * time.Second)
+	m.tick = time.NewTicker(time.Second)
 	defer m.tick.Stop()
 
 	for {
