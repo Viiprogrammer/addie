@@ -1,0 +1,158 @@
+package balancer
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"net"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/rs/zerolog"
+)
+
+type ClusterBalancer struct {
+	log *zerolog.Logger
+
+	ulock    sync.RWMutex
+	upstream *upstream
+
+	sync.RWMutex
+	size int
+	ips  []*net.IP
+}
+
+func NewClusterBalancer(ctx context.Context) Balancer {
+	balancer := new(ClusterBalancer)
+	balancer.log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
+	return balancer
+}
+
+func (m *ClusterBalancer) GetNextServer(prefix, chunkname string) (_ string, server *BalancerServer, e error) {
+	var key string
+	if key, e = m.getKeyFromChunkName(&chunkname); e != nil {
+		m.log.Debug().Err(e).Msgf("chunkname - '%s'; fallback to legacy balancing", chunkname)
+		return
+	}
+
+	idx, e := strconv.Atoi(prefix + key)
+	if e != nil {
+		m.log.Debug().Err(e).Msgf("chunkname - '%s'; fallback to legacy balancing", chunkname)
+		return
+	}
+
+	var ip *net.IP
+	if ip = m.getServer(idx); ip == nil {
+		return
+	}
+
+	server, ok := m.upstream.getServer(&m.ulock, ip.String())
+	if !ok {
+		panic("balance result could not be find in balancer's upstream")
+	}
+
+	return ip.String(), server, nil
+}
+
+func (m *ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
+	if strings.Contains(*chunkname, "_") {
+		key = strings.Split(*chunkname, "_")[1]
+	} else if strings.Contains(*chunkname, "fff") {
+		key = strings.ReplaceAll(*chunkname, "fff", "")
+	} else {
+		e = ErrUnparsableChunk
+	}
+
+	return
+}
+
+func (m *ClusterBalancer) getServer(idx int) (_ *net.IP) {
+	if !m.TryRLock() {
+		m.log.Debug().Msg("could not get lock for reading upstream; fallback to legacy balancing")
+		return
+	}
+	defer m.RUnlock()
+
+	if m.size == 0 {
+		return
+	}
+
+	return m.ips[idx%int(m.size)]
+}
+
+func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
+	m.log.Trace().Msg("upstream servers debugging (I/II update iterations)")
+
+	// find and append balancer's upstream
+	for name, ip := range servers {
+		if server, ok := m.upstream.getServer(&m.ulock, name); !ok {
+			server = newServer(name, &ip)
+			m.upstream.putServer(&m.ulock, name, server)
+		} else {
+			server.disable(false)
+		}
+
+		m.log.Trace().Msgf("[I] given server : %s", name)
+	}
+
+	// find differs and disable dead servers
+	curr := m.upstream.copy(&m.ulock)
+	for name, server := range curr {
+		if _, ok := servers[name]; !ok {
+			server.disable(true)
+			m.log.Trace().Msgf("[II] server - %s : disabled", name)
+		} else {
+			m.log.Trace().Msgf("[II] server - %s : enabled", name)
+		}
+	}
+
+	// update "balancer" (slice that used for getNextServer)
+	m.Lock()
+	defer m.Unlock()
+
+	m.ips, m.size = m.upstream.getIps(&m.ulock)
+}
+
+func (m *ClusterBalancer) GetStats() io.Reader {
+	tb := table.NewWriter()
+	defer tb.Render()
+
+	isDownHumanize := func(i bool) string {
+		switch i {
+		case false:
+			return "no"
+		default:
+			return "yes"
+		}
+	}
+
+	buf := bytes.NewBuffer(nil)
+	tb.SetOutputMirror(buf)
+	tb.AppendHeader(table.Row{
+		"Name", "Address", "Requests", "Last Request Time", "Is Down", "Status Time",
+	})
+
+	servers := m.upstream.getServers(&m.ulock)
+	for _, server := range servers {
+		tb.AppendRow([]interface{}{
+			server.Name, server.Ip,
+			server.handledRequests, server.lastRequestTime.String(),
+			isDownHumanize(server.isDown), server.lastChanged.String(),
+		})
+	}
+
+	tb.SortBy([]table.SortBy{
+		{Number: 3, Mode: table.Dsc},
+	})
+
+	tb.Style().Options.SeparateRows = true
+
+	return buf
+}
+
+func (m *ClusterBalancer) ResetStats() {
+	m.upstream.resetServersStats(&m.ulock)
+}
