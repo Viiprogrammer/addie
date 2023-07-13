@@ -15,17 +15,20 @@ func (m *App) fbHndApiUpstream(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-func (m *App) fbHndApiUpstream2(ctx *fiber.Ctx) error {
-	fmt.Fprint(ctx, m.cloudBalancer.GetStats())
+func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
+	m.cloudBalancer.ResetUpstream()
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+
+	gLog.Debug().Msg("upstream reset")
+	ctx.SendString("OK")
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
+func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) error {
 	m.cloudBalancer.ResetStats()
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
 
-	gLog.Debug().Msg("servers reset")
+	gLog.Debug().Msg("servers stats reset")
 	ctx.SendString("OK")
 	return ctx.SendStatus(fiber.StatusOK)
 }

@@ -165,3 +165,7 @@ func (m *ClusterBalancer) GetStats() io.Reader {
 func (m *ClusterBalancer) ResetStats() {
 	m.upstream.resetServersStats(&m.ulock)
 }
+
+func (m *ClusterBalancer) ResetUpstream() {
+	m.upstream.reset(&m.ulock)
+}
