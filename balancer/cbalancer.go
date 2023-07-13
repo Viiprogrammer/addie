@@ -25,10 +25,12 @@ type ClusterBalancer struct {
 	ips  []*net.IP
 }
 
-func NewClusterBalancer(ctx context.Context) Balancer {
-	balancer := new(ClusterBalancer)
-	balancer.log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
-	return balancer
+func NewClusterBalancer(ctx context.Context) *ClusterBalancer {
+	upstream := make(upstream)
+	return &ClusterBalancer{
+		log:      ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger),
+		upstream: &upstream,
+	}
 }
 
 func (m *ClusterBalancer) GetNextServer(prefix, chunkname string) (_ string, server *BalancerServer, e error) {
@@ -52,9 +54,13 @@ func (m *ClusterBalancer) GetNextServer(prefix, chunkname string) (_ string, ser
 	server, ok := m.upstream.getServer(&m.ulock, ip.String())
 	if !ok {
 		panic("balance result could not be find in balancer's upstream")
+	} else if server.isDown {
+		e = ErrServerUnavailable
+	} else {
+		server.statRequest()
 	}
 
-	return ip.String(), server, nil
+	return ip.String(), server, e
 }
 
 func (m *ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
@@ -85,27 +91,28 @@ func (m *ClusterBalancer) getServer(idx int) (_ *net.IP) {
 
 func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	m.log.Trace().Msg("upstream servers debugging (I/II update iterations)")
+	m.log.Info().Msg("[II] upstream update triggered")
+	m.log.Trace().Interface("[II] servers", servers).Msg("")
 
 	// find and append balancer's upstream
 	for name, ip := range servers {
-		if server, ok := m.upstream.getServer(&m.ulock, name); !ok {
-			server = newServer(name, &ip)
-			m.upstream.putServer(&m.ulock, name, server)
+		if server, ok := m.upstream.getServer(&m.ulock, ip.String()); !ok {
+			m.log.Trace().Msgf("[I] new server : %s", name)
+			m.upstream.putServer(&m.ulock, ip.String(), newServer(name, &ip))
 		} else {
+			m.log.Trace().Msgf("[I] server found %s", name)
 			server.disable(false)
 		}
-
-		m.log.Trace().Msgf("[I] given server : %s", name)
 	}
 
 	// find differs and disable dead servers
 	curr := m.upstream.copy(&m.ulock)
-	for name, server := range curr {
-		if _, ok := servers[name]; !ok {
-			server.disable(true)
-			m.log.Trace().Msgf("[II] server - %s : disabled", name)
+	for _, server := range curr {
+		if _, ok := servers[server.Name]; !ok {
+			server.disable()
+			m.log.Trace().Msgf("[II] server - %s : disabled", server.Name)
 		} else {
-			m.log.Trace().Msgf("[II] server - %s : enabled", name)
+			m.log.Trace().Msgf("[II] server - %s : enabled", server.Name)
 		}
 	}
 
@@ -114,6 +121,8 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	defer m.Unlock()
 
 	m.ips, m.size = m.upstream.getIps(&m.ulock)
+	m.log.Trace().Interface("ips", m.ips).Msg("[II]")
+	m.log.Trace().Interface("size", m.size).Msgf("[II]")
 }
 
 func (m *ClusterBalancer) GetStats() io.Reader {

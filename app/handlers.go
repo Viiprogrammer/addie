@@ -15,6 +15,12 @@ func (m *App) fbHndApiUpstream(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
+func (m *App) fbHndApiUpstream2(ctx *fiber.Ctx) error {
+	fmt.Fprint(ctx, m.cloudBalancer.GetStats())
+	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
 func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
 	m.balancer.resetServersStats()
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)

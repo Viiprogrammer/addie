@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	balancer2 "github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
@@ -24,10 +25,12 @@ type consulClient struct {
 	*capi.Client
 	ctx context.Context
 
-	balancer *balancer
+	balancer  *balancer
+	cbalancer *balancer2.ClusterBalancer
+	bbalancer balancer2.Balancer
 }
 
-func newConsulClient(b *balancer) (client *consulClient, e error) {
+func newConsulClient(b *balancer, cb *balancer2.ClusterBalancer) (client *consulClient, e error) {
 	cfg := capi.DefaultConfig()
 
 	cfg.Address = gCli.String("consul-address")
@@ -44,6 +47,7 @@ func newConsulClient(b *balancer) (client *consulClient, e error) {
 	client = new(consulClient)
 	client.Client, e = capi.NewClient(cfg)
 	client.balancer = b
+	client.cbalancer = cb
 	return
 }
 
@@ -162,6 +166,7 @@ func (m *consulClient) listenEvents() (e error) {
 		}
 
 		m.balancer.updateUpstream(servers)
+		m.cbalancer.UpdateServers(servers)
 	}
 }
 

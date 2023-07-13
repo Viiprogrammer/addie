@@ -20,3 +20,4 @@ type Balancer interface {
 }
 
 var ErrUnparsableChunk = errors.New("could not get server because of invalid chunk name")
+var ErrServerUnavailable = errors.New("rolled server is down now")

@@ -140,6 +140,7 @@ func (m *App) fiberConfigure() {
 	// group api - /api
 	api := m.fb.Group("/api")
 	api.Get("/upstream", m.fbHndApiUpstream)
+	api.Get("/upstream2", m.fbHndApiUpstream2)
 	api.Get("/reset", m.fbHndApiReset)
 
 	api.Post("logger/level", m.fbHndApiLoggerLevel)

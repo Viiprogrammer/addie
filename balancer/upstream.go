@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"net"
+	"sort"
 	"sync"
 )
 
@@ -54,16 +55,12 @@ func (m upstream) getIps(l *sync.RWMutex) (ips []*net.IP, _ int) {
 	buf := m.copy(l)
 
 	for _, server := range buf {
-		if server.isDown {
-			continue
-		}
-
 		ips = append(ips, &server.Ip)
 	}
 
-	// sort.Slice(ips, func(i, j int) bool {
-	// 	return ips[i].String() < ips[i].String()
-	// })
+	sort.Slice(ips, func(i, j int) bool {
+		return ips[i].String() < ips[j].String()
+	})
 
 	return ips, len(ips)
 }

@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	balancer2 "github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	bolt "github.com/gofiber/storage/bbolt"
@@ -41,7 +42,7 @@ var (
 	gBListLock        sync.RWMutex
 	gBlocklistEnabled = 0
 
-	gLimiterLock     sync.RWMutex
+	gLimiterLock    sync.RWMutex
 	gLimiterEnabled = 1
 )
 
@@ -52,6 +53,9 @@ type App struct {
 	cache     *CachedTitlesBucket
 	blocklist *blocklist
 	balancer  *balancer
+
+	cloudBalancer *balancer2.ClusterBalancer
+	bareBalancer  balancer2.Balancer
 
 	chunkRegexp *regexp.Regexp
 }
@@ -152,9 +156,19 @@ func (m *App) Bootstrap() (e error) {
 	gLog.Info().Msg("starting balancer...")
 	m.balancer = newBalancer()
 
+	// balancer V2
+	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
+	wg.Add(1)
+	go func(adone func()) {
+		balancer2.Init(gCtx)
+		adone()
+	}(wg.Done)
+	m.cloudBalancer = balancer2.NewClusterBalancer(gCtx)
+	m.bareBalancer = balancer2.NewClusterBalancer(gCtx)
+
 	// consul
 	gLog.Info().Msg("starting consul client...")
-	if gConsul, e = newConsulClient(m.balancer); e != nil {
+	if gConsul, e = newConsulClient(m.balancer, m.cloudBalancer); e != nil {
 		return
 	}
 
