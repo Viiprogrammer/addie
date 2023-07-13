@@ -143,10 +143,12 @@ func (m *App) fiberConfigure() {
 	api.Post("limiter/switch", m.fbHndApiLimiterSwitch)
 
 	// group upstream
-	upstr := api.Group("/upstream")
+	upstr := api.Group("/balancer")
 	upstr.Get("/stats", m.fbHndApiUpstream)
 	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
 	upstr.Post("/reset", m.fbHndApiReset)
+
+	upstr.Group("/cluster", m.fbMidAppBalancer)
 
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")

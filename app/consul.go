@@ -26,7 +26,6 @@ type consulClient struct {
 	ctx context.Context
 
 	cbalancer *balancer2.ClusterBalancer
-	bbalancer balancer2.Balancer
 }
 
 func newConsulClient(cb *balancer2.ClusterBalancer) (client *consulClient, e error) {

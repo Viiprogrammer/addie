@@ -161,3 +161,8 @@ func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 
 	return ctx.Next()
 }
+
+// balancer api
+func (*App) fbMidAppBalancer(ctx *fiber.Ctx) error {
+	return ctx.Next()
+}
