@@ -24,16 +24,16 @@ func (m *timeManager) bootstrap(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-m.tick.C:
-			m.getCurrentTime()
+			m.now = m.getCurrentTime()
 		}
 	}
 }
 
-func (m *timeManager) getCurrentTime() {
+func (m *timeManager) getCurrentTime() time.Time {
 	m.Lock()
 	defer m.Unlock()
 
-	m.now = time.Now().Round(time.Second)
+	return time.Now().Round(time.Second)
 }
 
 func (m *timeManager) time() (t time.Time) {
