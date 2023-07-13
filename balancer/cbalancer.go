@@ -33,7 +33,7 @@ func NewClusterBalancer(ctx context.Context) *ClusterBalancer {
 	}
 }
 
-func (m *ClusterBalancer) GetNextServer(prefix, chunkname string) (_ string, server *BalancerServer, e error) {
+func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, server *BalancerServer, e error) {
 	var key string
 	if key, e = m.getKeyFromChunkName(&chunkname); e != nil {
 		m.log.Debug().Err(e).Msgf("chunkname - '%s'; fallback to legacy balancing", chunkname)

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	balancer2 "github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
@@ -25,10 +25,10 @@ type consulClient struct {
 	*capi.Client
 	ctx context.Context
 
-	cbalancer *balancer2.ClusterBalancer
+	cbalancer balancer.Balancer
 }
 
-func newConsulClient(cb *balancer2.ClusterBalancer) (client *consulClient, e error) {
+func newConsulClient(cb balancer.Balancer) (client *consulClient, e error) {
 	cfg := capi.DefaultConfig()
 
 	cfg.Address = gCli.String("consul-address")

@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"strings"
 
-	balancer2 "github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 )
@@ -133,10 +133,10 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
 
-	_, server, e := m.cloudBalancer.GetNextServer(
+	_, server, e := m.cloudBalancer.BalanceByChunk(
 		prefixbuf.String(),
 		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
-	if errors.Is(e, balancer2.ErrServerUnavailable) {
+	if errors.Is(e, balancer.ErrServerUnavailable) {
 		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
 		return ctx.Next()
 	}
@@ -163,6 +163,9 @@ func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 }
 
 // balancer api
-func (*App) fbMidAppBalancer(ctx *fiber.Ctx) error {
+func (m *App) fbMidAppBalancerNode(ctx *fiber.Ctx) error {
+	m.lapRequestTimer(ctx, utils.FbReqTmrBalance)
+	gLog.Trace().Msg("cache-node-internal balancer")
+
 	return ctx.Next()
 }

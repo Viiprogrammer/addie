@@ -13,10 +13,11 @@ func Init(ctx context.Context) {
 }
 
 type Balancer interface {
-	GetNextServer(prefix, chunkname string) (_ string, server *BalancerServer, e error)
+	BalanceByChunk(prefix, chunkname string) (_ string, server *BalancerServer, e error)
 	UpdateServers(servers map[string]net.IP)
 	GetStats() io.Reader
 	ResetStats()
+	ResetUpstream()
 }
 
 var ErrUnparsableChunk = errors.New("could not get server because of invalid chunk name")

@@ -20,6 +20,7 @@ const (
 	FbReqTmrFakeQuality
 	FbReqTmrConsulLottery
 	FbReqTmrReqSign
+	FbReqTmrBalance
 )
 
 const (

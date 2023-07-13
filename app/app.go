@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	balancer2 "github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	bolt "github.com/gofiber/storage/bbolt"
@@ -53,8 +53,8 @@ type App struct {
 	cache     *CachedTitlesBucket
 	blocklist *blocklist
 
-	cloudBalancer *balancer2.ClusterBalancer
-	bareBalancer  balancer2.Balancer
+	cloudBalancer balancer.Balancer
+	// bareBalancer  balancer2.Balancer
 
 	chunkRegexp *regexp.Regexp
 }
@@ -158,11 +158,11 @@ func (m *App) Bootstrap() (e error) {
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
 	wg.Add(1)
 	go func(adone func()) {
-		balancer2.Init(gCtx)
+		balancer.Init(gCtx)
 		adone()
 	}(wg.Done)
-	m.cloudBalancer = balancer2.NewClusterBalancer(gCtx)
-	m.bareBalancer = balancer2.NewClusterBalancer(gCtx)
+	m.cloudBalancer = balancer.NewClusterBalancer(gCtx)
+	// m.bareBalancer = balancer2.NewClusterBalancer(gCtx)
 
 	// consul
 	gLog.Info().Msg("starting consul client...")
