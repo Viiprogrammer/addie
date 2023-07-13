@@ -10,7 +10,7 @@ import (
 )
 
 func (m *App) fbHndApiUpstream(ctx *fiber.Ctx) error {
-	fmt.Fprint(ctx, m.balancer.getUpstreamStats())
+	fmt.Fprint(ctx, m.cloudBalancer.GetStats())
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
 	return ctx.SendStatus(fiber.StatusOK)
 }
@@ -22,7 +22,7 @@ func (m *App) fbHndApiUpstream2(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
-	m.balancer.resetServersStats()
+	m.cloudBalancer.ResetStats()
 	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
 
 	gLog.Debug().Msg("servers reset")

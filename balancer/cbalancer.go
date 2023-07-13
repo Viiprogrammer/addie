@@ -52,7 +52,7 @@ func (m *ClusterBalancer) GetNextServer(prefix, chunkname string) (_ string, ser
 	}
 
 	server, ok := m.upstream.getServer(&m.ulock, ip.String())
-	if !ok {
+	if !ok || server == nil {
 		panic("balance result could not be find in balancer's upstream")
 	} else if server.isDown {
 		e = ErrServerUnavailable

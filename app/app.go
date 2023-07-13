@@ -52,7 +52,6 @@ type App struct {
 
 	cache     *CachedTitlesBucket
 	blocklist *blocklist
-	balancer  *balancer
 
 	cloudBalancer *balancer2.ClusterBalancer
 	bareBalancer  balancer2.Balancer
@@ -154,7 +153,6 @@ func (m *App) Bootstrap() (e error) {
 
 	// balancer
 	gLog.Info().Msg("starting balancer...")
-	m.balancer = newBalancer()
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
@@ -168,7 +166,7 @@ func (m *App) Bootstrap() (e error) {
 
 	// consul
 	gLog.Info().Msg("starting consul client...")
-	if gConsul, e = newConsulClient(m.balancer, m.cloudBalancer); e != nil {
+	if gConsul, e = newConsulClient(m.cloudBalancer); e != nil {
 		return
 	}
 
