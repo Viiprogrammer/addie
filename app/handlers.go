@@ -1,9 +1,13 @@
 package app
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
@@ -185,5 +189,27 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
 	gLog.Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.IP()).
 		Msg("request signing completed")
 	ctx.Set(apiHeaderLocation, rrl.String())
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
+// !! Temporary function payload!
+func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
+
+	uri := ctx.Locals("uri").(*string)
+	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
+
+	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	buf.Write(sub[utils.ChunkQualityLevel])
+
+	_, server, e := m.cloudBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
+	if errors.Is(e, balancer.ErrServerUnavailable) {
+		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
+		return ctx.Next()
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	ctx.Set("X-Location", srv)
+
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
 	return ctx.SendStatus(fiber.StatusOK)
 }

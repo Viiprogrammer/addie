@@ -175,25 +175,3 @@ func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
 	ctx.Locals("errors", errs)
 	return errs == 0
 }
-
-// !! Temporary function payload!
-func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
-
-	uri := ctx.Locals("uri").(*string)
-	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
-
-	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
-	buf.Write(sub[utils.ChunkQualityLevel])
-
-	_, server, e := m.cloudBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
-	if errors.Is(e, balancer.ErrServerUnavailable) {
-		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
-		return ctx.Next()
-	}
-
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Set("X-Location", srv)
-
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
-	return ctx.SendStatus(fiber.StatusOK)
-}
