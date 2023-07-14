@@ -24,7 +24,7 @@ github.com/gofiber/fiber/v2/middleware/recover
 github.com/gofiber/fiber/v2/middleware/requestid
 github.com/gofiber/fiber/v2/middleware/skip
 github.com/gofiber/fiber/v2/utils
-# github.com/gofiber/storage/bbolt v1.3.4
+# github.com/gofiber/storage/bbolt v1.3.5
 ## explicit; go 1.18
 github.com/gofiber/storage/bbolt
 # github.com/gofiber/storage/memory v1.3.4
