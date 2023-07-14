@@ -7,6 +7,7 @@ const (
 	ContextKeyCliContext
 	ContextKeyAbortFunc
 	ContextKeyRPatcher
+	ContextKeyBlocklist
 )
 
 const (

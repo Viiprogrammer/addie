@@ -161,9 +161,10 @@ func (m *App) Bootstrap() (e error) {
 
 	// blocklist
 	m.blocklist = blocklist.NewBlocklist()
+	gCtx = context.WithValue(gCtx, utils.ContextKeyBlocklist, m.blocklist)
 
 	// runtime
-	m.runtime = runtime.NewRuntime(m.blocklist)
+	m.runtime = runtime.NewRuntime(gCtx)
 
 	// balancer
 	gLog.Info().Msg("starting balancer...")

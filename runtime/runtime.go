@@ -11,29 +11,6 @@ import (
 	"github.com/MindHunter86/anilibria-hlp-service/blocklist"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/rs/zerolog"
-	"github.com/urfave/cli/v2"
-)
-
-var (
-	gCli *cli.Context
-	gLog *zerolog.Logger
-
-	gCtx   context.Context
-	gAbort context.CancelFunc
-)
-
-var (
-	gQualityLock  sync.RWMutex
-	gQualityLevel = utils.TitleQualityFHD
-
-	gLotteryLock   sync.RWMutex
-	gLotteryChance = 0
-
-	gBListLock        sync.RWMutex
-	gBlocklistEnabled = 0
-
-	gLimiterLock    sync.RWMutex
-	gLimiterEnabled = 1
 )
 
 type RuntimePatchType uint8
@@ -59,6 +36,9 @@ var (
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
 	}
 
+	// intenal
+	log *zerolog.Logger
+
 	runtimeChangesHumanize = map[RuntimePatchType]string{
 		RuntimePatchLottery:        "lottery chance",
 		RuntimePatchQuality:        "quality level",
@@ -74,6 +54,15 @@ type (
 	Runtime struct {
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
+
+		gQualityLock  sync.RWMutex
+		gQualityLevel utils.TitleQuality
+
+		gLotteryLock   sync.RWMutex
+		gLotteryChance int
+
+		gLimiterLock    sync.RWMutex
+		gLimiterEnabled int
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -88,9 +77,61 @@ type (
 	}
 )
 
-func NewRuntime(b *blocklist.Blocklist) *Runtime {
+func (m *Runtime) GetQualityLevel() (q utils.TitleQuality) {
+	m.gQualityLock.RLock()
+	defer m.gQualityLock.RUnlock()
+
+	q = m.gQualityLevel
+	return
+}
+
+func (m *Runtime) updateQualityLevel(q utils.TitleQuality) {
+	m.gQualityLock.Lock()
+	defer m.gQualityLock.Unlock()
+
+	m.gQualityLevel = q
+}
+
+func (m *Runtime) GetLotteryChance() (c int) {
+	m.gLotteryLock.RLock()
+	defer m.gLotteryLock.RUnlock()
+
+	c = m.gLotteryChance
+	return
+}
+
+func (m *Runtime) updateLotteryChance(c int) {
+	m.gLotteryLock.Lock()
+	defer m.gLotteryLock.Unlock()
+
+	m.gLotteryChance = c
+}
+
+func (m *Runtime) GetLimiterStatus() (s int) {
+	m.gLotteryLock.RLock()
+	defer m.gLotteryLock.RUnlock()
+
+	s = m.gLimiterEnabled
+	return
+}
+
+func (m *Runtime) updateLimiterStatus(s int) {
+	m.gLotteryLock.Lock()
+	defer m.gLotteryLock.Unlock()
+
+	m.gLimiterEnabled = s
+}
+
+func NewRuntime(ctx context.Context) *Runtime {
+	blist := ctx.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
+	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
+
 	return &Runtime{
-		blocklist: b,
+		blocklist: blist,
+
+		gQualityLevel:   utils.TitleQualityFHD,
+		gLotteryChance:  0,
+		gLimiterEnabled: 0,
 	}
 }
 
@@ -117,7 +158,7 @@ func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
 	}
 
 	if e != nil {
-		gLog.Error().Err(e).
+		log.Error().Err(e).
 			Msgf("could not apply runtime configuration (%s)", runtimeChangesHumanize[patch.Type])
 	}
 
@@ -125,98 +166,91 @@ func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
 }
 
 func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
-	gLog.Debug().Msgf("runtime config - blocklist update requested")
-	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.Size())
+	log.Debug().Msgf("runtime config - blocklist update requested")
+	log.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.Size())
 
 	if bytes.Equal(input, []byte("_")) {
 		m.blocklist.Reset()
-		gLog.Info().Msg("runtime config - blocklist has been reseted")
+		log.Info().Msg("runtime config - blocklist has been reseted")
 		return
 	}
 
 	ips := strings.Split(string(input), ",")
 	m.blocklist.Push(ips...)
 
-	gLog.Info().Msg("runtime config - blocklist update completed")
-	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.Size())
+	log.Info().Msg("runtime config - blocklist update completed")
+	log.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.Size())
 	return
 }
 
-func (*Runtime) applyBlocklistSwitch(input []byte) (e error) {
+func (m *Runtime) applyBlocklistSwitch(input []byte) (e error) {
 
 	var enabled int
 	if enabled, e = strconv.Atoi(string(input)); e != nil {
 		return
 	}
 
-	gLog.Trace().Msgf("runtime config - blocklist apply value %d", enabled)
+	log.Trace().Msgf("runtime config - blocklist apply value %d", enabled)
 
 	switch enabled {
 	case 0:
-		fallthrough
+		m.blocklist.Disable(true)
 	case 1:
-		gBListLock.Lock()
-		gBlocklistEnabled = enabled
-		gBListLock.Unlock()
-
-		gLog.Info().Msg("runtime config - blocklist status updated")
-		gLog.Debug().Msgf("apply blocklist - updated value - %d", enabled)
+		m.blocklist.Disable(false)
 	default:
-		gLog.Warn().Int("enabled", enabled).
+		log.Warn().Int("enabled", enabled).
 			Msg("runtime config - blocklist switcher could not be non 0 or non 1")
 		return
 	}
+
+	log.Info().Msg("runtime config - blocklist status updated")
+	log.Debug().Msgf("apply blocklist - updated value - %d", enabled)
 	return
 }
 
-func (*Runtime) applyLimitterSwitch(input []byte) (e error) {
+func (m *Runtime) applyLimitterSwitch(input []byte) (e error) {
 	var enabled int
 	if enabled, e = strconv.Atoi(string(input)); e != nil {
 		return
 	}
 
-	gLog.Trace().Msgf("runtime config - limiter apply value %d", enabled)
+	log.Trace().Msgf("runtime config - limiter apply value %d", enabled)
 
 	switch enabled {
 	case 0:
 		fallthrough
 	case 1:
-		gLimiterLock.Lock()
-		gLimiterEnabled = enabled
-		gLimiterLock.Unlock()
+		m.updateLimiterStatus(enabled)
 
-		gLog.Info().Msg("runtime config - limiter status updated")
-		gLog.Debug().Msgf("apply limiter - updated value - %d", enabled)
+		log.Info().Msg("runtime config - limiter status updated")
+		log.Debug().Msgf("apply limiter - updated value - %d", enabled)
 	default:
-		gLog.Warn().Int("enabled", enabled).
+		log.Warn().Int("enabled", enabled).
 			Msg("runtime config - limiter switcher could not be non 0 or non 1")
 		return
 	}
 	return
 }
 
-func (*Runtime) applyLotteryChance(input []byte) (e error) {
+func (m *Runtime) applyLotteryChance(input []byte) (e error) {
 	var chance int
 	if chance, e = strconv.Atoi(string(input)); e != nil {
 		return
 	}
 
 	if chance < 0 || chance > 100 {
-		gLog.Warn().Int("chance", chance).Msg("chance could not be less than 0 and more than 100")
+		log.Warn().Int("chance", chance).Msg("chance could not be less than 0 and more than 100")
 		return
 	}
 
-	gLog.Info().Msgf("runtime config - applied lottery chance %s", string(input))
+	log.Info().Msgf("runtime config - applied lottery chance %s", string(input))
 
-	gLotteryLock.Lock()
-	gLotteryChance = chance
-	gLotteryLock.Unlock()
-
+	m.updateLotteryChance(chance)
 	return
 }
 
-func (*Runtime) applyQualityLevel(input []byte) (e error) {
-	gLog.Debug().Msg("quality settings change requested")
+func (m *Runtime) applyQualityLevel(input []byte) (e error) {
+	log.Debug().Msg("quality settings change requested")
 
 	var quality utils.TitleQuality
 
@@ -228,14 +262,11 @@ func (*Runtime) applyQualityLevel(input []byte) (e error) {
 	case "1080":
 		quality = utils.TitleQualityFHD
 	default:
-		gLog.Warn().Str("input", string(input)).Msg("qulity level can be 480 720 or 1080 only")
+		log.Warn().Str("input", string(input)).Msg("qulity level can be 480 720 or 1080 only")
 		return
 	}
 
-	gQualityLock.Lock()
-	gQualityLevel = quality
-	gQualityLock.Unlock()
-
-	gLog.Info().Msgf("runtime config - applied quality %s", string(input))
+	m.updateQualityLevel(quality)
+	log.Info().Msgf("runtime config - applied quality %s", string(input))
 	return
 }
