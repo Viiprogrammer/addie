@@ -54,7 +54,7 @@ type App struct {
 	blocklist *blocklist
 
 	cloudBalancer balancer.Balancer
-	// bareBalancer  balancer2.Balancer
+	bareBalancer  balancer.Balancer
 
 	chunkRegexp *regexp.Regexp
 }
@@ -122,6 +122,14 @@ func (m *App) Bootstrap() (e error) {
 	var echan = make(chan error, 32)
 	var cfgchan = make(chan *runtimeConfig, 1)
 
+	// goroutine helper
+	gofunc := func(waitgroup *sync.WaitGroup, payload func()) {
+		waitgroup.Add(1)
+		defer waitgroup.Done()
+
+		payload()
+	}
+
 	gCtx, gAbort = context.WithCancel(context.Background())
 	gCtx = context.WithValue(gCtx, utils.ContextKeyLogger, gLog)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyCliContext, gCli)
@@ -156,13 +164,12 @@ func (m *App) Bootstrap() (e error) {
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
-	wg.Add(1)
-	go func(adone func()) {
+	gofunc(&wg, func() {
 		balancer.Init(gCtx)
-		adone()
-	}(wg.Done)
+	})
+
+	m.bareBalancer = balancer.NewClusterBalancer(gCtx)
 	m.cloudBalancer = balancer.NewClusterBalancer(gCtx)
-	// m.bareBalancer = balancer2.NewClusterBalancer(gCtx)
 
 	// consul
 	gLog.Info().Msg("starting consul client...")
@@ -172,24 +179,17 @@ func (m *App) Bootstrap() (e error) {
 
 	// consul bootstrap
 	gLog.Info().Msg("bootstrap consul subsystems...")
-	wg.Add(1)
-	go func(adone func()) {
-		gConsul.bootstrap()
-		adone()
-	}(wg.Done)
+	gofunc(&wg, gConsul.bootstrap)
 
 	// http
-	wg.Add(1)
-	go func(adone func()) {
-		defer adone()
-
+	gofunc(&wg, func() {
 		gLog.Debug().Msg("starting fiber http server...")
 		defer gLog.Debug().Msg("fiber http server has been stopped")
 
 		if e = m.fb.Listen(gCli.String("http-listen-addr")); e != nil {
 			gLog.Error().Err(e).Msg("fiber internal error")
 		}
-	}(wg.Done)
+	})
 
 	// another subsystems
 	// ...
