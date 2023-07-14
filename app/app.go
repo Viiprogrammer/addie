@@ -38,9 +38,6 @@ var (
 	gLotteryLock   sync.RWMutex
 	gLotteryChance = 0
 
-	gBListLock        sync.RWMutex
-	gBlocklistEnabled = 0
-
 	gLimiterLock    sync.RWMutex
 	gLimiterEnabled = 1
 )
