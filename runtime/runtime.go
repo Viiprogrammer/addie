@@ -77,11 +77,13 @@ type (
 	}
 )
 
-func (m *Runtime) GetQualityLevel() (q utils.TitleQuality) {
-	m.gQualityLock.RLock()
+func (m *Runtime) GetQualityLevel() (q utils.TitleQuality, ok bool) {
+	if !m.gQualityLock.TryRLock() {
+		return 0, false
+	}
 	defer m.gQualityLock.RUnlock()
 
-	q = m.gQualityLevel
+	q, ok = m.gQualityLevel, true
 	return
 }
 
@@ -92,11 +94,13 @@ func (m *Runtime) updateQualityLevel(q utils.TitleQuality) {
 	m.gQualityLevel = q
 }
 
-func (m *Runtime) GetLotteryChance() (c int) {
-	m.gLotteryLock.RLock()
+func (m *Runtime) GetLotteryChance() (c int, ok bool) {
+	if !m.gLotteryLock.TryRLock() {
+		return 0, false
+	}
 	defer m.gLotteryLock.RUnlock()
 
-	c = m.gLotteryChance
+	c, ok = m.gLotteryChance, true
 	return
 }
 
@@ -107,11 +111,13 @@ func (m *Runtime) updateLotteryChance(c int) {
 	m.gLotteryChance = c
 }
 
-func (m *Runtime) GetLimiterStatus() (s int) {
-	m.gLotteryLock.RLock()
+func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
+	if !m.gLotteryLock.TryRLock() {
+		return 0, false
+	}
 	defer m.gLotteryLock.RUnlock()
 
-	s = m.gLimiterEnabled
+	s, ok = m.gLimiterEnabled, true
 	return
 }
 

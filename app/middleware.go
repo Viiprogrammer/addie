@@ -91,12 +91,11 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	if !gQualityLock.TryRLock() {
+	quality, ok := m.runtime.GetQualityLevel()
+	if !ok {
 		gLog.Warn().Msg("could not get lock for reading quality level; skipping fake quality chain")
 		return ctx.Next()
 	}
-	quality := gQualityLevel
-	gQualityLock.RUnlock()
 
 	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")

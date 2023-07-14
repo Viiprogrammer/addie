@@ -35,9 +35,6 @@ var (
 )
 
 var (
-	gQualityLock  sync.RWMutex
-	gQualityLevel = utils.TitleQualityFHD
-
 	gLotteryLock   sync.RWMutex
 	gLotteryChance = 0
 
