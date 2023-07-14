@@ -197,7 +197,8 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	}
 
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Locals("srv", srv)
+	ctx.Set("X-Location", srv)
 
-	return ctx.Next()
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	return ctx.SendStatus(fiber.StatusOK)
 }
