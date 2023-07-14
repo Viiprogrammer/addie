@@ -36,7 +36,7 @@ func (*Blocklist) Disable(disabled ...bool) {
 	defer eLocker.Unlock()
 
 	disabled = append(disabled, true)
-	Enabled = disabled[0] == false
+	Enabled = !disabled[0]
 }
 
 func (m *Blocklist) Reset() {
