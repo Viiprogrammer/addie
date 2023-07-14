@@ -26,10 +26,14 @@ type consulClient struct {
 	*capi.Client
 	ctx context.Context
 
-	cbalancer balancer.Balancer
+	balancers []balancer.Balancer
 }
 
-func newConsulClient(cb balancer.Balancer) (client *consulClient, e error) {
+var (
+	errConsulInvalidCluster = errors.New("clustername cound not be empty")
+)
+
+func newConsulClient(balancers ...balancer.Balancer) (client *consulClient, e error) {
 	cfg := capi.DefaultConfig()
 
 	cfg.Address = gCli.String("consul-address")
@@ -43,9 +47,16 @@ func newConsulClient(cb balancer.Balancer) (client *consulClient, e error) {
 		return nil, errors.New("given consul service name could not be empty")
 	}
 
+	for _, blcnr := range balancers {
+		if blcnr.GetClusterName() == "" {
+			e = errConsulInvalidCluster
+			return
+		}
+	}
+
 	client = new(consulClient)
 	client.Client, e = capi.NewClient(cfg)
-	client.cbalancer = cb
+	client.balancers = balancers
 	return
 }
 
@@ -55,20 +66,19 @@ func (m *consulClient) bootstrap() {
 	var eventDone context.CancelFunc
 	m.ctx, eventDone = context.WithCancel(context.Background())
 	var wg sync.WaitGroup
-	var errs = make(chan error, 1)
+	var errs = make(chan error, 16)
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul event listener started")
+	// goroutine helper - consul health
+	listenClusterEvents := func(wait *sync.WaitGroup, ec chan error, payload func() error) {
+		wait.Add(1)
 
-		if e := m.listenEvents(); e != nil {
-			errs <- e
-		}
+		go func(done func(), gopayload func() error, errors chan error) {
+			errors <- gopayload()
+			done()
+		}(wait.Done, payload, ec)
+	}
 
-		wg.Done()
-	}()
-
-	// goroutine helper
+	// goroutine helper - consul KV
 	listenChanges := func(wait *sync.WaitGroup, humanize string, payload func()) {
 		wait.Add(1)
 		gLog.Debug().Msgf("consul config listener started (%s)", humanize)
@@ -79,9 +89,17 @@ func (m *consulClient) bootstrap() {
 		}(wait.Done, payload)
 	}
 
+	// consul health service watchdog
+	for _, clusterBalancer := range m.balancers {
+		cbalancer := clusterBalancer
+		listenClusterEvents(&wg, errs, func() error {
+			return m.listenClusterEvents(cbalancer)
+		})
+	}
+
+	// consul KV watchdog
 	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
 
-	// listeners
 	listenChanges(&wg, "lottery", func() {
 		m.listenRuntimeConfigKey(utils.CfgLotteryChance, rpatcher)
 	})
@@ -106,6 +124,10 @@ loop:
 	for {
 		select {
 		case err := <-errs:
+			if err == nil {
+				continue
+			}
+
 			gLog.Error().Err(err).Msg("")
 			break loop
 		case <-gCtx.Done():
@@ -119,7 +141,10 @@ loop:
 	wg.Wait()
 }
 
-func (m *consulClient) listenEvents() (e error) {
+func (m *consulClient) listenClusterEvents(cluster balancer.Balancer) (e error) {
+	gLog.Debug().Msgf("consul event listener started for cluster %s", cluster.GetClusterName())
+	defer gLog.Debug().Msgf("consul event listener stopped for cluster %s", cluster.GetClusterName())
+
 	var idx uint64
 	var servers map[string]net.IP
 	var fails uint8
@@ -134,7 +159,7 @@ func (m *consulClient) listenEvents() (e error) {
 			return
 		}
 
-		if servers, idx, e = m.getHealthServiceServers(idx); errors.Is(e, context.Canceled) {
+		if servers, idx, e = m.getHealthServers(idx, cluster.GetClusterName()); errors.Is(e, context.Canceled) {
 			return
 		} else if e != nil {
 			gLog.Warn().Uint8("fails", fails).Err(e).
@@ -160,15 +185,17 @@ func (m *consulClient) listenEvents() (e error) {
 			}
 		}
 
-		m.cbalancer.UpdateServers(servers)
+		cluster.UpdateServers(servers)
 	}
 }
 
-func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
+// func (m *consulClient)
+
+func (m *consulClient) getHealthServers(idx uint64, service string) (_ map[string]net.IP, _ uint64, e error) {
 	opts := *defaultOpts
 	opts.WaitIndex = idx
 
-	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(m.ctx))
+	entries, meta, e := m.Health().Service(service, "", true, opts.WithContext(m.ctx))
 	if e != nil {
 		return nil, idx, e
 	}

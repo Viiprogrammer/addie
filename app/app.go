@@ -160,12 +160,12 @@ func (m *App) Bootstrap() (e error) {
 		balancer.Init(gCtx)
 	})
 
-	m.bareBalancer = balancer.NewClusterBalancer(gCtx)
-	m.cloudBalancer = balancer.NewClusterBalancer(gCtx)
+	m.bareBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterNodes)
+	m.cloudBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterCloud)
 
 	// consul
 	gLog.Info().Msg("starting consul client...")
-	if gConsul, e = newConsulClient(m.cloudBalancer); e != nil {
+	if gConsul, e = newConsulClient(m.cloudBalancer, m.bareBalancer); e != nil {
 		return
 	}
 
@@ -213,7 +213,7 @@ LOOP:
 		select {
 		case patch := <-rpatcher:
 			gLog.Debug().Msg("new configuration detected, applying...")
-			m.runtime.ApplyPath(patch)
+			m.runtime.ApplyPatch(patch)
 		case <-kernSignal:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
 			gAbort()

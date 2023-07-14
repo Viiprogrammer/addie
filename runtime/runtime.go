@@ -21,8 +21,6 @@ const (
 	RuntimePatchBlocklist
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
-	RuntimePatchConsulNCluster
-	RuntimePatchConsulCCluster
 )
 
 var (
@@ -40,13 +38,11 @@ var (
 	log *zerolog.Logger
 
 	runtimeChangesHumanize = map[RuntimePatchType]string{
-		RuntimePatchLottery:        "lottery chance",
-		RuntimePatchQuality:        "quality level",
-		RuntimePatchBlocklist:      "blocklist switch",
-		RuntimePatchBlocklistIps:   "blocklist ips",
-		RuntimePatchLimiter:        "limiter switch",
-		RuntimePatchConsulNCluster: "consul cache-node cluster",
-		RuntimePatchConsulCCluster: "consul cache-cloud cluster",
+		RuntimePatchLottery:      "lottery chance",
+		RuntimePatchQuality:      "quality level",
+		RuntimePatchBlocklist:    "blocklist switch",
+		RuntimePatchBlocklistIps: "blocklist ips",
+		RuntimePatchLimiter:      "limiter switch",
 	}
 )
 
@@ -134,7 +130,8 @@ func NewRuntime(ctx context.Context) *Runtime {
 	}
 }
 
-func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
+func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
+
 	if len(patch.Patch) == 0 {
 		return ErrRuntimeUndefinedPatch
 	}
@@ -150,8 +147,6 @@ func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
 		e = m.applyBlocklistChanges(patch.Patch)
 	case RuntimePatchLimiter:
 		e = m.applyLimitterSwitch(patch.Patch)
-	case RuntimePatchConsulNCluster:
-	case RuntimePatchConsulCCluster:
 	default:
 		panic("internal error - undefined runtime patch type")
 	}

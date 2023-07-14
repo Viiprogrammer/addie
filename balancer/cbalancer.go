@@ -12,10 +12,13 @@ import (
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog"
+	"github.com/urfave/cli/v2"
 )
 
 type ClusterBalancer struct {
-	log *zerolog.Logger
+	log     *zerolog.Logger
+	ccx     *cli.Context
+	cluster BalancerCluster
 
 	ulock    sync.RWMutex
 	upstream *upstream
@@ -25,11 +28,24 @@ type ClusterBalancer struct {
 	ips  []*net.IP
 }
 
-func NewClusterBalancer(ctx context.Context) *ClusterBalancer {
+func NewClusterBalancer(ctx context.Context, cluster BalancerCluster) *ClusterBalancer {
 	upstream := make(upstream)
 	return &ClusterBalancer{
 		log:      ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger),
+		ccx:      ctx.Value(utils.ContextKeyCliContext).(*cli.Context),
+		cluster:  cluster,
 		upstream: &upstream,
+	}
+}
+
+func (m *ClusterBalancer) GetClusterName() string {
+	switch m.cluster {
+	case BalancerClusterNodes:
+		return m.ccx.String("consul-service-nodes")
+	case BalancerClusterCloud:
+		return m.ccx.String("consul-service-cloud")
+	default:
+		return ""
 	}
 }
 
