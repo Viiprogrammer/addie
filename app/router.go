@@ -148,8 +148,8 @@ func (m *App) fiberConfigure() {
 	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
 	upstr.Post("/reset", m.fbHndApiReset)
 
-	// upstrCluster := upstr.Group("/cluster/", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
-	upstr.Group("/cluster/", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
+	upstrCluster := upstr.Group("/cluster/", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
+	upstrCluster.Get("cache-nodes", m.fbHndBlcNodesBalance)
 
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")
@@ -167,10 +167,7 @@ func (m *App) fiberConfigure() {
 	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
-			gLimiterLock.RLock()
-			defer gLimiterLock.RUnlock() // +40-80ns
-
-			if gLimiterEnabled == 0 {
+			if limiting, ok := m.runtime.GetLimiterStatus(); limiting == 0 || !ok {
 				return true
 			}
 

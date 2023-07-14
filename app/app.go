@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/blocklist"
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	bolt "github.com/gofiber/storage/bbolt"
@@ -32,26 +35,13 @@ var (
 	gAniApi *ApiClient
 )
 
-var (
-	gQualityLock  sync.RWMutex
-	gQualityLevel = titleQualityFHD
-
-	gLotteryLock   sync.RWMutex
-	gLotteryChance = 0
-
-	gBListLock        sync.RWMutex
-	gBlocklistEnabled = 0
-
-	gLimiterLock    sync.RWMutex
-	gLimiterEnabled = 1
-)
-
 type App struct {
 	fb     *fiber.App
 	fbstor fiber.Storage
 
 	cache     *CachedTitlesBucket
-	blocklist *blocklist
+	blocklist *blocklist.Blocklist
+	runtime   *runtime.Runtime
 
 	cloudBalancer balancer.Balancer
 	bareBalancer  balancer.Balancer
@@ -61,7 +51,6 @@ type App struct {
 
 func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 	gCli, gLog = c, l
-	gLotteryChance = gCli.Int("consul-ab-split")
 
 	app = &App{}
 	app.fb = fiber.New(fiber.Config{
@@ -120,7 +109,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 func (m *App) Bootstrap() (e error) {
 	var wg sync.WaitGroup
 	var echan = make(chan error, 32)
-	var cfgchan = make(chan *runtimeConfig, 1)
+	var rpatcher = make(chan *runtime.RuntimePatch, 1)
 
 	// goroutine helper
 	gofunc := func(w *sync.WaitGroup, p func()) {
@@ -136,7 +125,7 @@ func (m *App) Bootstrap() (e error) {
 	gCtx = context.WithValue(gCtx, utils.ContextKeyLogger, gLog)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyCliContext, gCli)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyAbortFunc, gAbort)
-	gCtx = context.WithValue(gCtx, utils.ContextKeyCfgChan, cfgchan)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyRPatcher, rpatcher)
 
 	// defer m.checkErrorsBeforeClosing(echan)
 	// defer wg.Wait() // !!
@@ -159,7 +148,11 @@ func (m *App) Bootstrap() (e error) {
 	m.cache = NewCachedTitlesBucket()
 
 	// blocklist
-	m.blocklist = newBlocklist()
+	m.blocklist = blocklist.NewBlocklist(gCtx)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyBlocklist, m.blocklist)
+
+	// runtime
+	m.runtime = runtime.NewRuntime(gCtx)
 
 	// balancer
 	gLog.Info().Msg("starting balancer...")
@@ -188,7 +181,9 @@ func (m *App) Bootstrap() (e error) {
 		gLog.Debug().Msg("starting fiber http server...")
 		defer gLog.Debug().Msg("fiber http server has been stopped")
 
-		if e = m.fb.Listen(gCli.String("http-listen-addr")); e != nil {
+		if e = m.fb.Listen(gCli.String("http-listen-addr")); errors.Is(e, context.DeadlineExceeded) {
+			return
+		} else if e != nil {
 			gLog.Error().Err(e).Msg("fiber internal error")
 		}
 	})
@@ -214,14 +209,14 @@ func (m *App) loop(_ chan error, done func()) {
 	gLog.Debug().Msg("initiate main event loop...")
 	defer gLog.Debug().Msg("main event loop has been closed")
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
 
 LOOP:
 	for {
 		select {
-		case cfg := <-cfgchan:
+		case patch := <-rpatcher:
 			gLog.Debug().Msg("new configuration detected, applying...")
-			m.applyRuntimeConfig(cfg)
+			m.runtime.ApplyPath(patch)
 		case <-kernSignal:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
 			gAbort()

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
@@ -67,42 +68,39 @@ func (m *consulClient) bootstrap() {
 		wg.Done()
 	}()
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+	// goroutine helper
+	listenChanges := func(wait *sync.WaitGroup, humanize string, payload func()) {
+		wait.Add(1)
+		gLog.Debug().Msgf("consul config listener started (%s)", humanize)
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (lottery)")
-		m.listenRuntimeConfigKey(utils.CfgLotteryChance, cfgchan)
-		wg.Done()
-	}()
+		go func(done, gopayload func()) {
+			gopayload()
+			done()
+		}(wait.Done, payload)
+	}
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (quality)")
-		m.listenRuntimeConfigKey(utils.CfgQualityLevel, cfgchan)
-		wg.Done()
-	}()
+	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist)")
-		m.listenRuntimeConfigKey(utils.CfgBlockList, cfgchan)
-		wg.Done()
-	}()
+	// listeners
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgLotteryChance, rpatcher)
+	})
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist switch)")
-		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "quality", func() {
+		m.listenRuntimeConfigKey(utils.CfgQualityLevel, rpatcher)
+	})
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist limiter)")
-		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "blocklist_ips", func() {
+		m.listenRuntimeConfigKey(utils.CfgBlockList, rpatcher)
+	})
+
+	listenChanges(&wg, "blocklist", func() {
+		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, rpatcher)
+	})
+
+	listenChanges(&wg, "limiter", func() {
+		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
+	})
 
 loop:
 	for {
@@ -155,7 +153,7 @@ func (m *consulClient) listenEvents() (e error) {
 		}
 
 		if gLog.GetLevel() == zerolog.TraceLevel {
-			gLog.Trace().Msg("received serverlist debug:")
+			gLog.Trace().Msg("received serverlist debug")
 
 			for _, ip := range servers {
 				gLog.Trace().Msgf("received serverlist entry - %s", ip.String())
@@ -293,7 +291,7 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 	return
 }
 
-func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
+func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *runtime.RuntimePatch) {
 	var idx uint64
 	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
 
@@ -320,31 +318,18 @@ loop:
 				continue
 			}
 
-			// TODO:
-			// ? maybe use here  map with key from utils.Cfg*
-			rconfig := &runtimeConfig{}
-
-			switch key {
-			case utils.CfgLotteryChance:
-				rconfig.lotteryChance = pair.Value
-			case utils.CfgQualityLevel:
-				rconfig.qualityLevel = pair.Value
-			case utils.CfgBlockListSwitcher:
-				rconfig.blocklistSwitcher = pair.Value
-			case utils.CfgBlockList:
-				rconfig.blocklistIps = pair.Value
-				if len(rconfig.blocklistIps) == 0 {
-					rconfig.blocklistIps = []byte("_")
-				}
-			case utils.CfgLimiterSwitcher:
-				rconfig.limiterSwitch = pair.Value
-			default:
-				gLog.Warn().Msgf("consul sent undefined key:value pair; key - %s", key)
-				idx = meta.LastIndex
-				continue
+			// default patch
+			patch := &runtime.RuntimePatch{
+				Type:  runtime.RuntimeUtilsBindings[key],
+				Patch: pair.Value,
 			}
 
-			payload <- rconfig
+			// exclusions:
+			if patch.Type == runtime.RuntimePatchBlocklistIps && len(patch.Patch) == 0 {
+				patch.Patch = []byte("_")
+			}
+
+			rpatcher <- patch
 			idx = meta.LastIndex
 		}
 	}

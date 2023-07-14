@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 )
 
 type (
@@ -38,32 +40,11 @@ type (
 )
 
 type (
-	titleQuality uint8
-	TitleSerie   struct {
+	TitleSerie struct {
 		Title, Serie  uint16
-		QualityHashes map[titleQuality]string
+		QualityHashes map[utils.TitleQuality]string
 	}
 )
-
-const (
-	titleQualityNone titleQuality = iota
-	titleQualitySD
-	titleQualityHD
-	titleQualityFHD
-)
-
-func (m *titleQuality) string() string {
-	switch *m {
-	case titleQualitySD:
-		return "480"
-	case titleQualityHD:
-		return "720"
-	case titleQualityFHD:
-		return "1080"
-	default:
-		return ""
-	}
-}
 
 // redis schema
 // https://cache.libria.fun/videos/media/ts/9277/13/720/3ae5aa5839690b8d9ea9fcef9b720fb4_00028.ts
@@ -138,22 +119,22 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 
 		tserie.Title = title.Id
 		tserie.Serie = serie.Serie
-		tserie.QualityHashes = make(map[titleQuality]string)
+		tserie.QualityHashes = make(map[utils.TitleQuality]string)
 
 		if serie.Hls.Sd != "" {
-			if tserie.QualityHashes[titleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
+			if tserie.QualityHashes[utils.TitleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
 				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
 			}
 		}
 
 		if serie.Hls.Hd != "" {
-			if tserie.QualityHashes[titleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
+			if tserie.QualityHashes[utils.TitleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
 				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
 			}
 		}
 
 		if serie.Hls.Fhd != "" {
-			if tserie.QualityHashes[titleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
+			if tserie.QualityHashes[utils.TitleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
 				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
 			}
 		}
@@ -200,11 +181,11 @@ func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e err
 	return
 }
 
-func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality titleQuality) string {
+func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality utils.TitleQuality) string {
 	gLog.Debug().Msg("format check")
 	if tsr.isOldFormat() && !tsr.isM3U8() {
-		gLog.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.string()+"/").Str("uri", uri).Msg("format is old")
-		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/")
+		gLog.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.String()+"/").Str("uri", uri).Msg("format is old")
+		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.String()+"/")
 	}
 
 	gLog.Debug().Msg("trying to complete tsr")
@@ -222,14 +203,14 @@ func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality 
 
 	gLog.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
 	return strings.ReplaceAll(
-		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.string()+"/"),
+		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.String()+"/"),
 		hash, title.QualityHashes[quality],
 	)
 }
 
 type TitleSerieRequest struct {
 	titleId, serieId uint16
-	quality          titleQuality
+	quality          utils.TitleQuality
 	hash             string
 
 	raw []string
@@ -269,23 +250,23 @@ func (m *TitleSerieRequest) getSerieIdString() string {
 	return m.raw[tsrRawTitleSerie]
 }
 
-func (m *TitleSerieRequest) getTitleQuality() titleQuality {
-	if m.quality != titleQualityNone {
+func (m *TitleSerieRequest) getTitleQuality() utils.TitleQuality {
+	if m.quality != utils.TitleQualityNone {
 		return m.quality
 	}
 
 	switch m.raw[tsrRawTitleQuality] {
 	case "480":
-		m.quality = titleQualitySD
+		m.quality = utils.TitleQualitySD
 		return m.quality
 	case "720":
-		m.quality = titleQualityHD
+		m.quality = utils.TitleQualityHD
 		return m.quality
 	case "1080":
-		m.quality = titleQualityFHD
+		m.quality = utils.TitleQualityFHD
 		return m.quality
 	default:
-		return titleQualityNone
+		return utils.TitleQualityNone
 	}
 }
 

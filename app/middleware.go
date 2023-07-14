@@ -91,12 +91,11 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	if !gQualityLock.TryRLock() {
+	quality, ok := m.runtime.GetQualityLevel()
+	if !ok {
 		gLog.Warn().Msg("could not get lock for reading quality level; skipping fake quality chain")
 		return ctx.Next()
 	}
-	quality := gQualityLevel
-	gQualityLock.RUnlock()
 
 	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")
@@ -115,17 +114,13 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")
 
-	if !gLotteryLock.TryRLock() {
+	if lottery, ok := m.runtime.GetLotteryChance(); !ok {
 		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
 		return ctx.Next()
-	}
-
-	if gLotteryChance < rand.Intn(99)+1 {
+	} else if lottery < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
-		gLotteryLock.RUnlock()
 		return ctx.Next()
 	}
-	gLotteryLock.RUnlock()
 
 	var prefixbuf bytes.Buffer
 	uri := []byte(ctx.Locals("uri").(string))
@@ -150,11 +145,11 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
 
-	if !m.isBlocklistEnabled() {
+	if !m.blocklist.IsEnabled() {
 		return ctx.Next()
 	}
 
-	if m.blocklist.isExists(ctx.IP()) {
+	if m.blocklist.IsExists(ctx.IP()) {
 		gLog.Debug().Str("cip", ctx.IP()).Msg("client has been banned, forbid request")
 		return fiber.NewError(fiber.StatusForbidden)
 	}
@@ -179,26 +174,4 @@ func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
 
 	ctx.Locals("errors", errs)
 	return errs == 0
-}
-
-// !! Temporary function payload!
-func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
-
-	uri := ctx.Locals("uri").(*string)
-	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
-
-	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
-	buf.Write(sub[utils.ChunkQualityLevel])
-
-	_, server, e := m.cloudBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
-	if errors.Is(e, balancer.ErrServerUnavailable) {
-		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
-		return ctx.Next()
-	}
-
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Set("X-Location", srv)
-
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
-	return ctx.SendStatus(fiber.StatusOK)
 }
