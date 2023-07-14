@@ -245,7 +245,6 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-// !! Temporary function payload!
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 
 	uri := ctx.Locals("uri").(*string)
