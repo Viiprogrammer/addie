@@ -1,12 +1,39 @@
-package app
+package runtime
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/MindHunter86/anilibria-hlp-service/blocklist"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/rs/zerolog"
+	"github.com/urfave/cli/v2"
+)
+
+var (
+	gCli *cli.Context
+	gLog *zerolog.Logger
+
+	gCtx   context.Context
+	gAbort context.CancelFunc
+)
+
+var (
+	gQualityLock  sync.RWMutex
+	gQualityLevel = utils.TitleQualityFHD
+
+	gLotteryLock   sync.RWMutex
+	gLotteryChance = 0
+
+	gBListLock        sync.RWMutex
+	gBlocklistEnabled = 0
+
+	gLimiterLock    sync.RWMutex
+	gLimiterEnabled = 1
 )
 
 type RuntimePatchType uint8
@@ -38,7 +65,7 @@ var (
 type (
 	Runtime struct {
 		// todo - refactor
-		blocklist *blocklist // temporary;
+		blocklist *blocklist.Blocklist // temporary;
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -53,7 +80,7 @@ type (
 	}
 )
 
-func NewRuntime(b *blocklist) *Runtime {
+func NewRuntime(b *blocklist.Blocklist) *Runtime {
 	return &Runtime{
 		blocklist: b,
 	}
@@ -89,33 +116,21 @@ func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
 	return
 }
 
-func (*App) isBlocklistEnabled() bool {
-	gBListLock.RLock()
-	defer gBListLock.RUnlock()
-
-	switch gBlocklistEnabled {
-	case 1:
-		return true
-	default:
-		return false
-	}
-}
-
 func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
 	gLog.Debug().Msgf("runtime config - blocklist update requested")
-	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.size())
+	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.Size())
 
 	if bytes.Equal(input, []byte("_")) {
-		m.blocklist.reset()
+		m.blocklist.Reset()
 		gLog.Info().Msg("runtime config - blocklist has been reseted")
 		return
 	}
 
 	ips := strings.Split(string(input), ",")
-	m.blocklist.push(ips...)
+	m.blocklist.Push(ips...)
 
 	gLog.Info().Msg("runtime config - blocklist update completed")
-	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.size())
+	gLog.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.Size())
 	return
 }
 

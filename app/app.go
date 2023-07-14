@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/blocklist"
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	bolt "github.com/gofiber/storage/bbolt"
@@ -51,8 +53,8 @@ type App struct {
 	fbstor fiber.Storage
 
 	cache     *CachedTitlesBucket
-	blocklist *blocklist
-	runtime   *Runtime
+	blocklist *blocklist.Blocklist
+	runtime   *runtime.Runtime
 
 	cloudBalancer balancer.Balancer
 	bareBalancer  balancer.Balancer
@@ -121,7 +123,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 func (m *App) Bootstrap() (e error) {
 	var wg sync.WaitGroup
 	var echan = make(chan error, 32)
-	var rpatcher = make(chan *RuntimePatch, 1)
+	var rpatcher = make(chan *runtime.RuntimePatch, 1)
 
 	// goroutine helper
 	gofunc := func(waitgroup *sync.WaitGroup, payload func()) {
@@ -158,10 +160,10 @@ func (m *App) Bootstrap() (e error) {
 	m.cache = NewCachedTitlesBucket()
 
 	// blocklist
-	m.blocklist = newBlocklist()
+	m.blocklist = blocklist.NewBlocklist()
 
 	// runtime
-	m.runtime = NewRuntime(m.blocklist)
+	m.runtime = runtime.NewRuntime(m.blocklist)
 
 	// balancer
 	gLog.Info().Msg("starting balancer...")
@@ -216,7 +218,7 @@ func (m *App) loop(_ chan error, done func()) {
 	gLog.Debug().Msg("initiate main event loop...")
 	defer gLog.Debug().Msg("main event loop has been closed")
 
-	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *RuntimePatch)
+	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
 
 LOOP:
 	for {

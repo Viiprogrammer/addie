@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
@@ -67,7 +68,7 @@ func (m *consulClient) bootstrap() {
 		wg.Done()
 	}()
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *RuntimeConfig)
+	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtime.RuntimeConfig)
 
 	wg.Add(1)
 	go func() {
@@ -293,7 +294,7 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 	return
 }
 
-func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *RuntimePatch) {
+func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *runtime.RuntimePatch) {
 	var idx uint64
 	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
 
@@ -322,27 +323,27 @@ loop:
 
 			// TODO:
 			// ? maybe use here  map with key from utils.Cfg*
-			rconfig := &RuntimeConfig{}
+			rconfig := &runtime.RuntimeConfig{}
 
-			switch key {
-			case utils.CfgLotteryChance:
-				rconfig.lotteryChance = pair.Value
-			case utils.CfgQualityLevel:
-				rconfig.qualityLevel = pair.Value
-			case utils.CfgBlockListSwitcher:
-				rconfig.blocklistSwitcher = pair.Value
-			case utils.CfgBlockList:
-				rconfig.blocklistIps = pair.Value
-				if len(rconfig.blocklistIps) == 0 {
-					rconfig.blocklistIps = []byte("_")
-				}
-			case utils.CfgLimiterSwitcher:
-				rconfig.limiterSwitch = pair.Value
-			default:
-				gLog.Warn().Msgf("consul sent undefined key:value pair; key - %s", key)
-				idx = meta.LastIndex
-				continue
-			}
+			// switch key {
+			// case utils.CfgLotteryChance:
+			// 	rconfig.lotteryChance = pair.Value
+			// case utils.CfgQualityLevel:
+			// 	rconfig.qualityLevel = pair.Value
+			// case utils.CfgBlockListSwitcher:
+			// 	rconfig.blocklistSwitcher = pair.Value
+			// case utils.CfgBlockList:
+			// 	rconfig.blocklistIps = pair.Value
+			// 	if len(rconfig.blocklistIps) == 0 {
+			// 		rconfig.blocklistIps = []byte("_")
+			// 	}
+			// case utils.CfgLimiterSwitcher:
+			// 	rconfig.limiterSwitch = pair.Value
+			// default:
+			// 	gLog.Warn().Msgf("consul sent undefined key:value pair; key - %s", key)
+			// 	idx = meta.LastIndex
+			// 	continue
+			// }
 
 			payload <- rconfig
 			idx = meta.LastIndex

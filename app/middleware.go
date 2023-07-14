@@ -150,11 +150,11 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
 
-	if !m.isBlocklistEnabled() {
+	if !m.blocklist.IsEnabled() {
 		return ctx.Next()
 	}
 
-	if m.blocklist.isExists(ctx.IP()) {
+	if m.blocklist.IsExists(ctx.IP()) {
 		gLog.Debug().Str("cip", ctx.IP()).Msg("client has been banned, forbid request")
 		return fiber.NewError(fiber.StatusForbidden)
 	}
