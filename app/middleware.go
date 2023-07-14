@@ -128,7 +128,7 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
 
-	_, server, e := m.bareBalancer.BalanceByChunk(
+	_, server, e := m.cloudBalancer.BalanceByChunk(
 		prefixbuf.String(),
 		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
 	if errors.Is(e, balancer.ErrServerUnavailable) {
