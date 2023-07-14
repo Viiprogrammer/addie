@@ -154,9 +154,6 @@ func (m *App) Bootstrap() (e error) {
 	// runtime
 	m.runtime = runtime.NewRuntime(gCtx)
 
-	// balancer
-	gLog.Info().Msg("starting balancer...")
-
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
 	gofunc(&wg, func() {
