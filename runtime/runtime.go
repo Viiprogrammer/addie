@@ -68,13 +68,6 @@ type (
 		Type  RuntimePatchType
 		Patch []byte
 	}
-	RuntimeConfig struct {
-		lotteryChance     []byte
-		qualityLevel      []byte
-		blocklistIps      []byte
-		blocklistSwitcher []byte
-		limiterSwitch     []byte
-	}
 )
 
 func (m *Runtime) GetQualityLevel() (q utils.TitleQuality, ok bool) {
@@ -112,7 +105,7 @@ func (m *Runtime) updateLotteryChance(c int) {
 }
 
 func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
-	if !m.gLotteryLock.TryRLock() {
+	if !m.gLimiterLock.TryRLock() {
 		return 0, false
 	}
 	defer m.gLotteryLock.RUnlock()
@@ -122,7 +115,7 @@ func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
 }
 
 func (m *Runtime) updateLimiterStatus(s int) {
-	m.gLotteryLock.Lock()
+	m.gLimiterLock.Lock()
 	defer m.gLotteryLock.Unlock()
 
 	m.gLimiterEnabled = s
@@ -152,7 +145,7 @@ func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
 	case RuntimePatchQuality:
 		e = m.applyQualityLevel(patch.Patch)
 	case RuntimePatchBlocklist:
-		e = m.applyLimitterSwitch(patch.Patch)
+		e = m.applyBlocklistSwitch(patch.Patch)
 	case RuntimePatchBlocklistIps:
 		e = m.applyBlocklistChanges(patch.Patch)
 	case RuntimePatchLimiter:
