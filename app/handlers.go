@@ -13,26 +13,79 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func (m *App) fbHndApiUpstream(ctx *fiber.Ctx) error {
-	fmt.Fprint(ctx, m.cloudBalancer.GetStats())
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+func (*App) getBalancersClusterArg(ctx *fiber.Ctx) (cluster balancer.BalancerCluster, e error) {
+	var buf string
+	if buf = ctx.Query("cluster"); buf == "" {
+		e = fiber.NewError(fiber.StatusBadRequest, "cluster could not be empty")
+		return
+	}
+
+	switch buf = strings.TrimSpace(buf); buf {
+	case "cache-nodes":
+		cluster = balancer.BalancerClusterNodes
+	case "cache-cloud":
+		cluster = balancer.BalancerClusterCloud
+	default:
+		e = fiber.NewError(fiber.StatusBadRequest, "invalid cluster name")
+	}
+
+	return
+}
+
+func (m *App) fbHndApiBalancerStats(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
+
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		fmt.Fprint(ctx, m.bareBalancer.GetStats())
+	case balancer.BalancerClusterCloud:
+		fmt.Fprint(ctx, m.cloudBalancer.GetStats())
+	}
+
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
-	m.cloudBalancer.ResetUpstream()
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	gLog.Debug().Msg("servers stats reset")
 
-	gLog.Debug().Msg("upstream reset")
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
+
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		m.bareBalancer.ResetStats()
+	case balancer.BalancerClusterCloud:
+		m.cloudBalancer.ResetStats()
+	}
+
 	ctx.SendString("OK")
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) error {
-	m.cloudBalancer.ResetStats()
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	gLog.Debug().Msg("upstream reset")
 
-	gLog.Debug().Msg("servers stats reset")
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
+
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		m.bareBalancer.ResetUpstream()
+	case balancer.BalancerClusterCloud:
+		m.cloudBalancer.ResetUpstream()
+	}
+
 	ctx.SendString("OK")
 	return ctx.SendStatus(fiber.StatusOK)
 }
