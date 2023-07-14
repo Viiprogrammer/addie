@@ -71,10 +71,12 @@ func (m *consulClient) bootstrap() {
 	// goroutine helper
 	listenChanges := func(wait *sync.WaitGroup, humanize string, payload func()) {
 		wait.Add(1)
-		defer wait.Done()
-
 		gLog.Debug().Msgf("consul config listener started (%s)", humanize)
-		payload()
+
+		go func(done, gopayload func()) {
+			gopayload()
+			done()
+		}(wait.Done, payload)
 	}
 
 	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
