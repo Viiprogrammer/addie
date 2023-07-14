@@ -167,10 +167,7 @@ func (m *App) fiberConfigure() {
 	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
-			gLimiterLock.RLock()
-			defer gLimiterLock.RUnlock() // +40-80ns
-
-			if gLimiterEnabled == 0 {
+			if limiting, ok := m.runtime.GetLimiterStatus(); limiting == 0 || !ok {
 				return true
 			}
 

@@ -37,9 +37,6 @@ var (
 var (
 	gLotteryLock   sync.RWMutex
 	gLotteryChance = 0
-
-	gLimiterLock    sync.RWMutex
-	gLimiterEnabled = 1
 )
 
 type App struct {
