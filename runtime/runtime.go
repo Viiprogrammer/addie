@@ -108,7 +108,7 @@ func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
 	if !m.gLimiterLock.TryRLock() {
 		return 0, false
 	}
-	defer m.gLotteryLock.RUnlock()
+	defer m.gLimiterLock.RUnlock()
 
 	s, ok = m.gLimiterEnabled, true
 	return
@@ -116,7 +116,7 @@ func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
 
 func (m *Runtime) updateLimiterStatus(s int) {
 	m.gLimiterLock.Lock()
-	defer m.gLotteryLock.Unlock()
+	defer m.gLimiterLock.Unlock()
 
 	m.gLimiterEnabled = s
 }
