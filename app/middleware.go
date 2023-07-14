@@ -128,7 +128,7 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
 
-	_, server, e := m.cloudBalancer.BalanceByChunk(
+	_, server, e := m.bareBalancer.BalanceByChunk(
 		prefixbuf.String(),
 		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
 	if errors.Is(e, balancer.ErrServerUnavailable) {
@@ -169,7 +169,7 @@ func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
 	} else if !m.chunkRegexp.Match([]byte(huri)) {
 		errs = errs | errMidAppPreUriRegexp
 	} else {
-		ctx.Locals("payload", &huri)
+		ctx.Locals("uri", &huri)
 	}
 
 	ctx.Locals("errors", errs)

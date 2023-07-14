@@ -193,10 +193,6 @@ func main() {
 			Value:   "http://127.0.0.1:8500",
 			EnvVars: []string{"CONSUL_ADDRESS"},
 		},
-		&cli.StringFlag{ // TODO delete
-			Name:  "consul-service-name",
-			Usage: "service name (id) used for balancing",
-		},
 		&cli.StringFlag{
 			Name:  "consul-service-nodes",
 			Usage: "service name (id) with cache-nodes used for balancing",

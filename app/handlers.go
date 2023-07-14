@@ -254,7 +254,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
 	buf.Write(sub[utils.ChunkQualityLevel])
 
-	_, server, e := m.cloudBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
+	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
 	if errors.Is(e, balancer.ErrServerUnavailable) {
 		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
 		return ctx.Next()

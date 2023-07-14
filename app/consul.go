@@ -42,9 +42,9 @@ func newConsulClient(balancers ...balancer.Balancer) (client *consulClient, e er
 		return nil, errors.New("given consul address could not be empty")
 	}
 
-	if gCli.String("consul-service-name") == "" {
-		gLog.Warn().Msg("given consul service name could not be empty")
-		return nil, errors.New("given consul service name could not be empty")
+	if gCli.String("consul-service-nodes") == "" || gCli.String("consul-service-cloud") == "" {
+		gLog.Warn().Msg("given consul services could not be empty")
+		return nil, errors.New("given consul services name could not be empty")
 	}
 
 	for _, blcnr := range balancers {
