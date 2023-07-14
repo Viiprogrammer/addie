@@ -6,7 +6,7 @@ const (
 	ContextKeyLogger ContextKey = iota
 	ContextKeyCliContext
 	ContextKeyAbortFunc
-	ContextKeyCfgChan
+	ContextKeyRPatcher
 )
 
 const (
@@ -38,3 +38,12 @@ const (
 	ChunkQualityLevel
 	ChunkName
 )
+
+// type TitleQuality uint8
+
+// const (
+// 	TitleQualityNone TitleQuality = iota
+// 	TitleQualitySD
+// 	TitleQualityHD
+// 	TitleQualityFHD
+// )

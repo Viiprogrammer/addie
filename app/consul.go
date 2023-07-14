@@ -67,7 +67,7 @@ func (m *consulClient) bootstrap() {
 		wg.Done()
 	}()
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *RuntimeConfig)
 
 	wg.Add(1)
 	go func() {
@@ -293,7 +293,7 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 	return
 }
 
-func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
+func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *RuntimePatch) {
 	var idx uint64
 	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
 
@@ -322,7 +322,7 @@ loop:
 
 			// TODO:
 			// ? maybe use here  map with key from utils.Cfg*
-			rconfig := &runtimeConfig{}
+			rconfig := &RuntimeConfig{}
 
 			switch key {
 			case utils.CfgLotteryChance:

@@ -52,6 +52,7 @@ type App struct {
 
 	cache     *CachedTitlesBucket
 	blocklist *blocklist
+	runtime   *Runtime
 
 	cloudBalancer balancer.Balancer
 	bareBalancer  balancer.Balancer
@@ -120,7 +121,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 func (m *App) Bootstrap() (e error) {
 	var wg sync.WaitGroup
 	var echan = make(chan error, 32)
-	var cfgchan = make(chan *runtimeConfig, 1)
+	var rpatcher = make(chan *RuntimePatch, 1)
 
 	// goroutine helper
 	gofunc := func(waitgroup *sync.WaitGroup, payload func()) {
@@ -134,7 +135,7 @@ func (m *App) Bootstrap() (e error) {
 	gCtx = context.WithValue(gCtx, utils.ContextKeyLogger, gLog)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyCliContext, gCli)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyAbortFunc, gAbort)
-	gCtx = context.WithValue(gCtx, utils.ContextKeyCfgChan, cfgchan)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyRPatcher, rpatcher)
 
 	// defer m.checkErrorsBeforeClosing(echan)
 	// defer wg.Wait() // !!
@@ -158,6 +159,9 @@ func (m *App) Bootstrap() (e error) {
 
 	// blocklist
 	m.blocklist = newBlocklist()
+
+	// runtime
+	m.runtime = NewRuntime(m.blocklist)
 
 	// balancer
 	gLog.Info().Msg("starting balancer...")
@@ -212,14 +216,14 @@ func (m *App) loop(_ chan error, done func()) {
 	gLog.Debug().Msg("initiate main event loop...")
 	defer gLog.Debug().Msg("main event loop has been closed")
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *RuntimePatch)
 
 LOOP:
 	for {
 		select {
-		case cfg := <-cfgchan:
+		case patch := <-rpatcher:
 			gLog.Debug().Msg("new configuration detected, applying...")
-			m.applyRuntimeConfig(cfg)
+			m.runtime.ApplyPath(patch)
 		case <-kernSignal:
 			gLog.Info().Msg("kernel signal has been caught; initiate application closing...")
 			gAbort()

@@ -2,16 +2,89 @@ package app
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"strings"
 )
 
-type runtimeConfig struct {
-	lotteryChance     []byte
-	qualityLevel      []byte
-	blocklistIps      []byte
-	blocklistSwitcher []byte
-	limiterSwitch     []byte
+type RuntimePatchType uint8
+
+const (
+	RuntimePatchLottery RuntimePatchType = iota
+	RuntimePatchQuality
+	RuntimePatchBlocklist
+	RuntimePatchBlocklistIps
+	RuntimePatchLimiter
+	RuntimePatchConsulNCluster
+	RuntimePatchConsulCCluster
+)
+
+var (
+	ErrRuntimeUndefinedPatch = errors.New("given patch payload is undefined")
+
+	runtimeChangesHumanize = map[RuntimePatchType]string{
+		RuntimePatchLottery:        "lottery chance",
+		RuntimePatchQuality:        "quality level",
+		RuntimePatchBlocklist:      "blocklist switch",
+		RuntimePatchBlocklistIps:   "blocklist ips",
+		RuntimePatchLimiter:        "limiter switch",
+		RuntimePatchConsulNCluster: "consul cache-node cluster",
+		RuntimePatchConsulCCluster: "consul cache-cloud cluster",
+	}
+)
+
+type (
+	Runtime struct {
+		// todo - refactor
+		blocklist *blocklist // temporary;
+	}
+	RuntimePatch struct {
+		Type  RuntimePatchType
+		Patch []byte
+	}
+	RuntimeConfig struct {
+		lotteryChance     []byte
+		qualityLevel      []byte
+		blocklistIps      []byte
+		blocklistSwitcher []byte
+		limiterSwitch     []byte
+	}
+)
+
+func NewRuntime(b *blocklist) *Runtime {
+	return &Runtime{
+		blocklist: b,
+	}
+}
+
+func (m *Runtime) ApplyPath(patch *RuntimePatch) (e error) {
+	if len(patch.Patch) == 0 {
+		return ErrRuntimeUndefinedPatch
+	}
+
+	switch patch.Type {
+	case RuntimePatchLottery:
+		e = m.applyLotteryChance(patch.Patch)
+	case RuntimePatchQuality:
+		e = m.applyQualityLevel(patch.Patch)
+	case RuntimePatchBlocklist:
+		e = m.applyLimitterSwitch(patch.Patch)
+	case RuntimePatchBlocklistIps:
+		e = m.applyBlocklistChanges(patch.Patch)
+	case RuntimePatchLimiter:
+		e = m.applyLimitterSwitch(patch.Patch)
+	case RuntimePatchConsulNCluster:
+	case RuntimePatchConsulCCluster:
+	default:
+		panic("internal error - undefined runtime patch type")
+	}
+
+	if e != nil {
+		gLog.Error().Err(e).
+			Msgf("could not apply runtime configuration (%s)", runtimeChangesHumanize[patch.Type])
+	}
+
+	return
 }
 
 func (*App) isBlocklistEnabled() bool {
@@ -26,41 +99,7 @@ func (*App) isBlocklistEnabled() bool {
 	}
 }
 
-func (m *App) applyRuntimeConfig(cfg *runtimeConfig) (e error) {
-	if len(cfg.lotteryChance) != 0 {
-		if e = m.applyLotteryChance(cfg.lotteryChance); e != nil {
-			gLog.Error().Err(e).Msg("could not apply runtime configuration (lottery chance)")
-		}
-	}
-
-	if len(cfg.qualityLevel) != 0 {
-		if e = m.applyQualityLevel(cfg.qualityLevel); e != nil {
-			gLog.Error().Err(e).Msg("could not apply runtime configuration (quality level)")
-		}
-	}
-
-	if len(cfg.blocklistIps) != 0 {
-		if e = m.applyBlocklistChanges(cfg.blocklistIps); e != nil {
-			gLog.Error().Err(e).Msg("could not apply runtime configuration (blocklist ips)")
-		}
-	}
-
-	if len(cfg.blocklistSwitcher) != 0 {
-		if e = m.applyBlocklistSwitch(cfg.blocklistSwitcher); e != nil {
-			gLog.Error().Err(e).Msg("could not apply runtime configuration (blocklist switch)")
-		}
-	}
-
-	if len(cfg.limiterSwitch) != 0 {
-		if e = m.applyLimitterSwitch(cfg.limiterSwitch); e != nil {
-			gLog.Error().Err(e).Msg("could not apply runtime configuration (limiter switch)")
-		}
-	}
-
-	return
-}
-
-func (m *App) applyBlocklistChanges(input []byte) (e error) {
+func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
 	gLog.Debug().Msgf("runtime config - blocklist update requested")
 	gLog.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.size())
 
@@ -78,7 +117,8 @@ func (m *App) applyBlocklistChanges(input []byte) (e error) {
 	return
 }
 
-func (*App) applyBlocklistSwitch(input []byte) (e error) {
+func (*Runtime) applyBlocklistSwitch(input []byte) (e error) {
+
 	var enabled int
 	if enabled, e = strconv.Atoi(string(input)); e != nil {
 		return
@@ -104,7 +144,7 @@ func (*App) applyBlocklistSwitch(input []byte) (e error) {
 	return
 }
 
-func (*App) applyLimitterSwitch(input []byte) (e error) {
+func (*Runtime) applyLimitterSwitch(input []byte) (e error) {
 	var enabled int
 	if enabled, e = strconv.Atoi(string(input)); e != nil {
 		return
@@ -130,7 +170,7 @@ func (*App) applyLimitterSwitch(input []byte) (e error) {
 	return
 }
 
-func (*App) applyLotteryChance(input []byte) (e error) {
+func (*Runtime) applyLotteryChance(input []byte) (e error) {
 	var chance int
 	if chance, e = strconv.Atoi(string(input)); e != nil {
 		return
@@ -150,7 +190,7 @@ func (*App) applyLotteryChance(input []byte) (e error) {
 	return
 }
 
-func (*App) applyQualityLevel(input []byte) (e error) {
+func (*Runtime) applyQualityLevel(input []byte) (e error) {
 	gLog.Debug().Msg("quality settings change requested")
 
 	var quality titleQuality
