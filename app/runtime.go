@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 )
 
 type RuntimePatchType uint8
@@ -193,15 +195,15 @@ func (*Runtime) applyLotteryChance(input []byte) (e error) {
 func (*Runtime) applyQualityLevel(input []byte) (e error) {
 	gLog.Debug().Msg("quality settings change requested")
 
-	var quality titleQuality
+	var quality utils.TitleQuality
 
 	switch string(input) {
 	case "480":
-		quality = titleQualitySD
+		quality = utils.TitleQualitySD
 	case "720":
-		quality = titleQualityHD
+		quality = utils.TitleQualityHD
 	case "1080":
-		quality = titleQualityFHD
+		quality = utils.TitleQualityFHD
 	default:
 		gLog.Warn().Str("input", string(input)).Msg("qulity level can be 480 720 or 1080 only")
 		return
