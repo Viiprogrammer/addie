@@ -1,8 +1,10 @@
 package blocklist
 
 import (
+	"context"
 	"sync"
 
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -16,7 +18,8 @@ var (
 	log      *zerolog.Logger
 )
 
-func NewBlocklist() *Blocklist {
+func NewBlocklist(ctx context.Context) *Blocklist {
+	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
 	return &Blocklist{}
 }
 

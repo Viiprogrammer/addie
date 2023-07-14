@@ -147,7 +147,7 @@ func (m *App) Bootstrap() (e error) {
 	m.cache = NewCachedTitlesBucket()
 
 	// blocklist
-	m.blocklist = blocklist.NewBlocklist()
+	m.blocklist = blocklist.NewBlocklist(gCtx)
 	gCtx = context.WithValue(gCtx, utils.ContextKeyBlocklist, m.blocklist)
 
 	// runtime

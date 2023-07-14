@@ -86,19 +86,19 @@ func (m *consulClient) bootstrap() {
 		m.listenRuntimeConfigKey(utils.CfgLotteryChance, rpatcher)
 	})
 
-	listenChanges(&wg, "lottery", func() {
+	listenChanges(&wg, "quality", func() {
 		m.listenRuntimeConfigKey(utils.CfgQualityLevel, rpatcher)
 	})
 
-	listenChanges(&wg, "lottery", func() {
+	listenChanges(&wg, "blocklist_ips", func() {
 		m.listenRuntimeConfigKey(utils.CfgBlockList, rpatcher)
 	})
 
-	listenChanges(&wg, "lottery", func() {
+	listenChanges(&wg, "blocklist", func() {
 		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, rpatcher)
 	})
 
-	listenChanges(&wg, "lottery", func() {
+	listenChanges(&wg, "limiter", func() {
 		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
 	})
 
@@ -153,7 +153,7 @@ func (m *consulClient) listenEvents() (e error) {
 		}
 
 		if gLog.GetLevel() == zerolog.TraceLevel {
-			gLog.Trace().Msg("received serverlist debug:")
+			gLog.Trace().Msg("received serverlist debug")
 
 			for _, ip := range servers {
 				gLog.Trace().Msgf("received serverlist entry - %s", ip.String())
