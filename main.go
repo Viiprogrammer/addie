@@ -185,9 +185,6 @@ func main() {
 
 		// consul settings
 		&cli.BoolFlag{
-			Name: "consul-managed",
-		},
-		&cli.BoolFlag{
 			Name: "consul-ignore-errors",
 		},
 		&cli.StringFlag{
@@ -197,18 +194,19 @@ func main() {
 			EnvVars: []string{"CONSUL_ADDRESS"},
 		},
 		&cli.StringFlag{
-			Name:  "consul-service-name",
-			Usage: "service name (id) used for balancing",
+			Name:  "consul-service-nodes",
+			Usage: "service name (id) with cache-nodes used for balancing",
+			Value: "cache-node-internal",
+		},
+		&cli.StringFlag{
+			Name:  "consul-service-cloud",
+			Usage: "service name (id) with cache-clouds used for balancing",
+			Value: "cache-cloud-ingress",
 		},
 		&cli.StringFlag{
 			Name:  "consul-entries-domain",
 			Usage: "add domain for all service entries",
 			Value: "libria.fun",
-		},
-		&cli.IntFlag{
-			Name:  "consul-ab-split",
-			Usage: "percent",
-			Value: 0,
 		},
 		&cli.StringFlag{
 			Name:  "consul-kv-prefix",

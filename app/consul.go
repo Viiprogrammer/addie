@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
@@ -24,10 +26,14 @@ type consulClient struct {
 	*capi.Client
 	ctx context.Context
 
-	balancer *balancer
+	balancers []balancer.Balancer
 }
 
-func newConsulClient(b *balancer) (client *consulClient, e error) {
+var (
+	errConsulInvalidCluster = errors.New("clustername cound not be empty")
+)
+
+func newConsulClient(balancers ...balancer.Balancer) (client *consulClient, e error) {
 	cfg := capi.DefaultConfig()
 
 	cfg.Address = gCli.String("consul-address")
@@ -36,14 +42,21 @@ func newConsulClient(b *balancer) (client *consulClient, e error) {
 		return nil, errors.New("given consul address could not be empty")
 	}
 
-	if gCli.String("consul-service-name") == "" {
-		gLog.Warn().Msg("given consul service name could not be empty")
-		return nil, errors.New("given consul service name could not be empty")
+	if gCli.String("consul-service-nodes") == "" || gCli.String("consul-service-cloud") == "" {
+		gLog.Warn().Msg("given consul services could not be empty")
+		return nil, errors.New("given consul services name could not be empty")
+	}
+
+	for _, blcnr := range balancers {
+		if blcnr.GetClusterName() == "" {
+			e = errConsulInvalidCluster
+			return
+		}
 	}
 
 	client = new(consulClient)
 	client.Client, e = capi.NewClient(cfg)
-	client.balancer = b
+	client.balancers = balancers
 	return
 }
 
@@ -53,60 +66,68 @@ func (m *consulClient) bootstrap() {
 	var eventDone context.CancelFunc
 	m.ctx, eventDone = context.WithCancel(context.Background())
 	var wg sync.WaitGroup
-	var errs = make(chan error, 1)
+	var errs = make(chan error, 16)
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul event listener started")
+	// goroutine helper - consul health
+	listenClusterEvents := func(wait *sync.WaitGroup, ec chan error, payload func() error) {
+		wait.Add(1)
 
-		if e := m.listenEvents(); e != nil {
-			errs <- e
-		}
+		go func(done func(), gopayload func() error, errors chan error) {
+			errors <- gopayload()
+			done()
+		}(wait.Done, payload, ec)
+	}
 
-		wg.Done()
-	}()
+	// goroutine helper - consul KV
+	listenChanges := func(wait *sync.WaitGroup, humanize string, payload func()) {
+		wait.Add(1)
+		gLog.Debug().Msgf("consul config listener started (%s)", humanize)
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtimeConfig)
+		go func(done, gopayload func()) {
+			gopayload()
+			done()
+		}(wait.Done, payload)
+	}
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (lottery)")
-		m.listenRuntimeConfigKey(utils.CfgLotteryChance, cfgchan)
-		wg.Done()
-	}()
+	// consul health service watchdog
+	for _, clusterBalancer := range m.balancers {
+		cbalancer := clusterBalancer
+		listenClusterEvents(&wg, errs, func() error {
+			return m.listenClusterEvents(cbalancer)
+		})
+	}
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (quality)")
-		m.listenRuntimeConfigKey(utils.CfgQualityLevel, cfgchan)
-		wg.Done()
-	}()
+	// consul KV watchdog
+	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist)")
-		m.listenRuntimeConfigKey(utils.CfgBlockList, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgLotteryChance, rpatcher)
+	})
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist switch)")
-		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "quality", func() {
+		m.listenRuntimeConfigKey(utils.CfgQualityLevel, rpatcher)
+	})
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist limiter)")
-		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "blocklist_ips", func() {
+		m.listenRuntimeConfigKey(utils.CfgBlockList, rpatcher)
+	})
+
+	listenChanges(&wg, "blocklist", func() {
+		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, rpatcher)
+	})
+
+	listenChanges(&wg, "limiter", func() {
+		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
+	})
 
 loop:
 	for {
 		select {
 		case err := <-errs:
+			if err == nil {
+				continue
+			}
+
 			gLog.Error().Err(err).Msg("")
 			break loop
 		case <-gCtx.Done():
@@ -120,7 +141,10 @@ loop:
 	wg.Wait()
 }
 
-func (m *consulClient) listenEvents() (e error) {
+func (m *consulClient) listenClusterEvents(cluster balancer.Balancer) (e error) {
+	gLog.Debug().Msgf("consul event listener started for cluster %s", cluster.GetClusterName())
+	defer gLog.Debug().Msgf("consul event listener stopped for cluster %s", cluster.GetClusterName())
+
 	var idx uint64
 	var servers map[string]net.IP
 	var fails uint8
@@ -135,7 +159,7 @@ func (m *consulClient) listenEvents() (e error) {
 			return
 		}
 
-		if servers, idx, e = m.getHealthServiceServers(idx); errors.Is(e, context.Canceled) {
+		if servers, idx, e = m.getHealthServers(idx, cluster.GetClusterName()); errors.Is(e, context.Canceled) {
 			return
 		} else if e != nil {
 			gLog.Warn().Uint8("fails", fails).Err(e).
@@ -154,22 +178,24 @@ func (m *consulClient) listenEvents() (e error) {
 		}
 
 		if gLog.GetLevel() == zerolog.TraceLevel {
-			gLog.Trace().Msg("received serverlist debug:")
+			gLog.Trace().Msg("received serverlist debug")
 
 			for _, ip := range servers {
 				gLog.Trace().Msgf("received serverlist entry - %s", ip.String())
 			}
 		}
 
-		m.balancer.updateUpstream(servers)
+		cluster.UpdateServers(servers)
 	}
 }
 
-func (m *consulClient) getHealthServiceServers(idx uint64) (_ map[string]net.IP, _ uint64, e error) {
+// func (m *consulClient)
+
+func (m *consulClient) getHealthServers(idx uint64, service string) (_ map[string]net.IP, _ uint64, e error) {
 	opts := *defaultOpts
 	opts.WaitIndex = idx
 
-	entries, meta, e := m.Health().Service(gCli.String("consul-service-name"), "", true, opts.WithContext(m.ctx))
+	entries, meta, e := m.Health().Service(service, "", true, opts.WithContext(m.ctx))
 	if e != nil {
 		return nil, idx, e
 	}
@@ -292,7 +318,7 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 	return
 }
 
-func (m *consulClient) listenRuntimeConfigKey(key string, payload chan *runtimeConfig) {
+func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *runtime.RuntimePatch) {
 	var idx uint64
 	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
 
@@ -319,31 +345,18 @@ loop:
 				continue
 			}
 
-			// TODO:
-			// ? maybe use here  map with key from utils.Cfg*
-			rconfig := &runtimeConfig{}
-
-			switch key {
-			case utils.CfgLotteryChance:
-				rconfig.lotteryChance = pair.Value
-			case utils.CfgQualityLevel:
-				rconfig.qualityLevel = pair.Value
-			case utils.CfgBlockListSwitcher:
-				rconfig.blocklistSwitcher = pair.Value
-			case utils.CfgBlockList:
-				rconfig.blocklistIps = pair.Value
-				if len(rconfig.blocklistIps) == 0 {
-					rconfig.blocklistIps = []byte("_")
-				}
-			case utils.CfgLimiterSwitcher:
-				rconfig.limiterSwitch = pair.Value
-			default:
-				gLog.Warn().Msgf("consul sent undefined key:value pair; key - %s", key)
-				idx = meta.LastIndex
-				continue
+			// default patch
+			patch := &runtime.RuntimePatch{
+				Type:  runtime.RuntimeUtilsBindings[key],
+				Patch: pair.Value,
 			}
 
-			payload <- rconfig
+			// exclusions:
+			if patch.Type == runtime.RuntimePatchBlocklistIps && len(patch.Patch) == 0 {
+				patch.Patch = []byte("_")
+			}
+
+			rpatcher <- patch
 			idx = meta.LastIndex
 		}
 	}

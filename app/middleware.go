@@ -1,10 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"errors"
 	"math/rand"
 	"strings"
 
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 )
@@ -89,12 +91,11 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	if !gQualityLock.TryRLock() {
+	quality, ok := m.runtime.GetQualityLevel()
+	if !ok {
 		gLog.Warn().Msg("could not get lock for reading quality level; skipping fake quality chain")
 		return ctx.Next()
 	}
-	quality := gQualityLevel
-	gQualityLock.RUnlock()
 
 	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")
@@ -109,36 +110,36 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 }
 
 // consul lottery
+// !!
+// TODO : add bareCluster backup for consul lottery
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")
 
-	if !gLotteryLock.TryRLock() {
+	if lottery, ok := m.runtime.GetLotteryChance(); !ok {
 		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
 		return ctx.Next()
-	}
-
-	if gLotteryChance < rand.Intn(99)+1 {
+	} else if lottery < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
-		gLotteryLock.RUnlock()
-		return ctx.Next()
-	}
-	gLotteryLock.RUnlock()
-
-	ip, s := m.balancer.getServerByChunkName(
-		string(m.chunkRegexp.FindSubmatch(
-			[]byte(ctx.Locals("uri").(string)),
-		)[utils.ChunkName]),
-	)
-
-	if ip == "" {
-		gLog.Debug().Msg("consul has no servers for balancing, fallback to old method")
 		return ctx.Next()
 	}
 
-	srv := strings.ReplaceAll(s.name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	var prefixbuf bytes.Buffer
+	uri := []byte(ctx.Locals("uri").(string))
+
+	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
+	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
+
+	_, server, e := m.cloudBalancer.BalanceByChunk(
+		prefixbuf.String(),
+		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
+	if errors.Is(e, balancer.ErrServerUnavailable) {
+		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
+		return ctx.Next()
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
 	ctx.Locals("srv", srv)
-
 	return ctx.Next()
 }
 
@@ -146,14 +147,33 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
 
-	if !m.isBlocklistEnabled() {
+	if !m.blocklist.IsEnabled() {
 		return ctx.Next()
 	}
 
-	if m.blocklist.isExists(ctx.IP()) {
+	if m.blocklist.IsExists(ctx.IP()) {
 		gLog.Debug().Str("cip", ctx.IP()).Msg("client has been banned, forbid request")
 		return fiber.NewError(fiber.StatusForbidden)
 	}
 
 	return ctx.Next()
+}
+
+// balancer api
+func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
+	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
+	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-node-internal balancer")
+
+	var errs appMidError
+
+	if huri := strings.TrimSpace(ctx.Get(apiHeaderUri)); huri == "" {
+		errs = errs | errMidAppPreHeaderUri
+	} else if !m.chunkRegexp.Match([]byte(huri)) {
+		errs = errs | errMidAppPreUriRegexp
+	} else {
+		ctx.Locals("uri", &huri)
+	}
+
+	ctx.Locals("errors", errs)
+	return errs == 0
 }

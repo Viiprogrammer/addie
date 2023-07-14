@@ -1,25 +1,91 @@
 package app
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
+	"github.com/MindHunter86/anilibria-hlp-service/balancer"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )
 
-func (m *App) fbHndApiUpstream(ctx *fiber.Ctx) error {
-	fmt.Fprint(ctx, m.balancer.getUpstreamStats())
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+func (*App) getBalancersClusterArg(ctx *fiber.Ctx) (cluster balancer.BalancerCluster, e error) {
+	var buf string
+	if buf = ctx.Query("cluster"); buf == "" {
+		e = fiber.NewError(fiber.StatusBadRequest, "cluster could not be empty")
+		return
+	}
+
+	switch buf = strings.TrimSpace(buf); buf {
+	case "cache-nodes":
+		cluster = balancer.BalancerClusterNodes
+	case "cache-cloud":
+		cluster = balancer.BalancerClusterCloud
+	default:
+		e = fiber.NewError(fiber.StatusBadRequest, "invalid cluster name")
+	}
+
+	return
+}
+
+func (m *App) fbHndApiBalancerStats(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
+
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		fmt.Fprint(ctx, m.bareBalancer.GetStats())
+	case balancer.BalancerClusterCloud:
+		fmt.Fprint(ctx, m.cloudBalancer.GetStats())
+	}
+
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
-func (m *App) fbHndApiReset(ctx *fiber.Ctx) error {
-	m.balancer.resetServersStats()
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	gLog.Debug().Msg("servers stats reset")
 
-	gLog.Debug().Msg("servers reset")
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
+
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		m.bareBalancer.ResetStats()
+	case balancer.BalancerClusterCloud:
+		m.cloudBalancer.ResetStats()
+	}
+
+	ctx.SendString("OK")
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
+func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	gLog.Debug().Msg("upstream reset")
+
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
+
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		m.bareBalancer.ResetUpstream()
+	case balancer.BalancerClusterCloud:
+		m.cloudBalancer.ResetUpstream()
+	}
+
 	ctx.SendString("OK")
 	return ctx.SendStatus(fiber.StatusOK)
 }
@@ -176,5 +242,30 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
 	gLog.Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.IP()).
 		Msg("request signing completed")
 	ctx.Set(apiHeaderLocation, rrl.String())
+	return ctx.SendStatus(fiber.StatusOK)
+}
+
+func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+
+	uri := ctx.Locals("uri").(*string)
+	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
+
+	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	buf.Write(sub[utils.ChunkQualityLevel])
+
+	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
+	if errors.Is(e, balancer.ErrServerUnavailable) {
+		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
+		return fiber.NewError(fiber.StatusInternalServerError, balancer.ErrServerUnavailable.Error())
+	} else if e != nil {
+		gLog.Warn().Err(e).Msg("balancer critical error")
+		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	ctx.Set("X-Location", srv)
+
+	fmt.Fprint(ctx, srv)
 	return ctx.SendStatus(fiber.StatusOK)
 }
