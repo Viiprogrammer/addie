@@ -34,11 +34,6 @@ var (
 	gAniApi *ApiClient
 )
 
-var (
-	gLotteryLock   sync.RWMutex
-	gLotteryChance = 0
-)
-
 type App struct {
 	fb     *fiber.App
 	fbstor fiber.Storage
@@ -55,7 +50,6 @@ type App struct {
 
 func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 	gCli, gLog = c, l
-	gLotteryChance = gCli.Int("consul-ab-split")
 
 	app = &App{}
 	app.fb = fiber.New(fiber.Config{

@@ -114,17 +114,13 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")
 
-	if !gLotteryLock.TryRLock() {
+	if lottery, ok := m.runtime.GetLotteryChance(); !ok {
 		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
 		return ctx.Next()
-	}
-
-	if gLotteryChance < rand.Intn(99)+1 {
+	} else if lottery < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
-		gLotteryLock.RUnlock()
 		return ctx.Next()
 	}
-	gLotteryLock.RUnlock()
 
 	var prefixbuf bytes.Buffer
 	uri := []byte(ctx.Locals("uri").(string))
