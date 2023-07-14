@@ -123,11 +123,13 @@ func (m *App) Bootstrap() (e error) {
 	var cfgchan = make(chan *runtimeConfig, 1)
 
 	// goroutine helper
-	gofunc := func(waitgroup *sync.WaitGroup, payload func()) {
-		waitgroup.Add(1)
-		defer waitgroup.Done()
+	gofunc := func(w *sync.WaitGroup, p func()) {
+		w.Add(1)
 
-		payload()
+		go func(done, payload func()) {
+			payload()
+			done()
+		}(w.Done, p)
 	}
 
 	gCtx, gAbort = context.WithCancel(context.Background())
