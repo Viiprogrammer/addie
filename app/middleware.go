@@ -110,6 +110,8 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 }
 
 // consul lottery
+// !!
+// TODO : add bareCluster backup for consul lottery
 func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")

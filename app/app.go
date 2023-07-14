@@ -178,7 +178,7 @@ func (m *App) Bootstrap() (e error) {
 		gLog.Debug().Msg("starting fiber http server...")
 		defer gLog.Debug().Msg("fiber http server has been stopped")
 
-		if e = m.fb.Listen(gCli.String("http-listen-addr")); errors.Is(e, context.DeadlineExceeded) {
+		if e = m.fb.Listen(gCli.String("http-listen-addr")); errors.Is(e, context.Canceled) {
 			return
 		} else if e != nil {
 			gLog.Error().Err(e).Msg("fiber internal error")

@@ -246,6 +246,7 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
 
 	uri := ctx.Locals("uri").(*string)
 	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
@@ -256,12 +257,15 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
 	if errors.Is(e, balancer.ErrServerUnavailable) {
 		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
-		return ctx.Next()
+		return fiber.NewError(fiber.StatusInternalServerError, balancer.ErrServerUnavailable.Error())
+	} else if e != nil {
+		gLog.Warn().Err(e).Msg("balancer critical error")
+		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
 	ctx.Set("X-Location", srv)
 
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	fmt.Fprint(ctx, srv)
 	return ctx.SendStatus(fiber.StatusOK)
 }
