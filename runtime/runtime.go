@@ -51,6 +51,14 @@ const (
 var (
 	ErrRuntimeUndefinedPatch = errors.New("given patch payload is undefined")
 
+	RuntimeUtilsBindings = map[string]RuntimePatchType{
+		utils.CfgLotteryChance:     RuntimePatchLottery,
+		utils.CfgQualityLevel:      RuntimePatchQuality,
+		utils.CfgBlockList:         RuntimePatchBlocklistIps,
+		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
+		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
+	}
+
 	runtimeChangesHumanize = map[RuntimePatchType]string{
 		RuntimePatchLottery:        "lottery chance",
 		RuntimePatchQuality:        "quality level",

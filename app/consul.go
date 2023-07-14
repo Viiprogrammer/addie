@@ -68,42 +68,37 @@ func (m *consulClient) bootstrap() {
 		wg.Done()
 	}()
 
-	cfgchan := gCtx.Value(utils.ContextKeyCfgChan).(chan *runtime.RuntimeConfig)
+	// goroutine helper
+	listenChanges := func(wait *sync.WaitGroup, humanize string, payload func()) {
+		wait.Add(1)
+		defer wait.Done()
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (lottery)")
-		m.listenRuntimeConfigKey(utils.CfgLotteryChance, cfgchan)
-		wg.Done()
-	}()
+		gLog.Debug().Msgf("consul config listener started (%s)", humanize)
+		payload()
+	}
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (quality)")
-		m.listenRuntimeConfigKey(utils.CfgQualityLevel, cfgchan)
-		wg.Done()
-	}()
+	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist)")
-		m.listenRuntimeConfigKey(utils.CfgBlockList, cfgchan)
-		wg.Done()
-	}()
+	// listeners
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgLotteryChance, rpatcher)
+	})
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist switch)")
-		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgQualityLevel, rpatcher)
+	})
 
-	wg.Add(1)
-	go func() {
-		gLog.Debug().Msg("consul config listener started (blocklist limiter)")
-		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, cfgchan)
-		wg.Done()
-	}()
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgBlockList, rpatcher)
+	})
+
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, rpatcher)
+	})
+
+	listenChanges(&wg, "lottery", func() {
+		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
+	})
 
 loop:
 	for {
@@ -321,31 +316,18 @@ loop:
 				continue
 			}
 
-			// TODO:
-			// ? maybe use here  map with key from utils.Cfg*
-			rconfig := &runtime.RuntimeConfig{}
+			// default patch
+			patch := &runtime.RuntimePatch{
+				Type:  runtime.RuntimeUtilsBindings[key],
+				Patch: pair.Value,
+			}
 
-			// switch key {
-			// case utils.CfgLotteryChance:
-			// 	rconfig.lotteryChance = pair.Value
-			// case utils.CfgQualityLevel:
-			// 	rconfig.qualityLevel = pair.Value
-			// case utils.CfgBlockListSwitcher:
-			// 	rconfig.blocklistSwitcher = pair.Value
-			// case utils.CfgBlockList:
-			// 	rconfig.blocklistIps = pair.Value
-			// 	if len(rconfig.blocklistIps) == 0 {
-			// 		rconfig.blocklistIps = []byte("_")
-			// 	}
-			// case utils.CfgLimiterSwitcher:
-			// 	rconfig.limiterSwitch = pair.Value
-			// default:
-			// 	gLog.Warn().Msgf("consul sent undefined key:value pair; key - %s", key)
-			// 	idx = meta.LastIndex
-			// 	continue
-			// }
+			// exclusions:
+			if patch.Type == runtime.RuntimePatchBlocklistIps && len(patch.Patch) == 0 {
+				patch.Patch = []byte("_")
+			}
 
-			payload <- rconfig
+			rpatcher <- patch
 			idx = meta.LastIndex
 		}
 	}
