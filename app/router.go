@@ -95,7 +95,8 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
-			gLog.Error().Str("stack", c.Request().String()).Msg("PANIC! panic has been caught")
+			gLog.Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
+				Msg("panic has been caught")
 			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
 		},
 	}))
