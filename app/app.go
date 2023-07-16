@@ -138,11 +138,11 @@ func (m *App) Bootstrap() (e error) {
 
 	// timemanager
 	gLog.Info().Msg("starting timemanager...")
+	m.timeman = utils.NewTimeManager()
+	gCtx = context.WithValue(gCtx, utils.ContextKeyTimeManager, m.timeman)
 	gofunc(&wg, func() {
-		m.timeman = utils.NewTimeManager()
 		m.timeman.Bootstrap(gCtx)
 	})
-	gCtx = context.WithValue(gCtx, utils.ContextKeyTimeManager, m.timeman)
 
 	// anilibria API
 	gLog.Info().Msg("starting anilibria api client...")
