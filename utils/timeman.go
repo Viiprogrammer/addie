@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-var gTimer *TimeManager
-
 type TimeManager struct {
 	tick *time.Ticker
 
