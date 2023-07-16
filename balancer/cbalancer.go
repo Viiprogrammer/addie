@@ -54,7 +54,7 @@ func (m *ClusterBalancer) GetClusterName() string {
 
 func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerServer, e error) {
 	var ip *net.IP
-	if ip = m.getRandomServer(force); ip != nil {
+	if ip = m.getRandomServer(force); ip == nil {
 		e = ErrUpstreamUnavailable
 		return
 	}
@@ -86,6 +86,7 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 
 	var ip *net.IP
 	if ip = m.getServer(idx); ip == nil {
+		e = ErrUpstreamUnavailable
 		return
 	}
 

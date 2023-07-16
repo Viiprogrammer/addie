@@ -260,9 +260,6 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	} else if e != nil {
 		gLog.Warn().Err(e).Msg("balancer critical error; fallback to random balancing")
 		return ctx.Next()
-	} else if server == nil {
-		gLog.Warn().Msg("balancer internal error; rolled server is nil; fallback to random balancing")
-		return ctx.Next()
 	}
 
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
@@ -296,9 +293,6 @@ func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
 		} else if e != nil {
 			gLog.Error().Err(e).Str("req", reqid).Msg("could not balance the request")
 			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
-		} else if server == nil {
-			gLog.Error().Str("req", reqid).Msg("internal balancer error; rolled server is undefined")
-			return fiber.NewError(fiber.StatusInternalServerError, "internal balancer error")
 		}
 
 		break
