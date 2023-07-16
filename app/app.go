@@ -18,7 +18,6 @@ import (
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	bolt "github.com/gofiber/storage/bbolt"
-	"github.com/gofiber/storage/memory"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 )
@@ -95,8 +94,6 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 			Bucket:   "application-limiter",
 			Reset:    false,
 		})
-	} else {
-		app.fbstor = memory.New(memory.Config{})
 	}
 
 	// router configuration

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -51,6 +52,25 @@ func (m *ClusterBalancer) GetClusterName() string {
 	}
 }
 
+func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerServer, e error) {
+	var ip *net.IP
+	if ip = m.getRandomServer(force); ip == nil {
+		e = ErrUpstreamUnavailable
+		return
+	}
+
+	server, ok := m.upstream.getServer(&m.ulock, ip.String())
+	if !ok || server == nil {
+		panic("balance result could not be find in balancer's upstream")
+	} else if server.isDown {
+		e = ErrServerUnavailable
+	} else {
+		server.statRequest()
+	}
+
+	return ip.String(), server, e
+}
+
 func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, server *BalancerServer, e error) {
 	var key string
 	if key, e = m.getKeyFromChunkName(&chunkname); e != nil {
@@ -66,6 +86,7 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 
 	var ip *net.IP
 	if ip = m.getServer(idx); ip == nil {
+		e = ErrUpstreamUnavailable
 		return
 	}
 
@@ -93,9 +114,9 @@ func (m *ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e 
 	return
 }
 
-func (m *ClusterBalancer) getServer(idx int) (_ *net.IP) {
+func (m *ClusterBalancer) getServer(idx int) (ip *net.IP) {
 	if !m.TryRLock() {
-		m.log.Debug().Msg("could not get lock for reading upstream; fallback to legacy balancing")
+		m.log.Warn().Msg("could not get lock for reading upstream; fallback to legacy balancing")
 		return
 	}
 	defer m.RUnlock()
@@ -104,7 +125,24 @@ func (m *ClusterBalancer) getServer(idx int) (_ *net.IP) {
 		return
 	}
 
-	return m.ips[idx%int(m.size)]
+	ip = m.ips[idx%int(m.size)]
+	return ip
+}
+
+func (m *ClusterBalancer) getRandomServer(force bool) (ip *net.IP) {
+	if !force && !m.TryRLock() {
+		m.log.Error().Msg("could not get lock for reading upstream and force flag is false")
+		return
+	}
+	defer m.RUnlock()
+
+	if m.size == 0 {
+		m.log.Error().Msg("could not get random server because of empty upstream")
+		return
+	}
+
+	ip = m.ips[rand.Intn(m.size)]
+	return
 }
 
 func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {

@@ -255,11 +255,47 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 
 	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
 	if errors.Is(e, balancer.ErrServerUnavailable) {
-		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
-		return fiber.NewError(fiber.StatusInternalServerError, balancer.ErrServerUnavailable.Error())
-	} else if e != nil || server == nil {
-		gLog.Warn().Err(e).Msg("balancer critical error")
-		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+		gLog.Debug().Err(e).Msg("balancer soft error; fallback to random balancing")
+		return ctx.Next()
+	} else if e != nil {
+		gLog.Warn().Err(e).Msg("balancer critical error; fallback to random balancing")
+		return ctx.Next()
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	ctx.Set("X-Location", srv)
+
+	return ctx.SendStatus(fiber.StatusNoContent)
+}
+
+func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+
+	var server *balancer.BalancerServer
+	reqid, force := ctx.Locals("requestid").(string), false
+
+	for fails := 0; fails <= 3; fails++ {
+		if fails == 3 {
+			gLog.Error().Str("req", reqid).Msg("internal balancer error; too many balance errors")
+			return fiber.NewError(fiber.StatusInternalServerError, "internal balancer error")
+		}
+
+		var e error
+		_, server, e = m.bareBalancer.BalanceRandom(force)
+
+		if errors.Is(e, balancer.ErrServerUnavailable) {
+			gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to roll new server...")
+			continue
+		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) && !force {
+			force = true
+			gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to force balancer")
+			continue
+		} else if e != nil {
+			gLog.Error().Err(e).Str("req", reqid).Msg("could not balance the request")
+			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+		}
+
+		break
 	}
 
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")

@@ -5,7 +5,6 @@ go 1.19
 require (
 	github.com/gofiber/fiber/v2 v2.47.0
 	github.com/gofiber/storage/bbolt v1.3.5
-	github.com/gofiber/storage/memory v1.3.4
 	github.com/hashicorp/consul/api v1.22.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/rs/zerolog v1.29.1
