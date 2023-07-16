@@ -8,6 +8,7 @@ const (
 	ContextKeyAbortFunc
 	ContextKeyRPatcher
 	ContextKeyBlocklist
+	ContextKeyTimeManager
 )
 
 const (

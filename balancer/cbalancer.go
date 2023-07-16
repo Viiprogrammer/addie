@@ -16,8 +16,9 @@ import (
 )
 
 type ClusterBalancer struct {
-	log     *zerolog.Logger
-	ccx     *cli.Context
+	log *zerolog.Logger
+	ccx *cli.Context
+
 	cluster BalancerCluster
 
 	ulock    sync.RWMutex
@@ -30,6 +31,7 @@ type ClusterBalancer struct {
 
 func NewClusterBalancer(ctx context.Context, cluster BalancerCluster) *ClusterBalancer {
 	upstream := make(upstream)
+
 	return &ClusterBalancer{
 		log:      ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger),
 		ccx:      ctx.Value(utils.ContextKeyCliContext).(*cli.Context),

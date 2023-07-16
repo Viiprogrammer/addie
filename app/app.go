@@ -62,9 +62,9 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		ServerHeader:          gCli.App.Name,
 		DisableStartupMessage: true,
 
-		StrictRouting:             true,
-		DisableDefaultContentType: true,
-		DisableDefaultDate:        true,
+		StrictRouting:      true,
+		DisableDefaultDate: true,
+		DisableKeepalive:   false,
 
 		Prefork:      gCli.Bool("http-prefork"),
 		IdleTimeout:  300 * time.Second,
@@ -96,9 +96,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 			Reset:    false,
 		})
 	} else {
-		app.fbstor = memory.New(memory.Config{
-			GCInterval: 1 * time.Minute,
-		})
+		app.fbstor = memory.New(memory.Config{})
 	}
 
 	// router configuration
@@ -156,9 +154,6 @@ func (m *App) Bootstrap() (e error) {
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
-	gofunc(&wg, func() {
-		balancer.Init(gCtx)
-	})
 
 	m.bareBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterNodes)
 	m.cloudBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterCloud)
