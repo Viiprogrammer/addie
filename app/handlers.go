@@ -214,30 +214,28 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(fiber.StatusPreconditionFailed)
 }
 
-func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) error {
+func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 	m.lapRequestTimer(ctx, utils.FbReqTmrReqSign)
-	gLog.Trace().Msg("new `sign request` request")
+	gLog.Trace().Msg("new 'sign request' request")
 
-	srv := ctx.Locals("srv").(string)
+	srv, uri := ctx.Locals("srv").(string), ctx.Locals("uri").(string)
 	expires, extra := m.getHlpExtra(
-		ctx.Locals("uri").(string),
+		uri,
 		srv,
 		ctx.Locals("uid").(string),
 	)
 
-	srv = srv + ctx.Locals("uri").(string)
-	rrl, e := url.Parse(srv)
-	if e != nil {
-		gLog.Debug().Str("url_parse", srv).Str("remote_addr", ctx.IP()).
+	var rrl *url.URL
+	if rrl, e = url.Parse(srv + uri); e != nil {
+		gLog.Debug().Str("url_parse", srv+uri).Str("remote_addr", ctx.IP()).
 			Msg("could not sign request; url.Parse error")
-		return ctx.SendStatus(fiber.StatusInternalServerError)
+		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
 	var rgs = &url.Values{}
 	rgs.Add("expires", expires)
 	rgs.Add("extra", extra)
-	rrl.RawQuery = rgs.Encode()
-	rrl.Scheme = "https"
+	rrl.RawQuery, rrl.Scheme = rgs.Encode(), "https"
 
 	gLog.Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.IP()).
 		Msg("request signing completed")
@@ -258,7 +256,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	if errors.Is(e, balancer.ErrServerUnavailable) {
 		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
 		return fiber.NewError(fiber.StatusInternalServerError, balancer.ErrServerUnavailable.Error())
-	} else if e != nil {
+	} else if e != nil || server == nil {
 		gLog.Warn().Err(e).Msg("balancer critical error")
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}

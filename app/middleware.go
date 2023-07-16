@@ -136,6 +136,9 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	if errors.Is(e, balancer.ErrServerUnavailable) {
 		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
 		return ctx.Next()
+	} else if e != nil || server == nil {
+		gLog.Warn().Err(e).Msg("balancer critical error")
+		return ctx.Next()
 	}
 
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
