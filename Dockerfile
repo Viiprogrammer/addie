@@ -6,12 +6,11 @@ FROM golang:1.19.1-alpine AS build
 LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 WORKDIR /app
 
-COPY go.mod ./
-COPY go.sum ./
-RUN go mod download
-
 COPY . .
+
+ENV CGO_ENABLED=0
 RUN set -e \
+  && export CGO_ENABLED=0
   && go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=docker_release'" -o /anilibria-hlp-service \
   && go build -mod=vendor -trimpath -ldflags="-X 'main.version=docker_release'" -o /anilibria-hlp-service.debug
 
