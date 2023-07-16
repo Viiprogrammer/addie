@@ -60,6 +60,15 @@ const (
 	tsrRawFilename
 )
 
+func getQualityHash(rawpath string) (string, bool) {
+	if rawpath == "" {
+		return "", false
+	}
+
+	filename := strings.Split(rawpath, "/")[tsrRawFilename]
+	return getHashFromUriPath(filename)
+}
+
 func getHashFromUriPath(upath string) (hash string, ok bool) {
 	switch upath[len(upath)-1:] {
 	case "s": // .ts
@@ -108,35 +117,28 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 		if serie == nil {
 			gLog.Warn().Msg("there is an empty serie found in the api response's playlist")
 			continue
-		}
-
-		if serie.Hls == nil {
+		} else if serie.Hls == nil {
 			gLog.Warn().Msg("there is an empty serie.HLS found in the api response's playlist")
+			continue
+		} else if serie.Hls.Sd == "" && serie.Hls.Hd == "" && serie.Hls.Fhd == "" {
+			gLog.Warn().Msg("internal error; serie quality is defined but empty")
 			continue
 		}
 
 		tserie, ok := &TitleSerie{}, false
-
-		tserie.Title = title.Id
-		tserie.Serie = serie.Serie
+		tserie.Title, tserie.Serie = title.Id, serie.Serie
 		tserie.QualityHashes = make(map[utils.TitleQuality]string)
 
-		if serie.Hls.Sd != "" {
-			if tserie.QualityHashes[utils.TitleQualitySD], ok = getHashFromUriPath(strings.Split(serie.Hls.Sd, "/")[tsrRawFilename]); !ok {
-				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
-			}
+		if tserie.QualityHashes[utils.TitleQualitySD], ok = getQualityHash(serie.Hls.Sd); !ok {
+			gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no SD quality for parsed title")
 		}
 
-		if serie.Hls.Hd != "" {
-			if tserie.QualityHashes[utils.TitleQualityHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Hd, "/")[tsrRawFilename]); !ok {
-				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
-			}
+		if tserie.QualityHashes[utils.TitleQualityHD], ok = getQualityHash(serie.Hls.Hd); !ok {
+			gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no HD quality for parsed title")
 		}
 
-		if serie.Hls.Fhd != "" {
-			if tserie.QualityHashes[utils.TitleQualityFHD], ok = getHashFromUriPath(strings.Split(serie.Hls.Fhd, "/")[tsrRawFilename]); !ok {
-				gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
-			}
+		if tserie.QualityHashes[utils.TitleQualityFHD], ok = getQualityHash(serie.Hls.Fhd); !ok {
+			gLog.Warn().Uint16("tid", tserie.Title).Uint16("sed", tserie.Serie).Msg("there is no FHD quality for parsed title")
 		}
 
 		tss = append(tss, tserie)
