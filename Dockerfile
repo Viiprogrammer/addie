@@ -11,8 +11,9 @@ COPY go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=docker_release'" -o /anilibria-hlp-service
-RUN go build -mod=vendor -trimpath -ldflags="-X 'main.version=docker_release'" -o /anilibria-hlp-service.debug
+RUN set -e \
+  && go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=docker_release'" -o /anilibria-hlp-service \
+  && go build -mod=vendor -trimpath -ldflags="-X 'main.version=docker_release'" -o /anilibria-hlp-service.debug
 
 RUN apk add --no-cache upx \
   && upx -9 -k /anilibria-hlp-service \
