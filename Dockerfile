@@ -10,7 +10,6 @@ COPY . .
 
 ENV CGO_ENABLED=0
 RUN set -e \
-  && export CGO_ENABLED=0
   && go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=docker_release'" -o /anilibria-hlp-service \
   && go build -mod=vendor -trimpath -ldflags="-X 'main.version=docker_release'" -o /anilibria-hlp-service.debug
 
