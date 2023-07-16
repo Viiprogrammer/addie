@@ -66,8 +66,7 @@ func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) (e error) {
 		m.cloudBalancer.ResetStats()
 	}
 
-	ctx.SendString("OK")
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
@@ -86,8 +85,7 @@ func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
 		m.cloudBalancer.ResetUpstream()
 	}
 
-	ctx.SendString("OK")
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndApiBlockIp(ctx *fiber.Ctx) error {
@@ -102,6 +100,7 @@ func (m *App) fbHndApiBlockIp(ctx *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
+	fmt.Fprintln(ctx, ip+" has been banned")
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
@@ -117,6 +116,7 @@ func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
+	fmt.Fprintln(ctx, ip+" has been unbanned")
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
@@ -127,7 +127,7 @@ func (m *App) fbHndApiBlockReset(ctx *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
@@ -145,7 +145,7 @@ func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "enabled query can be only 0 or 1")
 	}
 
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndApiLimiterSwitch(ctx *fiber.Ctx) error {
@@ -163,7 +163,7 @@ func (m *App) fbHndApiLimiterSwitch(ctx *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "enabled query can be only 0 or 1")
 	}
 
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndApiLoggerLevel(ctx *fiber.Ctx) error {
@@ -186,6 +186,7 @@ func (m *App) fbHndApiLoggerLevel(ctx *fiber.Ctx) error {
 
 	gLog.Error().Msgf("[falsepositive]> new log level applied - %s", lvl)
 
+	fmt.Fprintln(ctx, lvl+" logger level has been applied")
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
@@ -240,7 +241,7 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 	gLog.Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.IP()).
 		Msg("request signing completed")
 	ctx.Set(apiHeaderLocation, rrl.String())
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
@@ -264,6 +265,5 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
 	ctx.Set("X-Location", srv)
 
-	fmt.Fprint(ctx, srv)
-	return ctx.SendStatus(fiber.StatusOK)
+	return ctx.SendStatus(fiber.StatusNoContent)
 }
