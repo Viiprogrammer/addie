@@ -15,9 +15,12 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var gTimer *utils.TimeManager
+
 type ClusterBalancer struct {
-	log     *zerolog.Logger
-	ccx     *cli.Context
+	log *zerolog.Logger
+	ccx *cli.Context
+
 	cluster BalancerCluster
 
 	ulock    sync.RWMutex
@@ -29,7 +32,9 @@ type ClusterBalancer struct {
 }
 
 func NewClusterBalancer(ctx context.Context, cluster BalancerCluster) *ClusterBalancer {
+	gTimer = ctx.Value(utils.ContextKeyTimeManager).(*utils.TimeManager)
 	upstream := make(upstream)
+
 	return &ClusterBalancer{
 		log:      ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger),
 		ccx:      ctx.Value(utils.ContextKeyCliContext).(*cli.Context),

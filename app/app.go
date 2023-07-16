@@ -42,6 +42,7 @@ type App struct {
 	cache     *CachedTitlesBucket
 	blocklist *blocklist.Blocklist
 	runtime   *runtime.Runtime
+	timeman   *utils.TimeManager
 
 	cloudBalancer balancer.Balancer
 	bareBalancer  balancer.Balancer
@@ -62,9 +63,9 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		ServerHeader:          gCli.App.Name,
 		DisableStartupMessage: true,
 
-		StrictRouting:             true,
-		DisableDefaultContentType: true,
-		DisableDefaultDate:        true,
+		StrictRouting:      true,
+		DisableDefaultDate: true,
+		DisableKeepalive:   false,
 
 		Prefork:      gCli.Bool("http-prefork"),
 		IdleTimeout:  300 * time.Second,
@@ -96,9 +97,7 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 			Reset:    false,
 		})
 	} else {
-		app.fbstor = memory.New(memory.Config{
-			GCInterval: 1 * time.Minute,
-		})
+		app.fbstor = memory.New(memory.Config{})
 	}
 
 	// router configuration
@@ -137,6 +136,14 @@ func (m *App) Bootstrap() (e error) {
 	const chunksplit = `^(\/[^\/]+\/[^\/]+\/[^\/]+\/)([^\/]+)\/([^\/]+)\/([^\/]+)\/([^.\/]+)\.ts$`
 	m.chunkRegexp = regexp.MustCompile(chunksplit)
 
+	// timemanager
+	gLog.Info().Msg("starting timemanager...")
+	gofunc(&wg, func() {
+		m.timeman = utils.NewTimeManager()
+		m.timeman.Bootstrap(gCtx)
+	})
+	gCtx = context.WithValue(gCtx, utils.ContextKeyTimeManager, m.timeman)
+
 	// anilibria API
 	gLog.Info().Msg("starting anilibria api client...")
 	if gAniApi, e = NewApiClient(); e != nil {
@@ -156,9 +163,6 @@ func (m *App) Bootstrap() (e error) {
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
-	gofunc(&wg, func() {
-		balancer.Init(gCtx)
-	})
 
 	m.bareBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterNodes)
 	m.cloudBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterCloud)

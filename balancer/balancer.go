@@ -1,16 +1,10 @@
 package balancer
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net"
 )
-
-func Init(ctx context.Context) {
-	gTimer = new(timeManager)
-	gTimer.bootstrap(ctx)
-}
 
 type Balancer interface {
 	BalanceByChunk(prefix, chunkname string) (_ string, server *BalancerServer, e error)
