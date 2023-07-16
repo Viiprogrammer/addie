@@ -29,7 +29,7 @@ func (m *BalancerServer) statRequest() {
 	m.Lock()
 	defer m.Unlock()
 
-	m.lastRequestTime = gTimer.Now()
+	m.lastRequestTime = time.Now()
 	m.handledRequests++
 }
 
@@ -55,6 +55,6 @@ func (m *BalancerServer) disable(disabled ...bool) {
 	m.Lock()
 	defer m.Unlock()
 
-	m.lastChanged = gTimer.Now()
+	m.lastChanged = time.Now()
 	m.isDown = disabled[0]
 }

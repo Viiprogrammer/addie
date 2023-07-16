@@ -31,8 +31,8 @@ func (m *App) fiberConfigure() {
 			make(map[utils.ContextKey]time.Time),
 		))
 
-		start, e := m.timeman.Now(), c.Next()
-		stop := m.timeman.Now()
+		start, e := time.Now(), c.Next()
+		stop := time.Now()
 
 		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
 			gLog.Trace().Msg("non sign request detected, skipping timings...")

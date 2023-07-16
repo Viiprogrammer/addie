@@ -42,7 +42,6 @@ type App struct {
 	cache     *CachedTitlesBucket
 	blocklist *blocklist.Blocklist
 	runtime   *runtime.Runtime
-	timeman   *utils.TimeManager
 
 	cloudBalancer balancer.Balancer
 	bareBalancer  balancer.Balancer
@@ -135,14 +134,6 @@ func (m *App) Bootstrap() (e error) {
 	// common
 	const chunksplit = `^(\/[^\/]+\/[^\/]+\/[^\/]+\/)([^\/]+)\/([^\/]+)\/([^\/]+)\/([^.\/]+)\.ts$`
 	m.chunkRegexp = regexp.MustCompile(chunksplit)
-
-	// timemanager
-	gLog.Info().Msg("starting timemanager...")
-	m.timeman = utils.NewTimeManager()
-	gCtx = context.WithValue(gCtx, utils.ContextKeyTimeManager, m.timeman)
-	gofunc(&wg, func() {
-		m.timeman.Bootstrap(gCtx)
-	})
 
 	// anilibria API
 	gLog.Info().Msg("starting anilibria api client...")
