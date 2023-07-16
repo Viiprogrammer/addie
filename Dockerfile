@@ -15,6 +15,7 @@ RUN set -e \
 
 RUN apk add --no-cache upx \
   && upx -9 -k /anilibria-hlp-service \
+  && upx -9 -k /anilibria-hlp-service.debug \
   && apk del upx
 
 # container - production
