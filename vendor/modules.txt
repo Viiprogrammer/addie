@@ -27,10 +27,6 @@ github.com/gofiber/fiber/v2/utils
 # github.com/gofiber/storage/bbolt v1.3.5
 ## explicit; go 1.18
 github.com/gofiber/storage/bbolt
-# github.com/gofiber/storage/memory v1.3.4
-## explicit; go 1.16
-github.com/gofiber/storage/memory
-github.com/gofiber/storage/memory/internal
 # github.com/gofiber/utils v1.1.0
 ## explicit; go 1.17
 github.com/gofiber/utils
