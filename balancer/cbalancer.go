@@ -223,5 +223,9 @@ func (m *ClusterBalancer) ResetStats() {
 }
 
 func (m *ClusterBalancer) ResetUpstream() {
-	m.upstream.reset(&m.ulock)
+	m.ulock.Lock()
+	defer m.ulock.Unlock()
+
+	upstream := make(upstream)
+	m.upstream = &upstream
 }
