@@ -13,6 +13,42 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var (
+	errFbApiInvalidMode    = errors.New("mode argument is invalid; values soft, hard are permited only")
+	errFbApiInvalidQuality = errors.New("quality argument is invalid; 480, 720, 1080 values are permited only")
+)
+
+func (*App) fbHndApiQuality(ctx *fiber.Ctx) (e error) {
+	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+
+	mode, quality :=
+		strings.TrimSpace(ctx.Query("mode", "soft")),
+		strings.TrimSpace(ctx.Query("level", "1080"))
+
+	switch mode {
+	case "soft":
+		fallthrough
+	case "hard":
+		//
+	default:
+		return fiber.NewError(fiber.StatusInternalServerError, errFbApiInvalidMode.Error())
+	}
+
+	switch quality {
+	case "480":
+		fallthrough
+	case "720":
+		fallthrough
+	case "1080":
+		//
+	default:
+		return fiber.NewError(fiber.StatusInternalServerError, errFbApiInvalidQuality.Error())
+	}
+
+	//
+	return ctx.SendStatus(fiber.StatusNoContent)
+}
+
 func (*App) getBalancersClusterArg(ctx *fiber.Ctx) (cluster balancer.BalancerCluster, e error) {
 	var buf string
 	if buf = ctx.Query("cluster"); buf == "" {

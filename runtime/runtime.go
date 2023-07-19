@@ -48,6 +48,8 @@ var (
 
 type (
 	Runtime struct {
+		Softer *Softer
+
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
 
@@ -66,8 +68,8 @@ type (
 	}
 )
 
-func (m *Runtime) GetQualityLevel() (q utils.TitleQuality, ok bool) {
-	if !m.gQualityLock.TryRLock() {
+func (m *Runtime) GetQualityLevel(payload int) (q utils.TitleQuality, ok bool) {
+	if !m.gQualityLock.TryRLock() || !m.Softer.GetSwitchResult(payload) {
 		return 0, false
 	}
 	defer m.gQualityLock.RUnlock()
@@ -122,6 +124,8 @@ func NewRuntime(ctx context.Context) *Runtime {
 	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
 
 	return &Runtime{
+		Softer: new(Softer),
+
 		blocklist: blist,
 
 		gQualityLevel:   utils.TitleQualityFHD,

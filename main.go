@@ -212,6 +212,21 @@ func main() {
 			Name:  "consul-kv-prefix",
 			Value: fmt.Sprintf("anilibria/%s", app.Name),
 		},
+
+		&cli.IntFlag{
+			Name:  "balancer-softer-step",
+			Value: 10,
+			Usage: `balancer 'soft' mode for soft witching between qualities;
+			'step' - is a static variable with some 'starting' value; each tick it will be decreased by 1;
+			a request's quality will be updated when 'hardcoded payload' mod 'step' == 0`,
+		},
+		&cli.DurationFlag{
+			Name:  "balancer-softer-tick",
+			Value: 30 * time.Second,
+			Usage: `balancer 'soft' mode for soft witching between qualities;
+			'tick' - is a ticker duration; each tick step will be decreased by 1;
+			a request's quality will be updated when 'hardcoded payload' mod 'step' == 0`,
+		},
 	}
 
 	app.Action = func(c *cli.Context) (e error) {

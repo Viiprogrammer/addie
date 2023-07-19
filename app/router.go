@@ -142,6 +142,7 @@ func (m *App) fiberConfigure() {
 	api := m.fb.Group("/api")
 	api.Post("logger/level", m.fbHndApiLoggerLevel)
 	api.Post("limiter/switch", m.fbHndApiLimiterSwitch)
+	api.Post("quality", m.fbHndApiQuality)
 
 	// group upstream
 	upstr := api.Group("/balancer")
