@@ -51,7 +51,7 @@ var (
 
 type (
 	Runtime struct {
-		Config *ConfigStorage
+		Config ConfigStorage
 
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
@@ -134,6 +134,8 @@ func NewRuntime(c context.Context) *Runtime {
 	ccx = ctx.Value(utils.ContextKeyCliContext).(*cli.Context)
 
 	return &Runtime{
+		Config: NewConfigStorage(),
+
 		blocklist: blist,
 
 		gQualityLevel:   utils.TitleQualityFHD,
@@ -171,21 +173,21 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	return
 }
 
-func (m *Runtime) Bootstrap() {
-	defer m.boot.Done()
+// func (m *Runtime) Bootstrap() {
+// 	defer m.boot.Done()
 
-	log.Trace().Msg("runtime - bootstrap has been started")
-	defer log.Trace().Msg("runtime - bootstrap has been stopped")
+// 	log.Trace().Msg("runtime - bootstrap has been started")
+// 	defer log.Trace().Msg("runtime - bootstrap has been stopped")
 
-loop:
-	for {
-		select {
-		case <-ctx.Done():
-			log.Trace().Msg("internal abort() has been caught")
-			break loop
-		}
-	}
-}
+// loop:
+// 	for {
+// 		select {
+// 		case <-ctx.Done():
+// 			log.Trace().Msg("internal abort() has been caught")
+// 			break loop
+// 		}
+// 	}
+// }
 
 func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
 	log.Debug().Msgf("runtime config - blocklist update requested")
@@ -242,7 +244,7 @@ func (m *Runtime) applyLimitterSwitch(input []byte) (e error) {
 	case 0:
 		fallthrough
 	case 1:
-		m.Config.SetValue(ConfigParamLimiter, enabled)
+		m.Config.SetValueSmoothly(ConfigParamLimiter, enabled)
 
 		log.Info().Msg("runtime config - limiter status updated")
 		log.Debug().Msgf("apply limiter - updated value - %d", enabled)

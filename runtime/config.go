@@ -36,7 +36,6 @@ const (
 	configEntryLocker  ConfigEid = iota //sync.RWMutex
 	configEntryPayload                  // interface{}
 	configEntryTarget                   // interface{}
-	configEntryTicker                   // time.Ticker
 	configEntryStep                     // int
 
 	_configEntrySize
@@ -54,6 +53,9 @@ var (
 )
 
 func NewConfigStorage() ConfigStorage {
+	deployStep = ccx.Int("balancer-softer-step")
+	deployInteration = ccx.Duration("balancer-softer-tick")
+
 	return make(ConfigStorage, _configParamSize)
 }
 
@@ -97,15 +99,15 @@ func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e e
 		entry, ok = newEntry(&param), true
 	}
 
+	entry.nextDeployStep(true)
+
 	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
-
 	defer entry[configEntryLocker].(*sync.RWMutex).Unlock()
 
 	entry[configEntryTarget] = val
-	entry.nextDeployStep(true)
 	go entry.bootstrapDeploy()
 
 	return m.setEntry(&param, entry)
@@ -140,6 +142,7 @@ func (m ConfigStorage) setEntry(param *ConfigParam, entry ConfigEntry) (e error)
 func newEntry(param *ConfigParam) ConfigEntry {
 	entry := make(ConfigEntry, _configEntrySize)
 
+	entry[configEntryLocker] = new(sync.RWMutex)
 	entry[configEntryPayload] = ConfigParamDefaults[*param]
 	entry[configEntryStep] = -1
 
@@ -147,13 +150,10 @@ func newEntry(param *ConfigParam) ConfigEntry {
 }
 
 func (m ConfigEntry) bootstrapDeploy() error {
-	// wait.Add(1)
-	// defer wait.Done()
-
 	log.Trace().Msg("smooth deploy has been started")
 	defer log.Trace().Msg("smooth deploy has been stopped")
 
-	ticker := m[configEntryTicker].(time.Ticker)
+	ticker := time.NewTicker(deployInteration)
 
 loop:
 	for {
@@ -167,6 +167,7 @@ loop:
 				ticker.Stop()
 				break loop
 			}
+			log.Trace().Msg("smooth_deploy - tick called, descrease entry's steps")
 		case <-ctx.Done():
 			log.Trace().Msg("smooth_deploy - internal abort() has been caught")
 			break loop
@@ -217,12 +218,12 @@ func (m ConfigEntry) nextDeployStep(init ...bool) (_ bool, e error) {
 
 	if init[0] {
 		m[configEntryStep] = deployStep
-		m[configEntryTicker] = time.NewTicker(deployInteration)
 		return
 	}
 
+	log.Trace().Int("step", m[configEntryStep].(int)).Msg("")
 	m[configEntryStep] = m[configEntryStep].(int) - 1
-	return deployStep == 0, e
+	return m[configEntryStep] == 0, e
 }
 
 func (m ConfigEntry) commitTargetValue() (e error) {
