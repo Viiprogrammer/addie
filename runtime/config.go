@@ -24,13 +24,20 @@ const (
 	_configParamSize
 )
 
+var ConfigParamDefaults = map[ConfigParam]interface{}{
+	ConfigParamLottery:      0,
+	ConfigParamQuality:      1080,
+	ConfigParamBlocklist:    0,
+	ConfigParamBlocklistIps: []string{},
+	ConfigParamLimiter:      0,
+}
+
 const (
-	configEntryLocker    ConfigEid = iota //sync.RWMutex
-	configEntryPayload                    // interface{}
-	configEntryTarget                     // interface{}
-	configEntryTicker                     // time.Ticker
-	configEntrySteppedAt                  // time.Time
-	configEntryStep                       // int
+	configEntryLocker  ConfigEid = iota //sync.RWMutex
+	configEntryPayload                  // interface{}
+	configEntryTarget                   // interface{}
+	configEntryTicker                   // time.Ticker
+	configEntryStep                     // int
 
 	_configEntrySize
 )
@@ -66,7 +73,7 @@ func (m ConfigStorage) SetValue(param *ConfigParam, val interface{}) (e error) {
 	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = make(ConfigEntry, _configEntrySize), true
+		entry, ok = newEntry(param), true
 	}
 
 	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
@@ -84,21 +91,22 @@ func (m ConfigStorage) SetValueSmoothly(param *ConfigParam, val interface{}) (e 
 	var ok bool
 	var entry ConfigEntry
 
-	if entry, ok, e = m.getEntry(param); e != nil || !ok {
+	if entry, ok, e = m.getEntry(param); e != nil {
 		return
+	} else if !ok {
+		entry, ok = newEntry(param), true
 	}
-
-	///
-
-	///
 
 	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
 
-	entry[configEntryPayload] = val
-	entry[configEntryLocker].(*sync.RWMutex).Unlock()
+	defer entry[configEntryLocker].(*sync.RWMutex).Unlock()
+
+	entry[configEntryTarget] = val
+	entry.nextDeployStep(true)
+	go entry.bootstrapDeploy()
 
 	return m.setEntry(param, entry)
 }
@@ -129,9 +137,18 @@ func (m ConfigStorage) setEntry(param *ConfigParam, entry ConfigEntry) (e error)
 
 //
 
-func (m ConfigEntry) bootstrapDeploy(wait *sync.WaitGroup) error {
-	wait.Add(1)
-	defer wait.Done()
+func newEntry(param *ConfigParam) ConfigEntry {
+	entry := make(ConfigEntry, _configEntrySize)
+
+	entry[configEntryPayload] = ConfigParamDefaults[*param]
+	entry[configEntryStep] = -1
+
+	return entry
+}
+
+func (m ConfigEntry) bootstrapDeploy() error {
+	// wait.Add(1)
+	// defer wait.Done()
 
 	log.Trace().Msg("smooth deploy has been started")
 	defer log.Trace().Msg("smooth deploy has been stopped")
@@ -198,8 +215,6 @@ func (m ConfigEntry) nextDeployStep(init ...bool) (_ bool, e error) {
 	}
 	defer m[configEntryLocker].(*sync.RWMutex).Unlock()
 
-	m[configEntrySteppedAt] = time.Now()
-
 	if init[0] {
 		m[configEntryStep] = deployStep
 		m[configEntryTicker] = time.NewTicker(deployInteration)
@@ -216,9 +231,7 @@ func (m ConfigEntry) commitTargetValue() (e error) {
 		return
 	}
 
-	m[configEntryPayload] = m[configEntryTarget]
-	m[configEntryStep], m[configEntrySteppedAt] = -1, time.Unix(0, 0)
-
+	m[configEntryPayload], m[configEntryStep] = m[configEntryTarget], -1
 	m[configEntryLocker].(*sync.RWMutex).Unlock()
 	return
 }
