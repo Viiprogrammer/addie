@@ -51,6 +51,8 @@ var (
 
 type (
 	Runtime struct {
+		Config *ConfigStorage
+
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
 
@@ -107,22 +109,22 @@ func (m *Runtime) updateLotteryChance(c int) {
 	m.gLotteryChance = c
 }
 
-func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
-	if !m.gLimiterLock.TryRLock() {
-		return 0, false
-	}
-	defer m.gLimiterLock.RUnlock()
+// func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
+// 	if !m.gLimiterLock.TryRLock() {
+// 		return 0, false
+// 	}
+// 	defer m.gLimiterLock.RUnlock()
 
-	s, ok = m.gLimiterEnabled, true
-	return
-}
+// 	s, ok = m.gLimiterEnabled, true
+// 	return
+// }
 
-func (m *Runtime) updateLimiterStatus(s int) {
-	m.gLimiterLock.Lock()
-	defer m.gLimiterLock.Unlock()
+// func (m *Runtime) updateLimiterStatus(s int) {
+// 	m.gLimiterLock.Lock()
+// 	defer m.gLimiterLock.Unlock()
 
-	m.gLimiterEnabled = s
-}
+// 	m.gLimiterEnabled = s
+// }
 
 func NewRuntime(c context.Context) *Runtime {
 	ctx = c
@@ -240,7 +242,7 @@ func (m *Runtime) applyLimitterSwitch(input []byte) (e error) {
 	case 0:
 		fallthrough
 	case 1:
-		m.updateLimiterStatus(enabled)
+		m.Config.SetValue(ConfigParamLimiter, enabled)
 
 		log.Info().Msg("runtime config - limiter status updated")
 		log.Debug().Msgf("apply limiter - updated value - %d", enabled)
@@ -273,9 +275,6 @@ func (m *Runtime) applyLotteryChance(input []byte, sdeploy ...bool) (e error) {
 	}
 
 	log.Trace().Msg("runtime config - using smooth deployment")
-	// cquality := m.GetQualityLevel()
-	// deployment := newSmoothDeploy(ctx, )
-
 	return
 }
 

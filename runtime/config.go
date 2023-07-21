@@ -57,23 +57,23 @@ func NewConfigStorage() ConfigStorage {
 	return make(ConfigStorage, _configParamSize)
 }
 
-func (m ConfigStorage) GetValue(param *ConfigParam) (val interface{}, ok bool, e error) {
+func (m ConfigStorage) GetValue(param ConfigParam) (val interface{}, ok bool, e error) {
 	var entry ConfigEntry
-	if entry, ok, e = m.getEntry(param); e != nil || !ok {
+	if entry, ok, e = m.getEntry(&param); e != nil || !ok {
 		return
 	}
 
 	return entry.getPayload()
 }
 
-func (m ConfigStorage) SetValue(param *ConfigParam, val interface{}) (e error) {
+func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
 	var ok bool
 	var entry ConfigEntry
 
-	if entry, ok, e = m.getEntry(param); e != nil {
+	if entry, ok, e = m.getEntry(&param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = newEntry(param), true
+		entry, ok = newEntry(&param), true
 	}
 
 	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
@@ -84,17 +84,17 @@ func (m ConfigStorage) SetValue(param *ConfigParam, val interface{}) (e error) {
 	entry[configEntryPayload] = val
 	entry[configEntryLocker].(*sync.RWMutex).Unlock()
 
-	return m.setEntry(param, entry)
+	return m.setEntry(&param, entry)
 }
 
-func (m ConfigStorage) SetValueSmoothly(param *ConfigParam, val interface{}) (e error) {
+func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e error) {
 	var ok bool
 	var entry ConfigEntry
 
-	if entry, ok, e = m.getEntry(param); e != nil {
+	if entry, ok, e = m.getEntry(&param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = newEntry(param), true
+		entry, ok = newEntry(&param), true
 	}
 
 	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
@@ -108,7 +108,7 @@ func (m ConfigStorage) SetValueSmoothly(param *ConfigParam, val interface{}) (e 
 	entry.nextDeployStep(true)
 	go entry.bootstrapDeploy()
 
-	return m.setEntry(param, entry)
+	return m.setEntry(&param, entry)
 }
 
 //

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -171,7 +172,10 @@ func (m *App) fiberConfigure() {
 	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
-			if limiting, ok := m.runtime.GetLimiterStatus(); limiting == 0 || !ok {
+			if limiting, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamLimiter); e != nil {
+				gLog.Warn().Err(e).Msg("internal runtime config error")
+				return true
+			} else if limiting == 0 || !ok {
 				return true
 			}
 
