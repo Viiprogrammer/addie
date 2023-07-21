@@ -73,59 +73,6 @@ type (
 	}
 )
 
-func (m *Runtime) GetQualityLevel() (q utils.TitleQuality, ok bool) {
-
-	// if !m.gQualityLock.TryRLock() || !m.Softer.GetSwitchResult(payload) {
-	if !m.gQualityLock.TryRLock() {
-		return 0, false
-	}
-	defer m.gQualityLock.RUnlock()
-
-	q, ok = m.gQualityLevel, true
-	return
-}
-
-func (m *Runtime) updateQualityLevel(q utils.TitleQuality) {
-	m.gQualityLock.Lock()
-	defer m.gQualityLock.Unlock()
-
-	m.gQualityLevel = q
-}
-
-func (m *Runtime) GetLotteryChance() (c int, ok bool) {
-	if !m.gLotteryLock.TryRLock() {
-		return 0, false
-	}
-	defer m.gLotteryLock.RUnlock()
-
-	c, ok = m.gLotteryChance, true
-	return
-}
-
-func (m *Runtime) updateLotteryChance(c int) {
-	m.gLotteryLock.Lock()
-	defer m.gLotteryLock.Unlock()
-
-	m.gLotteryChance = c
-}
-
-// func (m *Runtime) GetLimiterStatus() (s int, ok bool) {
-// 	if !m.gLimiterLock.TryRLock() {
-// 		return 0, false
-// 	}
-// 	defer m.gLimiterLock.RUnlock()
-
-// 	s, ok = m.gLimiterEnabled, true
-// 	return
-// }
-
-// func (m *Runtime) updateLimiterStatus(s int) {
-// 	m.gLimiterLock.Lock()
-// 	defer m.gLimiterLock.Unlock()
-
-// 	m.gLimiterEnabled = s
-// }
-
 func NewRuntime(c context.Context) *Runtime {
 	ctx = c
 
@@ -256,7 +203,7 @@ func (m *Runtime) applyLotteryChance(input []byte, sdeploy ...bool) (e error) {
 	log.Info().Msgf("runtime config - applied lottery chance %s", string(input))
 
 	if !sdeploy[0] {
-		m.updateLotteryChance(chance)
+		m.Config.SetValue(ConfigParamLottery, chance)
 		return
 	}
 
@@ -281,7 +228,7 @@ func (m *Runtime) applyQualityLevel(input []byte) (e error) {
 		return
 	}
 
-	m.updateQualityLevel(quality)
+	m.Config.SetValue(ConfigParamQuality, quality)
 	log.Info().Msgf("runtime config - applied quality %s", string(input))
 	return
 }

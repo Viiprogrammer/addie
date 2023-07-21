@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/MindHunter86/anilibria-hlp-service/balancer"
+	"github.com/MindHunter86/anilibria-hlp-service/runtime"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/gofiber/fiber/v2"
 )
@@ -91,14 +92,14 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	// quality, ok := m.runtime.GetQualityLevel(int(tsr.getTitleId()))
-	quality, ok := m.runtime.GetQualityLevel()
-	if !ok {
+	buf, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamQuality)
+	if !ok || e != nil {
 		gLog.Warn().
 			Msg("could not get lock for reading quality or softer says no; skipping fake quality chain")
 		return ctx.Next()
 	}
 
+	quality := buf.(utils.TitleQuality)
 	gLog.Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")
 	if tsr.getTitleQuality() <= quality {
@@ -118,10 +119,10 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	gLog.Trace().Msg("consul lottery")
 
-	if lottery, ok := m.runtime.GetLotteryChance(); !ok {
+	if lottery, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamLottery); !ok || e != nil {
 		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
 		return ctx.Next()
-	} else if lottery < rand.Intn(99)+1 {
+	} else if lottery.(int) < rand.Intn(99)+1 {
 		gLog.Trace().Msg("consul lottery looser, fallback to old method")
 		return ctx.Next()
 	}
