@@ -149,7 +149,8 @@ func (m *App) Bootstrap() (e error) {
 	// runtime
 	m.runtime = runtime.NewRuntime(gCtx)
 	gofunc(&wg, func() {
-		m.runtime.Softer.Bootstrap(gCtx)
+		m.runtime.Bootstrap()
+		// m.runtime.Softer.Bootstrap(gCtx)
 	})
 
 	// balancer V2

@@ -11,6 +11,7 @@ import (
 	"github.com/MindHunter86/anilibria-hlp-service/blocklist"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/rs/zerolog"
+	"github.com/urfave/cli/v2"
 )
 
 type RuntimePatchType uint8
@@ -36,6 +37,8 @@ var (
 
 	// intenal
 	log *zerolog.Logger
+	ccx *cli.Context
+	ctx context.Context
 
 	runtimeChangesHumanize = map[RuntimePatchType]string{
 		RuntimePatchLottery:      "lottery chance",
@@ -61,6 +64,8 @@ type (
 
 		gLimiterLock    sync.RWMutex
 		gLimiterEnabled int
+
+		boot sync.WaitGroup
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -68,8 +73,10 @@ type (
 	}
 )
 
-func (m *Runtime) GetQualityLevel(payload int) (q utils.TitleQuality, ok bool) {
-	if !m.gQualityLock.TryRLock() || !m.Softer.GetSwitchResult(payload) {
+func (m *Runtime) GetQualityLevel() (q utils.TitleQuality, ok bool) {
+
+	// if !m.gQualityLock.TryRLock() || !m.Softer.GetSwitchResult(payload) {
+	if !m.gQualityLock.TryRLock() {
 		return 0, false
 	}
 	defer m.gQualityLock.RUnlock()
@@ -119,9 +126,12 @@ func (m *Runtime) updateLimiterStatus(s int) {
 	m.gLimiterEnabled = s
 }
 
-func NewRuntime(ctx context.Context) *Runtime {
+func NewRuntime(c context.Context) *Runtime {
+	ctx = c
+
 	blist := ctx.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
 	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
+	ccx = ctx.Value(utils.ContextKeyCliContext).(*cli.Context)
 
 	return &Runtime{
 		Softer: new(Softer),
@@ -161,6 +171,22 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	}
 
 	return
+}
+
+func (m *Runtime) Bootstrap() {
+	defer m.boot.Done()
+
+	log.Trace().Msg("runtime - bootstrap has been started")
+	defer log.Trace().Msg("runtime - bootstrap has been stopped")
+
+loop:
+	for {
+		select {
+		case <-ctx.Done():
+			log.Trace().Msg("internal abort() has been caught")
+			break loop
+		}
+	}
 }
 
 func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
@@ -230,7 +256,9 @@ func (m *Runtime) applyLimitterSwitch(input []byte) (e error) {
 	return
 }
 
-func (m *Runtime) applyLotteryChance(input []byte) (e error) {
+func (m *Runtime) applyLotteryChance(input []byte, sdeploy ...bool) (e error) {
+	sdeploy = append(sdeploy, false)
+
 	var chance int
 	if chance, e = strconv.Atoi(string(input)); e != nil {
 		return
@@ -243,7 +271,15 @@ func (m *Runtime) applyLotteryChance(input []byte) (e error) {
 
 	log.Info().Msgf("runtime config - applied lottery chance %s", string(input))
 
-	m.updateLotteryChance(chance)
+	if !sdeploy[0] {
+		m.updateLotteryChance(chance)
+		return
+	}
+
+	log.Trace().Msg("runtime config - using smooth deployment")
+	// cquality := m.GetQualityLevel()
+	// deployment := newSmoothDeploy(ctx, )
+
 	return
 }
 
