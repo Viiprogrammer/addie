@@ -177,6 +177,17 @@ loop:
 	return m.commitTargetValue()
 }
 
+func (m ConfigEntry) getLotteryResult(key int) (val interface{}, ok bool) {
+	switch key % m[configEntryStep].(int) {
+	case 0:
+		val, ok = m[configEntryTarget]
+	default:
+		val, ok = m[configEntryPayload]
+	}
+
+	return
+}
+
 func (m ConfigEntry) getPayload(bkey ...int) (val interface{}, ok bool, e error) {
 	bkey = append(bkey, 0)
 
@@ -189,17 +200,6 @@ func (m ConfigEntry) getPayload(bkey ...int) (val interface{}, ok bool, e error)
 	switch m[configEntryStep] {
 	case -1:
 		val, ok = m.getLotteryResult(bkey[0])
-	default:
-		val, ok = m[configEntryPayload]
-	}
-
-	return
-}
-
-func (m ConfigEntry) getLotteryResult(key int) (val interface{}, ok bool) {
-	switch key % m[configEntryStep].(int) {
-	case 0:
-		val, ok = m[configEntryTarget]
 	default:
 		val, ok = m[configEntryPayload]
 	}
@@ -231,6 +231,9 @@ func (m ConfigEntry) commitTargetValue() (e error) {
 		e = ErrConfigEntryLockFailure
 		return
 	}
+
+	log.Debug().Interface("old", m[configEntryPayload]).Interface("new", m[configEntryTarget]).
+		Msg("config entry - new value has been commited")
 
 	m[configEntryPayload], m[configEntryStep] = m[configEntryTarget], -1
 	m[configEntryLocker].(*sync.RWMutex).Unlock()
