@@ -51,8 +51,6 @@ var (
 
 type (
 	Runtime struct {
-		Softer *Softer
-
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
 
@@ -134,8 +132,6 @@ func NewRuntime(c context.Context) *Runtime {
 	ccx = ctx.Value(utils.ContextKeyCliContext).(*cli.Context)
 
 	return &Runtime{
-		Softer: new(Softer),
-
 		blocklist: blist,
 
 		gQualityLevel:   utils.TitleQualityFHD,
