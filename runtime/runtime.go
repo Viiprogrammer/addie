@@ -173,22 +173,6 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	return
 }
 
-// func (m *Runtime) Bootstrap() {
-// 	defer m.boot.Done()
-
-// 	log.Trace().Msg("runtime - bootstrap has been started")
-// 	defer log.Trace().Msg("runtime - bootstrap has been stopped")
-
-// loop:
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			log.Trace().Msg("internal abort() has been caught")
-// 			break loop
-// 		}
-// 	}
-// }
-
 func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
 	log.Debug().Msgf("runtime config - blocklist update requested")
 	log.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.Size())
