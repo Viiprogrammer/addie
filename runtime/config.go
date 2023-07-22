@@ -36,7 +36,7 @@ var ConfigParamDefaults = map[ConfigParam]interface{}{
 }
 
 const (
-	configEntryLocker  ConfigEid = iota //sync.RWMutex
+	configEntryLocker  ConfigEid = iota // sync.RWMutex
 	configEntryPayload                  // interface{}
 	configEntryTarget                   // interface{}
 	configEntryStep                     // int
