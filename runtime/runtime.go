@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/MindHunter86/anilibria-hlp-service/blocklist"
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
@@ -56,16 +55,11 @@ type (
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
 
-		gQualityLock  sync.RWMutex
-		gQualityLevel utils.TitleQuality
+		// gQualityLevel utils.TitleQuality
 
-		gLotteryLock   sync.RWMutex
-		gLotteryChance int
+		// gLotteryChance int
 
-		gLimiterLock    sync.RWMutex
-		gLimiterEnabled int
-
-		boot sync.WaitGroup
+		// gLimiterEnabled int
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -85,9 +79,9 @@ func NewRuntime(c context.Context) *Runtime {
 
 		blocklist: blist,
 
-		gQualityLevel:   utils.TitleQualityFHD,
-		gLotteryChance:  0,
-		gLimiterEnabled: 0,
+		// gQualityLevel:   utils.TitleQualityFHD,
+		// gLotteryChance:  0,
+		// gLimiterEnabled: 0,
 	}
 }
 

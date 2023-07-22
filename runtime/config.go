@@ -2,8 +2,11 @@ package runtime
 
 import (
 	"errors"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/MindHunter86/anilibria-hlp-service/utils"
 )
 
 type (
@@ -26,7 +29,7 @@ const (
 
 var ConfigParamDefaults = map[ConfigParam]interface{}{
 	ConfigParamLottery:      0,
-	ConfigParamQuality:      1080,
+	ConfigParamQuality:      utils.TitleQualityFHD,
 	ConfigParamBlocklist:    0,
 	ConfigParamBlocklistIps: []string{},
 	ConfigParamLimiter:      0,
@@ -92,6 +95,9 @@ func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
 func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e error) {
 	var ok bool
 	var entry ConfigEntry
+
+	os.Exit(1)
+	// if value != target - continue
 
 	if entry, ok, e = m.getEntry(&param); e != nil {
 		return
