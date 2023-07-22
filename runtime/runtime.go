@@ -54,12 +54,6 @@ type (
 
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
-
-		// gQualityLevel utils.TitleQuality
-
-		// gLotteryChance int
-
-		// gLimiterEnabled int
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
