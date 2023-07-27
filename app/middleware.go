@@ -215,6 +215,13 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 }
 
 func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
+	server, e := m.getServerFromRandomBalancer(ctx)
+	if e != nil {
+		return e
+	}
+
+	ctx.Locals("srv",
+		strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
 	return ctx.Next()
 }
 
