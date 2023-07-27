@@ -102,7 +102,7 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 	return ip.String(), server, e
 }
 
-func (m *ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
+func (*ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
 	if strings.Contains(*chunkname, "_") {
 		key = strings.Split(*chunkname, "_")[1]
 	} else if strings.Contains(*chunkname, "fff") {
