@@ -146,6 +146,78 @@ func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
+// if return value == true - Balance() will be skipped
+func (m *App) fbMidAppBalancerLottery(ctx *fiber.Ctx) bool {
+	lottery, ok := m.runtime.GetLotteryChance()
+	if !ok {
+		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
+		return ok == false
+	}
+
+	return lottery < rand.Intn(99)+1
+}
+
+func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
+	gLog.Trace().Msg("consul lottery winner, rewriting destination server...")
+
+	var server *balancer.BalancerServer
+	uri, reqid := []byte(ctx.Locals("uri").(string)), ctx.Locals("requestid").(string)
+
+	prefixbuf := bytes.NewBuffer(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
+	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
+
+	for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
+		var fallback bool
+
+		for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
+
+			// so if fails limit reached - use new cluster or fallback to baremetal random balancing
+			if fails == gCli.Int("balancer-server-max-fails") {
+				if fallback {
+					gLog.Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+						Msg("internal balancer error; too many balance errors; using fallback func()...")
+				} else {
+					fallback = true
+					gLog.Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+						Msg("internal balancer error; too many balance errors; using next cluster...")
+					break
+				}
+			}
+
+			// trying to balance with giver cluster
+			_, server, e = cluster.BalanceByChunk(
+				prefixbuf.String(),
+				string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
+
+			if errors.Is(e, balancer.ErrServerUnavailable) {
+				gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).
+					Str("cluster", cluster.GetClusterName()).Msg("trying to roll new server...")
+				continue
+			} else if errors.Is(e, balancer.ErrUpstreamUnavailable) {
+				gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("temporary upstream error")
+				continue
+			} else if e != nil {
+				gLog.Error().Err(e).Str("req", reqid).
+					Str("cluster", cluster.GetClusterName()).Msg("could not balance; undefined error")
+				break
+			}
+
+			// if all ok (if no errors) - save destination and go to the next fiber handler:
+			ctx.Locals("srv",
+				strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+
+			return ctx.Next()
+		}
+	}
+
+	// if we here - no alive balancers, so return error
+	return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+}
+
+func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
+	return ctx.Next()
+}
+
 // blocklist
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
