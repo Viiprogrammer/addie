@@ -193,9 +193,8 @@ func (m *App) fiberConfigure() {
 	}))
 
 	// group media - middlewares
-	media.Use(
-		m.fbMidAppFakeQuality,
-		m.fbMidAppConsulLottery)
+	media.Use(m.fbMidAppFakeQuality)
+	media.Use(skip.New(m.fbMidAppBalance, m.fbMidAppBalancerLottery))
 
 	// group media - sign handler
 	media.Use(m.fbHndAppRequestSign)

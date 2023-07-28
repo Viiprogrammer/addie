@@ -307,16 +307,27 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
 	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
 
-	var server *balancer.BalancerServer
+	server, e := m.getServerFromRandomBalancer(ctx)
+	if e != nil {
+		return e
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	ctx.Set("X-Location", srv)
+
+	return ctx.SendStatus(fiber.StatusNoContent)
+}
+
+func (m *App) getServerFromRandomBalancer(ctx *fiber.Ctx) (server *balancer.BalancerServer, e error) {
 	reqid, force := ctx.Locals("requestid").(string), false
 
-	for fails := 0; fails <= 3; fails++ {
-		if fails == 3 {
+	for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
+		if fails == gCli.Int("balancer-server-max-fails") {
 			gLog.Error().Str("req", reqid).Msg("internal balancer error; too many balance errors")
-			return fiber.NewError(fiber.StatusInternalServerError, "internal balancer error")
+			e = fiber.NewError(fiber.StatusInternalServerError, "internal balancer error")
+			return
 		}
 
-		var e error
 		_, server, e = m.bareBalancer.BalanceRandom(force)
 
 		if errors.Is(e, balancer.ErrServerUnavailable) {
@@ -328,14 +339,12 @@ func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
 			continue
 		} else if e != nil {
 			gLog.Error().Err(e).Str("req", reqid).Msg("could not balance the request")
-			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+			e = fiber.NewError(fiber.StatusInternalServerError, e.Error())
+			return
 		}
 
-		break
+		return
 	}
 
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Set("X-Location", srv)
-
-	return ctx.SendStatus(fiber.StatusNoContent)
+	return
 }

@@ -112,40 +112,83 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-// consul lottery
-// !!
-// TODO : add bareCluster backup for consul lottery
-func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
-	gLog.Trace().Msg("consul lottery")
-
-	if lottery, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamLottery); !ok || e != nil {
+// if return value == true - Balance() will be skipped
+func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
+	lottery, ok := m.runtime.GetLotteryChance()
+	if !ok {
 		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
-		return ctx.Next()
-	} else if lottery.(int) < rand.Intn(99)+1 {
-		gLog.Trace().Msg("consul lottery looser, fallback to old method")
-		return ctx.Next()
+		return !ok
 	}
 
-	var prefixbuf bytes.Buffer
-	uri := []byte(ctx.Locals("uri").(string))
+	return lottery < rand.Intn(99)+1
+}
 
-	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
+func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
+	gLog.Trace().Msg("consul lottery winner, rewriting destination server...")
+
+	var server *balancer.BalancerServer
+	uri, reqid := []byte(ctx.Locals("uri").(string)), ctx.Locals("requestid").(string)
+
+	prefixbuf := bytes.NewBuffer(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
 
-	_, server, e := m.cloudBalancer.BalanceByChunk(
-		prefixbuf.String(),
-		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
-	if errors.Is(e, balancer.ErrServerUnavailable) {
-		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
-		return ctx.Next()
-	} else if e != nil {
-		gLog.Warn().Err(e).Msg("balancer critical error")
-		return ctx.Next()
+	for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
+		var fallback bool
+
+		for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
+
+			// so if fails limit reached - use new cluster or fallback to baremetal random balancing
+			if fails == gCli.Int("balancer-server-max-fails") {
+				if fallback {
+					gLog.Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+						Msg("internal balancer error; too many balance errors; using fallback func()...")
+					return m.fbMidAppBalanceFallback(ctx)
+				} else {
+					fallback = true
+					gLog.Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+						Msg("internal balancer error; too many balance errors; using next cluster...")
+					break
+				}
+			}
+
+			// trying to balance with giver cluster
+			_, server, e = cluster.BalanceByChunk(
+				prefixbuf.String(),
+				string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
+
+			if errors.Is(e, balancer.ErrServerUnavailable) {
+				gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).
+					Str("cluster", cluster.GetClusterName()).Msg("trying to roll new server...")
+				continue
+			} else if errors.Is(e, balancer.ErrUpstreamUnavailable) {
+				gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("temporary upstream error")
+				continue
+			} else if e != nil {
+				gLog.Error().Err(e).Str("req", reqid).
+					Str("cluster", cluster.GetClusterName()).Msg("could not balance; undefined error")
+				break
+			}
+
+			// if all ok (if no errors) - save destination and go to the next fiber handler:
+			ctx.Locals("srv",
+				strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+
+			return ctx.Next()
+		}
 	}
 
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Locals("srv", srv)
+	// if we here - no alive balancers, so return error
+	return fiber.NewError(fiber.StatusInternalServerError, e.Error())
+}
+
+func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
+	server, e := m.getServerFromRandomBalancer(ctx)
+	if e != nil {
+		return e
+	}
+
+	ctx.Locals("srv",
+		strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
 	return ctx.Next()
 }
 

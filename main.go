@@ -150,6 +150,12 @@ func main() {
 			Value: 5 * time.Minute,
 		},
 
+		// balancer
+		&cli.IntFlag{
+			Name:  "balancer-server-max-fails",
+			Value: 3,
+		},
+
 		// bbolt settings
 		&cli.StringFlag{
 			Name:  "database-prefix",

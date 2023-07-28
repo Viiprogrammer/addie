@@ -102,7 +102,7 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 	return ip.String(), server, e
 }
 
-func (m *ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
+func (*ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
 	if strings.Contains(*chunkname, "_") {
 		key = strings.Split(*chunkname, "_")[1]
 	} else if strings.Contains(*chunkname, "fff") {
@@ -223,5 +223,9 @@ func (m *ClusterBalancer) ResetStats() {
 }
 
 func (m *ClusterBalancer) ResetUpstream() {
-	m.upstream.reset(&m.ulock)
+	m.ulock.Lock()
+	defer m.ulock.Unlock()
+
+	upstream := make(upstream)
+	m.upstream = &upstream
 }

@@ -3,9 +3,9 @@ module github.com/MindHunter86/anilibria-hlp-service
 go 1.19
 
 require (
-	github.com/gofiber/fiber/v2 v2.47.0
+	github.com/gofiber/fiber/v2 v2.48.0
 	github.com/gofiber/storage/bbolt v1.3.5
-	github.com/hashicorp/consul/api v1.22.0
+	github.com/hashicorp/consul/api v1.23.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/rs/zerolog v1.29.1
 	github.com/urfave/cli/v2 v2.25.7
@@ -34,8 +34,6 @@ require (
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/savsgio/dictpool v0.0.0-20221023140959-7bf2e61cea94 // indirect
-	github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.48.0 // indirect

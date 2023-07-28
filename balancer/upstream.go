@@ -64,10 +64,3 @@ func (m upstream) getIps(l *sync.RWMutex) (ips []*net.IP, _ int) {
 
 	return ips, len(ips)
 }
-
-func (m upstream) reset(l *sync.RWMutex) {
-	l.Lock()
-	defer l.Unlock()
-
-	m = nil
-}
