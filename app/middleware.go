@@ -109,49 +109,12 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-// consul lottery
-// !!
-// TODO : add bareCluster backup for consul lottery
-func (m *App) fbMidAppConsulLottery(ctx *fiber.Ctx) error {
-	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
-	gLog.Trace().Msg("consul lottery")
-
-	if lottery, ok := m.runtime.GetLotteryChance(); !ok {
-		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
-		return ctx.Next()
-	} else if lottery < rand.Intn(99)+1 {
-		gLog.Trace().Msg("consul lottery looser, fallback to old method")
-		return ctx.Next()
-	}
-
-	var prefixbuf bytes.Buffer
-	uri := []byte(ctx.Locals("uri").(string))
-
-	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
-	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
-
-	_, server, e := m.cloudBalancer.BalanceByChunk(
-		prefixbuf.String(),
-		string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
-	if errors.Is(e, balancer.ErrServerUnavailable) {
-		gLog.Warn().Err(e).Msg("balancer error; fallback to old method")
-		return ctx.Next()
-	} else if e != nil {
-		gLog.Warn().Err(e).Msg("balancer critical error")
-		return ctx.Next()
-	}
-
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Locals("srv", srv)
-	return ctx.Next()
-}
-
 // if return value == true - Balance() will be skipped
-func (m *App) fbMidAppBalancerLottery(ctx *fiber.Ctx) bool {
+func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
 	lottery, ok := m.runtime.GetLotteryChance()
 	if !ok {
 		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
-		return ok == false
+		return !ok
 	}
 
 	return lottery < rand.Intn(99)+1
@@ -176,6 +139,7 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 				if fallback {
 					gLog.Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
 						Msg("internal balancer error; too many balance errors; using fallback func()...")
+					return m.fbMidAppBalanceFallback(ctx)
 				} else {
 					fallback = true
 					gLog.Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
