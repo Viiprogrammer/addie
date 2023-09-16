@@ -1,10 +1,13 @@
 # Github Actions: anilibria-hlp-service code builder
 name: anilibria-hlp-service code builder
 
+concurrency: production
+
 on:
   release:
     types:
       - created
+  workflow_dispatch:
 
 jobs:
   parse_phase:
