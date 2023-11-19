@@ -13,11 +13,6 @@ jobs:
   parse_phase:
     name: Get build tag for further artifact pushing
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      # Allows pushing to the GitHub Container Registry
-      packages: write
     env:
       JOB_REF: ${{ github.ref }}
     outputs:
@@ -41,6 +36,11 @@ jobs:
   docker_build_by_depot_phase:
     name: Build standalone binary and docker image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      # Allows pushing to the GitHub Container Registry
+      packages: write
     needs: [ parse_phase ]
     steps:
       - uses: actions/checkout@v3
