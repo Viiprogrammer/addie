@@ -16,8 +16,10 @@ import (
 	"github.com/MindHunter86/addie/utils"
 )
 
+const btformat = "2006-01-02T15:04:05.000"
+
 var version = "devel" // -ldflags="-X main.version=X.X.X"
-var buildtime = ""
+var buildtime = time.Now().Format(btformat)
 
 func main() {
 	// logger
@@ -31,9 +33,9 @@ func main() {
 	app := cli.NewApp()
 	cli.VersionFlag = &cli.BoolFlag{Name: "version", Aliases: []string{"V"}}
 
-	app.Name = "ADDIE"
-	app.Version = version
-	app.Compiled, _ = time.Parse("2006-01-02T15:04:05.000", buildtime)
+	app.Name = "addie"
+	app.Compiled, _ = time.Parse(time.RFC3339, buildtime)
+	app.Version = fmt.Sprintf("%s\t%s", version, app.Compiled.Format(btformat))
 	app.Authors = []*cli.Author{
 		&cli.Author{
 			Name:  "MindHunter86",
