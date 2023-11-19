@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MindHunter86/anilibria-hlp-service/balancer"
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/MindHunter86/addie/balancer"
+	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )

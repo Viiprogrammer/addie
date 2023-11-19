@@ -12,11 +12,14 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 
-	application "github.com/MindHunter86/anilibria-hlp-service/app"
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	application "github.com/MindHunter86/addie/app"
+	"github.com/MindHunter86/addie/utils"
 )
 
-var version = "devel" // -ldflags="-X 'main.version=X.X.X'"
+const btformat = "2006-01-02T15:04:05.000"
+
+var version = "devel" // -ldflags="-X main.version=X.X.X"
+var buildtime = time.Now().Format(btformat)
 
 func main() {
 	// logger
@@ -30,9 +33,9 @@ func main() {
 	app := cli.NewApp()
 	cli.VersionFlag = &cli.BoolFlag{Name: "version", Aliases: []string{"V"}}
 
-	app.Name = "anilibria-hlp-service"
-	app.Version = version
-	app.Compiled = time.Now()
+	app.Name = "addie"
+	app.Compiled, _ = time.Parse(time.RFC3339, buildtime)
+	app.Version = fmt.Sprintf("%s\t%s", version, app.Compiled.Format(btformat))
 	app.Authors = []*cli.Author{
 		&cli.Author{
 			Name:  "MindHunter86",
@@ -40,7 +43,7 @@ func main() {
 		},
 	}
 	app.Copyright = "(c) 2022-2023 mindhunter86\nwith love for Anilibria project"
-	app.Usage = "Hotlink Protection Service for Anilibria project"
+	app.Usage = "AniLibria media delivery manager (ADDIE)"
 
 	app.Flags = []cli.Flag{
 		// common flags

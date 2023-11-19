@@ -1,4 +1,4 @@
-module github.com/MindHunter86/anilibria-hlp-service
+module github.com/MindHunter86/addie
 
 go 1.19
 
