@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MindHunter86/anilibria-hlp-service/balancer"
-	"github.com/MindHunter86/anilibria-hlp-service/runtime"
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/MindHunter86/addie/balancer"
+	"github.com/MindHunter86/addie/runtime"
+	"github.com/MindHunter86/addie/utils"
 	capi "github.com/hashicorp/consul/api"
 	"github.com/rs/zerolog"
 )

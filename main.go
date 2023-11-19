@@ -12,8 +12,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 
-	application "github.com/MindHunter86/anilibria-hlp-service/app"
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	application "github.com/MindHunter86/addie/app"
+	"github.com/MindHunter86/addie/utils"
 )
 
 var version = "devel" // -ldflags="-X main.version=X.X.X"

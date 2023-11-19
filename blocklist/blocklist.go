@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/MindHunter86/addie/utils"
 	"github.com/rs/zerolog"
 )
 
