@@ -6,13 +6,13 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog"
+	"github.com/spaolacci/murmur3"
 	"github.com/urfave/cli/v2"
 )
 
@@ -78,14 +78,8 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 		return
 	}
 
-	idx, e := strconv.Atoi(prefix + key)
-	if e != nil {
-		m.log.Debug().Err(e).Msgf("chunkname - '%s'; fallback to legacy balancing", chunkname)
-		return
-	}
-
 	var ip *net.IP
-	if ip = m.getServer(idx); ip == nil {
+	if ip = m.getServer(murmur3.Sum128([]byte(prefix + key))); ip == nil {
 		e = ErrUpstreamUnavailable
 		return
 	}
@@ -114,7 +108,7 @@ func (*ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e er
 	return
 }
 
-func (m *ClusterBalancer) getServer(idx int) (ip *net.IP) {
+func (m *ClusterBalancer) getServer(idx1, idx2 uint64) (ip *net.IP) {
 	if !m.TryRLock() {
 		m.log.Warn().Msg("could not get lock for reading upstream; fallback to legacy balancing")
 		return
@@ -125,7 +119,11 @@ func (m *ClusterBalancer) getServer(idx int) (ip *net.IP) {
 		return
 	}
 
-	ip = m.ips[idx%int(m.size)]
+	idx3 := idx1 % uint64(m.size)
+	idx4 := idx2 % uint64(m.size)
+	idx0 := idx3 + idx4
+
+	ip = m.ips[idx0%uint64(m.size)]
 	return ip
 }
 
