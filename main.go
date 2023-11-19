@@ -16,10 +16,8 @@ import (
 	"github.com/MindHunter86/addie/utils"
 )
 
-const btformat = "2006-01-02T15:04:05.000"
-
 var version = "devel" // -ldflags="-X main.version=X.X.X"
-var buildtime = time.Now().Format(btformat)
+var buildtime = "never"
 
 func main() {
 	// logger
@@ -34,8 +32,7 @@ func main() {
 	cli.VersionFlag = &cli.BoolFlag{Name: "version", Aliases: []string{"V"}}
 
 	app.Name = "addie"
-	app.Compiled, _ = time.Parse(time.RFC3339, buildtime)
-	app.Version = fmt.Sprintf("%s\t%s", version, app.Compiled.Format(btformat))
+	app.Version = fmt.Sprintf("%s\t%s", version, buildtime)
 	app.Authors = []*cli.Author{
 		&cli.Author{
 			Name:  "MindHunter86",
@@ -263,6 +260,7 @@ func main() {
 			log.Info().Msgf("new cpu count %d", runtime.GOMAXPROCS(1))
 		}
 
+		log.Debug().Msgf("%s (%s) builded %s now is ready...", app.Name, version, buildtime)
 		return application.NewApp(c, &log).Bootstrap()
 	}
 

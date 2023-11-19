@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 # vim: ft=Dockerfile
 
-ARG GOAPP_MAIN_VERSION=""
-ARG GOAPP_MAIN_BUILDTIME=""
-
-
 # container - builder
 FROM golang:1.19.1-alpine AS build
 LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
+
+ARG GOAPP_MAIN_VERSION="devel"
+ARG GOAPP_MAIN_BUILDTIME="never"
+
+ENV MAIN_VERSION=$GOAPP_MAIN_VERSION
+ENV MAIN_BUILDTIME=$GOAPP_MAIN_BUILDTIME
 
 # hadolint/hadolint - DL4006
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
@@ -17,7 +19,7 @@ COPY . .
 
 ENV CGO_ENABLED=0
 RUN echo "ready" \
-  && go build -mod=vendor -trimpath -ldflags="-s -w -X main.version=$GOAPP_MAIN_VERSION -X main.buildtime=$GOAPP_MAIN_BUILDTIME" -o addie \
+  && go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=$MAIN_VERSION' -X 'main.buildtime=$MAIN_BUILDTIME'" -o addie \
   && apk add --no-cache upx \
   && upx -9 -k addie
 

@@ -109,7 +109,7 @@ jobs:
     - name: Download all required imports
       run: go mod download
     - name: Build source code for ${{ matrix.goos }} ${{ matrix.goarch }}
-      run: go build -ldflags="-s -w -X main.version='${{ needs.parse_phase.outputs.BUILD_GOTAG }}' -X 'main.buildtime=${{ needs.parse_phase.outputs.BUILD_GOTAG }}'" -o ./addie-${{ matrix.goos }}.${{ matrix.goarch }}${{ matrix.extention }}
+      run: go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=${{ needs.parse_phase.outputs.BUILD_GOTAG }}' -X 'main.buildtime=${{ needs.parse_phase.outputs.BUILD_GOTIME }}'" -o ./addie-${{ matrix.goos }}.${{ matrix.goarch }}${{ matrix.extention }}
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
