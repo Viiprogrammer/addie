@@ -125,9 +125,43 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 
 	var server *balancer.BalancerServer
 	uri, reqid := []byte(ctx.Locals("uri").(string)), ctx.Locals("requestid").(string)
+	// uri := []byte(ctx.Locals("uri").(string))
 
 	prefixbuf := bytes.NewBuffer(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
+	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkEpisodeId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
+
+	// chunkname, prefix := string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]), prefixbuf.String()
+
+	// for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
+	// 	// TODO
+	// 	// ? do we need the failover with RandomBalancing ???
+	// 	// var fallback bool
+
+	// 	// get all servers for balancing
+	// 	var status *balancer.Status
+	// 	if e = cluster.Balance(chunkname, prefix); e == nil {
+	// 		gLog.Error().Msg("there is no status with payload and error from balancer")
+	// 	}
+
+	// 	if errors.As(e, &status) {
+	// 		if e = status.Err(); e != nil {
+	// 			gLog.Error().Err(e).Interface("cluster", status.Cluster()).Msg(status.Descr())
+	// 			continue
+	// 		}
+	// 	} else {
+	// 		gLog.Error().Err(e).Msg("undefined error from balancer")
+	// 	}
+
+	// 	// parse given servers
+	// 	for _, server := range status.Servers {
+	// 		// if all ok (if no errors) - save destination and go to the next fiber handler:
+	// 		ctx.Locals("srv",
+	// 			strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+
+	// 		return ctx.Next()
+	// 	}
+	// }
 
 	for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
 		var fallback bool
