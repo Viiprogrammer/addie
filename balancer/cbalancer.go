@@ -6,13 +6,13 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog"
+	"github.com/spaolacci/murmur3"
 	"github.com/urfave/cli/v2"
 )
 
@@ -59,7 +59,7 @@ func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerS
 		return
 	}
 
-	server, ok := m.upstream.getServer(&m.ulock, ip.String())
+	server, ok := m.upstream.getServer(ip.String())
 	if !ok || server == nil {
 		panic("balance result could not be find in balancer's upstream")
 	} else if server.isDown {
@@ -78,19 +78,20 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 		return
 	}
 
-	idx, e := strconv.Atoi(prefix + key)
+	// idx, e := strconv.Atoi(prefix + key)
+	idx1, idx2 := murmur3.Sum128([]byte(prefix + key))
 	if e != nil {
 		m.log.Debug().Err(e).Msgf("chunkname - '%s'; fallback to legacy balancing", chunkname)
 		return
 	}
 
 	var ip *net.IP
-	if ip = m.getServer(idx); ip == nil {
+	if ip = m.getServer(idx1, idx2); ip == nil {
 		e = ErrUpstreamUnavailable
 		return
 	}
 
-	server, ok := m.upstream.getServer(&m.ulock, ip.String())
+	server, ok := m.upstream.getServer(ip.String())
 	if !ok || server == nil {
 		panic("balance result could not be find in balancer's upstream")
 	} else if server.isDown {
@@ -114,7 +115,7 @@ func (*ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e er
 	return
 }
 
-func (m *ClusterBalancer) getServer(idx int) (ip *net.IP) {
+func (m *ClusterBalancer) getServer(idx1, idx2 uint64) (ip *net.IP) {
 	if !m.TryRLock() {
 		m.log.Warn().Msg("could not get lock for reading upstream; fallback to legacy balancing")
 		return
@@ -125,7 +126,14 @@ func (m *ClusterBalancer) getServer(idx int) (ip *net.IP) {
 		return
 	}
 
-	ip = m.ips[idx%int(m.size)]
+	idx3 := idx1 % uint64(m.size)
+	idx4 := idx2 % uint64(m.size)
+	idx0 := m.size / 2
+	idx5 := idx3 % uint64(idx0)
+	idx6 := idx4 % uint64(m.size-idx0)
+
+	// ip = m.ips[idx5%uint64(m.size)]
+	ip = m.ips[idx5+idx6]
 	return ip
 }
 
@@ -147,14 +155,14 @@ func (m *ClusterBalancer) getRandomServer(force bool) (ip *net.IP) {
 
 func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	m.log.Trace().Msg("upstream servers debugging (I/II update iterations)")
-	m.log.Info().Msg("[II] upstream update triggered")
-	m.log.Trace().Interface("[II] servers", servers).Msg("")
+	m.log.Info().Msg("upstream update triggered")
+	m.log.Trace().Interface("servers", servers).Msg("")
 
 	// find and append balancer's upstream
 	for name, ip := range servers {
-		if server, ok := m.upstream.getServer(&m.ulock, ip.String()); !ok {
+		if server, ok := m.upstream.getServer(ip.String()); !ok {
 			m.log.Trace().Msgf("[I] new server : %s", name)
-			m.upstream.putServer(&m.ulock, ip.String(), newServer(name, &ip))
+			m.upstream.putServer(ip.String(), newServer(name, &ip))
 		} else {
 			m.log.Trace().Msgf("[I] server found %s", name)
 			server.disable(false)
@@ -162,7 +170,7 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	}
 
 	// find differs and disable dead servers
-	curr := m.upstream.copy(&m.ulock)
+	curr := m.upstream.copy()
 	for _, server := range curr {
 		if _, ok := servers[server.Name]; !ok {
 			server.disable()
@@ -176,7 +184,7 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	m.Lock()
 	defer m.Unlock()
 
-	m.ips, m.size = m.upstream.getIps(&m.ulock)
+	m.ips, m.size = m.upstream.getIps()
 	m.log.Trace().Interface("ips", m.ips).Msg("[II]")
 	m.log.Trace().Interface("size", m.size).Msgf("[II]")
 }
@@ -197,20 +205,20 @@ func (m *ClusterBalancer) GetStats() io.Reader {
 	buf := bytes.NewBuffer(nil)
 	tb.SetOutputMirror(buf)
 	tb.AppendHeader(table.Row{
-		"Name", "Address", "Requests", "Last Request Time", "Is Down", "Status Time",
+		"Method", "Name", "Address", "Requests", "Last Request", "Disabled", "Update Time",
 	})
 
-	servers := m.upstream.getServers(&m.ulock)
+	servers := m.upstream.getServers()
 	for _, server := range servers {
 		tb.AppendRow([]interface{}{
-			server.Name, server.Ip,
+			"RR", server.Name, server.Ip,
 			server.handledRequests, server.lastRequestTime.String(),
 			isDownHumanize(server.isDown), server.lastChanged.String(),
 		})
 	}
 
 	tb.SortBy([]table.SortBy{
-		{Number: 3, Mode: table.Dsc},
+		{Number: 4, Mode: table.Dsc},
 	})
 
 	tb.Style().Options.SeparateRows = true
@@ -219,7 +227,7 @@ func (m *ClusterBalancer) GetStats() io.Reader {
 }
 
 func (m *ClusterBalancer) ResetStats() {
-	m.upstream.resetServersStats(&m.ulock)
+	m.upstream.resetServersStats()
 }
 
 func (m *ClusterBalancer) ResetUpstream() {
@@ -229,3 +237,5 @@ func (m *ClusterBalancer) ResetUpstream() {
 	upstream := make(upstream)
 	m.upstream = &upstream
 }
+
+func (m *ClusterBalancer) Balance(chunkname, prefix string) (e error) { return }

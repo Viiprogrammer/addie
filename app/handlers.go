@@ -251,6 +251,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
 
 	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	buf.Write(sub[utils.ChunkEpisodeId])
 	buf.Write(sub[utils.ChunkQualityLevel])
 
 	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))

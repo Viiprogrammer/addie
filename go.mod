@@ -8,6 +8,8 @@ require (
 	github.com/hashicorp/consul/api v1.24.0
 	github.com/jedib0t/go-pretty/v6 v6.4.7
 	github.com/rs/zerolog v1.30.0
+	github.com/spaolacci/murmur3 v1.1.0
+	github.com/tysonmote/rendezvous v0.0.0-20230502175854-8995dead6b38
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/net v0.15.0
 )

@@ -8,41 +8,43 @@ import (
 
 type upstream map[string]*BalancerServer
 
-func (m upstream) getServer(l *sync.RWMutex, ip string) (server *BalancerServer, ok bool) {
-	l.RLock()
-	defer l.RUnlock()
+var uplock sync.RWMutex
+
+func (m upstream) getServer(ip string) (server *BalancerServer, ok bool) {
+	uplock.RLock()
+	defer uplock.RUnlock()
 
 	server, ok = m[ip]
 	return
 }
 
-func (m upstream) putServer(l *sync.RWMutex, ip string, server *BalancerServer) {
-	l.Lock()
-	defer l.Unlock()
+func (m upstream) putServer(ip string, server *BalancerServer) {
+	uplock.Lock()
+	defer uplock.Unlock()
 
 	m[ip] = server
 }
 
-func (m upstream) copy(l *sync.RWMutex) (_ map[string]*BalancerServer) {
+func (m upstream) copy() (_ map[string]*BalancerServer) {
 	var buf = make(map[string]*BalancerServer)
 
-	l.RLock()
-	defer l.RUnlock()
+	uplock.RLock()
+	defer uplock.RUnlock()
 
 	buf = m
 	return buf
 }
 
-func (m upstream) resetServersStats(l *sync.RWMutex) {
-	buf := m.copy(l)
+func (m upstream) resetServersStats() {
+	buf := m.copy()
 
 	for _, server := range buf {
 		server.resetStats()
 	}
 }
 
-func (m upstream) getServers(l *sync.RWMutex) (servers []*BalancerServer) {
-	buf := m.copy(l)
+func (m upstream) getServers() (servers []*BalancerServer) {
+	buf := m.copy()
 
 	for _, server := range buf {
 		servers = append(servers, server)
@@ -51,8 +53,8 @@ func (m upstream) getServers(l *sync.RWMutex) (servers []*BalancerServer) {
 	return
 }
 
-func (m upstream) getIps(l *sync.RWMutex) (ips []*net.IP, _ int) {
-	buf := m.copy(l)
+func (m upstream) getIps() (ips []*net.IP, _ int) {
+	buf := m.copy()
 
 	for _, server := range buf {
 		ips = append(ips, &server.Ip)

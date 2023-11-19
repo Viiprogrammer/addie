@@ -154,6 +154,9 @@ func (m *App) Bootstrap() (e error) {
 
 	m.bareBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterNodes)
 	m.cloudBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterCloud)
+	// m.cloudBalancer = balancer.NewRendezvous(
+	// 	gCtx, balancer.BalancerClusterCloud, uint8(gCli.Int("balancer-server-max-fails")),
+	// )
 
 	// consul
 	gLog.Info().Msg("starting consul client...")
