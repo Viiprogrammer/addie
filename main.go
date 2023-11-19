@@ -16,7 +16,8 @@ import (
 	"github.com/MindHunter86/anilibria-hlp-service/utils"
 )
 
-var version = "devel" // -ldflags="-X 'main.version=X.X.X'"
+var version = "devel" // -ldflags="-X main.version=X.X.X"
+var buildtime = ""
 
 func main() {
 	// logger
@@ -30,9 +31,9 @@ func main() {
 	app := cli.NewApp()
 	cli.VersionFlag = &cli.BoolFlag{Name: "version", Aliases: []string{"V"}}
 
-	app.Name = "anilibria-hlp-service"
+	app.Name = "ADDIE"
 	app.Version = version
-	app.Compiled = time.Now()
+	app.Compiled, _ = time.Parse("2006-01-02T15:04:05.000", buildtime)
 	app.Authors = []*cli.Author{
 		&cli.Author{
 			Name:  "MindHunter86",
@@ -40,7 +41,7 @@ func main() {
 		},
 	}
 	app.Copyright = "(c) 2022-2023 mindhunter86\nwith love for Anilibria project"
-	app.Usage = "Hotlink Protection Service for Anilibria project"
+	app.Usage = "AniLibria media delivery manager (ADDIE)"
 
 	app.Flags = []cli.Flag{
 		// common flags
