@@ -21,6 +21,7 @@ const (
 	RuntimePatchBlocklist
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
+	RuntimePatchA5bility
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 		utils.CfgBlockList:         RuntimePatchBlocklistIps,
 		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
+		utils.CfgClusterA5bility:   RuntimePatchA5bility,
 	}
 
 	// intenal
@@ -43,6 +45,7 @@ var (
 		RuntimePatchBlocklist:    "blocklist switch",
 		RuntimePatchBlocklistIps: "blocklist ips",
 		RuntimePatchLimiter:      "limiter switch",
+		RuntimePatchA5bility:     "balancer's cluster availability",
 	}
 )
 
@@ -59,6 +62,9 @@ type (
 
 		gLimiterLock    sync.RWMutex
 		gLimiterEnabled int
+
+		gA5bilityLock sync.RWMutex
+		gA5bility     int
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -117,6 +123,23 @@ func (m *Runtime) updateLimiterStatus(s int) {
 	m.gLimiterEnabled = s
 }
 
+func (m *Runtime) GetClusterA5bility() (s int, ok bool) {
+	if !m.gA5bilityLock.TryRLock() {
+		return 0, false
+	}
+	defer m.gA5bilityLock.RUnlock()
+
+	s, ok = m.gA5bility, true
+	return
+}
+
+func (m *Runtime) updateA5bility(c int) {
+	m.gA5bilityLock.Lock()
+	defer m.gA5bilityLock.Unlock()
+
+	m.gA5bility = c
+}
+
 func NewRuntime(ctx context.Context) *Runtime {
 	blist := ctx.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
 	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
@@ -127,6 +150,7 @@ func NewRuntime(ctx context.Context) *Runtime {
 		gQualityLevel:   utils.TitleQualityFHD,
 		gLotteryChance:  0,
 		gLimiterEnabled: 0,
+		gA5bility:       100,
 	}
 }
 
@@ -147,6 +171,8 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = m.applyBlocklistChanges(patch.Patch)
 	case RuntimePatchLimiter:
 		e = m.applyLimitterSwitch(patch.Patch)
+	case RuntimePatchA5bility:
+		e = m.applyA5bility(patch.Patch)
 	default:
 		panic("internal error - undefined runtime patch type")
 	}
@@ -262,5 +288,22 @@ func (m *Runtime) applyQualityLevel(input []byte) (e error) {
 
 	m.updateQualityLevel(quality)
 	log.Info().Msgf("runtime config - applied quality %s", string(input))
+	return
+}
+
+func (m *Runtime) applyA5bility(input []byte) (e error) {
+	var percent int
+	if percent, e = strconv.Atoi(string(input)); e != nil {
+		return
+	}
+
+	if percent < 0 || percent > 100 {
+		log.Warn().Int("percent", percent).Msg("percent could not be less than 0 and more than 100")
+		return
+	}
+
+	log.Info().Msgf("runtime config - applied cluster availability %s", string(input))
+
+	m.updateA5bility(percent)
 	return
 }

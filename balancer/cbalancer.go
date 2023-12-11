@@ -27,6 +27,8 @@ type ClusterBalancer struct {
 	ulock    sync.RWMutex
 	upstream *upstream
 
+	isDown bool
+
 	sync.RWMutex
 	size int
 	ips  []*net.IP
