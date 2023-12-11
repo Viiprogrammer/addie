@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/MindHunter86/addie/runtime"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rs/zerolog"
@@ -19,8 +20,9 @@ import (
 )
 
 type ClusterBalancer struct {
-	log *zerolog.Logger
-	ccx *cli.Context
+	log     *zerolog.Logger
+	ccx     *cli.Context
+	runtime *runtime.Runtime
 
 	cluster BalancerCluster
 
@@ -40,6 +42,7 @@ func NewClusterBalancer(ctx context.Context, cluster BalancerCluster) *ClusterBa
 	return &ClusterBalancer{
 		log:      ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger),
 		ccx:      ctx.Value(utils.ContextKeyCliContext).(*cli.Context),
+		runtime:  ctx.Value(utils.ContextKeyRuntime).(*runtime.Runtime),
 		cluster:  cluster,
 		upstream: &upstream,
 	}
@@ -164,9 +167,10 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	}
 
 	// find differs and disable dead servers
-	curr := m.upstream.copy(&m.ulock)
+	curr, dwn := m.upstream.copy(&m.ulock), 0
 	for _, server := range curr {
 		if _, ok := servers[server.Name]; !ok {
+			dwn++
 			server.disable()
 			m.log.Trace().Msgf("[II] server - %s : disabled", server.Name)
 		} else {
@@ -178,7 +182,17 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	m.Lock()
 	defer m.Unlock()
 
+	avail, _ := m.runtime.GetClusterA5bility()
 	m.ips, m.size = m.upstream.getIps(&m.ulock)
+
+	if dwn != 0 && dwn*100/m.size < avail {
+		m.isDown = true
+		m.log.Warn().Msg("cluster was marked as `offline`")
+	} else if m.isDown == true {
+		m.isDown = false
+		m.log.Info().Msg("cluster was maerked as `online`")
+	}
+
 	m.log.Trace().Interface("ips", m.ips).Msg("[II]")
 	m.log.Trace().Interface("size", m.size).Msgf("[II]")
 }
@@ -229,6 +243,8 @@ func (m *ClusterBalancer) GetStats() io.Reader {
 			isDownHumanize(server.isDown), server.lastChanged.Format("2006-01-02T15:04:05.000"),
 		})
 	}
+
+	tb.AppendFooter(table.Row{"", "", "", "", "", "CLUSTER OFFLINE", isDownHumanize(m.isDown), ""})
 
 	tb.Style().Options.SeparateRows = true
 

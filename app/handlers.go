@@ -33,20 +33,20 @@ func (*App) getBalancersClusterArg(ctx *fiber.Ctx) (cluster balancer.BalancerClu
 }
 
 func (m *App) fbHndApiBalancerStats(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
 
-	var cluster balancer.BalancerCluster
-	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
-		return
-	}
+	// var cluster balancer.BalancerCluster
+	// if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+	// 	return
+	// }
 
-	switch cluster {
-	case balancer.BalancerClusterNodes:
-		fmt.Fprint(ctx, m.bareBalancer.GetStats())
-	case balancer.BalancerClusterCloud:
-		fmt.Fprint(ctx, m.cloudBalancer.GetStats())
-	}
+	// switch cluster {
+	// case balancer.BalancerClusterNodes:
+	// 	fmt.Fprint(ctx, m.bareBalancer.GetStats())
+	// case balancer.BalancerClusterCloud:
+	// 	fmt.Fprint(ctx, m.cloudBalancer.GetStats())
+	// }
 
+	ctx.Type(fiber.MIMEApplicationJSON)
 	return ctx.SendStatus(fiber.StatusOK)
 }
 

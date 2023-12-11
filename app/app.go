@@ -77,6 +77,8 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 			fiber.MethodPost,
 		},
 
+		DisableDefaultContentType: true,
+
 		// ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 		// 	return ctx.SendStatus(fiber.StatusInternalServerError)
 		// },
@@ -148,6 +150,7 @@ func (m *App) Bootstrap() (e error) {
 
 	// runtime
 	m.runtime = runtime.NewRuntime(gCtx)
+	gCtx = context.WithValue(gCtx, utils.ContextKeyRuntime, m.runtime)
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
