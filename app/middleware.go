@@ -110,7 +110,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 }
 
 // if return value == true - Balance() will be skipped
-func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
+func (m *App) fbMidAppBalancerLottery(ctx *fiber.Ctx) bool {
 	lottery, ok := m.runtime.GetLotteryChance()
 	if !ok {
 		rlog(ctx).Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
