@@ -226,3 +226,7 @@ LOOP:
 		gLog.Error().Err(e).Msg("fiber Shutdown() error")
 	}
 }
+
+func rlog(c *fiber.Ctx) *zerolog.Logger {
+	return c.Locals("logger").(*zerolog.Logger)
+}

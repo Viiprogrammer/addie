@@ -22,6 +22,18 @@ import (
 )
 
 func (m *App) fiberConfigure() {
+
+	// request id
+	m.fb.Use(requestid.New())
+
+	// prefixed logger initialization
+	m.fb.Use(func(c *fiber.Ctx) error {
+		l := gLog.With().Str("spanid", c.Locals("requestid").(string)).Logger()
+		c.Locals("logger", &l)
+
+		return c.Next()
+	})
+
 	// time collector + logger
 	m.fb.Use(func(c *fiber.Ctx) (e error) {
 
@@ -35,7 +47,7 @@ func (m *App) fiberConfigure() {
 		stop := time.Now()
 
 		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
-			gLog.Trace().Msg("non sign request detected, skipping timings...")
+			rlog(c).Trace().Msg("non sign request detected, skipping timings...")
 			return
 		}
 
@@ -56,9 +68,8 @@ func (m *App) fiberConfigure() {
 		routing = setup - routing
 		setup = total - setup
 
-		if gLog.GetLevel() <= zerolog.DebugLevel {
-			gLog.Debug().
-				Str("id", c.Locals("requestid").(string)).
+		if rlog(c).GetLevel() <= zerolog.DebugLevel {
+			rlog(c).Debug().
 				Dur("setup", setup).
 				Dur("routing", routing).
 				Dur("precond", precond).
@@ -70,18 +81,17 @@ func (m *App) fiberConfigure() {
 				Dur("timer", time.Since(stop).Round(time.Microsecond)).
 				Msg("")
 
-			gLog.Trace().Msgf(
+			rlog(c).Trace().Msgf(
 				"Total: %s, Setup %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
 				total, setup, routing, precond, blist, fquality, clottery, reqsign)
-			gLog.Trace().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
+			rlog(c).Trace().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
 		}
 
-		if gLog.GetLevel() <= zerolog.InfoLevel {
-			gLog.Info().
+		if rlog(c).GetLevel() <= zerolog.InfoLevel {
+			rlog(c).Info().
 				Int("status", c.Response().StatusCode()).
 				Str("method", c.Method()).
 				Str("path", c.Path()).
-				Str("id", c.Locals("requestid").(string)).
 				Str("ip", c.IP()).
 				Dur("latency", total).
 				Str("user-agent", c.Get(fiber.HeaderUserAgent)).
@@ -95,7 +105,7 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(recover.New(recover.Config{
 		EnableStackTrace: true,
 		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
-			gLog.Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
+			rlog(c).Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
 				Msg("panic has been caught")
 			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
 		},
@@ -105,9 +115,6 @@ func (m *App) fiberConfigure() {
 	if gCli.Bool("http-pprof-enable") {
 		m.fb.Use(pprof.New())
 	}
-
-	// request id
-	m.fb.Use(requestid.New())
 
 	// favicon disable
 	m.fb.Use(favicon.New(favicon.ConfigDefault))
