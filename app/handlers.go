@@ -33,25 +33,25 @@ func (*App) getBalancersClusterArg(ctx *fiber.Ctx) (cluster balancer.BalancerClu
 }
 
 func (m *App) fbHndApiBalancerStats(ctx *fiber.Ctx) (e error) {
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
-	// var cluster balancer.BalancerCluster
-	// if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
-	// 	return
-	// }
+	var cluster balancer.BalancerCluster
+	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
+		return
+	}
 
-	// switch cluster {
-	// case balancer.BalancerClusterNodes:
-	// 	fmt.Fprint(ctx, m.bareBalancer.GetStats())
-	// case balancer.BalancerClusterCloud:
-	// 	fmt.Fprint(ctx, m.cloudBalancer.GetStats())
-	// }
+	switch cluster {
+	case balancer.BalancerClusterNodes:
+		fmt.Fprint(ctx, m.bareBalancer.GetStats())
+	case balancer.BalancerClusterCloud:
+		fmt.Fprint(ctx, m.cloudBalancer.GetStats())
+	}
 
-	ctx.Type(fiber.MIMEApplicationJSON)
 	return ctx.SendStatus(fiber.StatusOK)
 }
 
 func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 	rlog(ctx).Debug().Msg("servers stats reset")
 
 	var cluster balancer.BalancerCluster
@@ -70,7 +70,7 @@ func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) (e error) {
 }
 
 func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 	rlog(ctx).Debug().Msg("upstream reset")
 
 	var cluster balancer.BalancerCluster
@@ -89,7 +89,7 @@ func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
 }
 
 func (m *App) fbHndApiBlockIp(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	ip := ctx.Query("ip")
 	if ip == "" {
@@ -105,7 +105,7 @@ func (m *App) fbHndApiBlockIp(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	ip := ctx.Query("ip")
 	if ip == "" {
@@ -121,7 +121,7 @@ func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndApiBlockReset(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	if e := gConsul.resetIpsInBlocklist(); e != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
@@ -131,7 +131,7 @@ func (m *App) fbHndApiBlockReset(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	enabled := ctx.Query("enabled")
 	switch enabled {
@@ -149,7 +149,7 @@ func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndApiLimiterSwitch(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	enabled := ctx.Query("enabled")
 	switch enabled {
@@ -245,7 +245,7 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 }
 
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	uri := ctx.Locals("uri").(*string)
 	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
@@ -270,7 +270,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 }
 
 func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	server, e := m.getServerFromRandomBalancer(ctx)
 	if e != nil {

@@ -126,10 +126,7 @@ func (m *ClusterBalancer) getServer(idx1, idx2 uint64) (ip *net.IP) {
 		return
 	}
 
-	idx3 := idx1 % uint64(m.size)
-	idx4 := idx2 % uint64(m.size)
-	idx0 := idx3 + idx4
-
+	idx0 := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size))
 	ip = m.ips[idx0%uint64(m.size)]
 	return ip
 }
@@ -185,7 +182,7 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	avail, _ := m.runtime.GetClusterA5bility()
 	m.ips, m.size = m.upstream.getIps(&m.ulock)
 
-	if dwn != 0 && dwn*100/m.size < avail {
+	if (dwn != 0 && dwn*100/m.size < avail) || m.size == 0 {
 		m.isDown = true
 		m.log.Warn().Msg("cluster was marked as `offline`")
 	} else if m.isDown == true {
