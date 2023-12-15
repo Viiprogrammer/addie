@@ -262,7 +262,7 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	if (dwn != 0 && dwn*100/m.size < avail) || m.size == 0 {
 		m.isDown = true
 		m.log.Warn().Msg("cluster was marked as `offline`")
-	} else if m.isDown == true {
+	} else if m.isDown {
 		m.isDown = false
 		m.log.Info().Msg("cluster was maerked as `online`")
 	}
