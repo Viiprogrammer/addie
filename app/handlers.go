@@ -255,7 +255,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	buf.Write(sub[utils.ChunkQualityLevel])
 
 	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
-	if errors.Is(e, balancer.ErrServerUnavailable) {
+	if errors.Is(e, balancer.ErrServerIsDown) {
 		rlog(ctx).Debug().Err(e).Msg("balancer soft error; fallback to random balancing")
 		return ctx.Next()
 	} else if e != nil {
@@ -295,7 +295,7 @@ func (m *App) getServerFromRandomBalancer(ctx *fiber.Ctx) (server *balancer.Bala
 
 		_, server, e = m.bareBalancer.BalanceRandom(force)
 
-		if errors.Is(e, balancer.ErrServerUnavailable) {
+		if errors.Is(e, balancer.ErrServerIsDown) {
 			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to roll new server...")
 			continue
 		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) && !force {

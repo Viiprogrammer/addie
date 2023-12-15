@@ -9,6 +9,7 @@ import (
 	"github.com/MindHunter86/addie/balancer"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -121,40 +122,117 @@ func (m *App) fbMidAppBalancerLottery(ctx *fiber.Ctx) bool {
 }
 
 func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
+	m.lapRequestTimer(ctx, utils.FbReqTmrConsulLottery)
 	rlog(ctx).Trace().Msg("consul lottery winner, rewriting destination server...")
 
 	var server *balancer.BalancerServer
-	uri, reqid := []byte(ctx.Locals("uri").(string)), ctx.Locals("requestid").(string)
-	// uri := []byte(ctx.Locals("uri").(string))
+	uri := []byte(ctx.Locals("uri").(string))
 
 	prefixbuf := bytes.NewBuffer(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkEpisodeId])
 	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
 
-	// chunkname, prefix := string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]), prefixbuf.String()
+	try, retries := uint8(balancer.MaxTries), uint8(0)
+
+	// TODO
+	// ? do we need the failover with RandomBalancing
+
+	// simplify the upstream switching (using) with constant slice
+	// minifies code and removes copy-paste blocks
+	for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
+
+		// common && backup balancing with one upstream ("balancer")
+		// loop used for retries after errors and for fallback to a backup server
+		// err count has limited by `balancer.BalancerMaxRetries`
+		for ; try != 0; try-- {
+
+			// trying to balance with giver cluster
+			// `try` used as a collision for slice with available servers
+			// works like (`X` * maxTries) * -1
+			_, server, e = cluster.BalanceByChunkname(
+				prefixbuf.String(),
+				string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]),
+				try,
+			)
+
+			var berr *balancer.BalancerError
+			if e == nil {
+				// if all ok (if no errors) - save destination and go to the next fiber handler:
+				ctx.Locals("srv",
+					strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+
+				return ctx.Next()
+			} else if !errors.As(e, &berr) {
+				panic("balancer internal error - undefined error")
+			}
+
+			if zerolog.GlobalLevel() <= zerolog.DebugLevel && berr.HasError() {
+				gLog.Debug().Err(berr).Msg("error")
+			}
+
+			// here we accept only 3 retry for one server in current "balance session"
+			// if TryLock in balancer always fails, balancer session in sum has 6 tries for request
+			// (if MaxTries == 3)
+			if berr.Has(balancer.IsRetriable) {
+				rlog(ctx).Trace().Uint8("try", try).Msg("undefined error")
+				if retries += 1; retries < balancer.MaxTries {
+					try++
+				}
+				continue
+			} else if berr.Has(balancer.IsNextServerRouted) {
+				rlog(ctx).Trace().Uint8("try", try).Msg("IsNextServerRouted")
+				// ! use backup server
+				continue
+			} else if berr.Has(balancer.IsNextClusterRouted) {
+				rlog(ctx).Trace().Uint8("try", try).Msg("IsNextClusterRouted")
+				// ! use next cluster
+				break
+			}
+
+			panic("balancer internal error - undefined error flag")
+		}
+	}
+
+	// if we here - no alive balancers, so return error
+	return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 
 	// for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
-	// 	// TODO
-	// 	// ? do we need the failover with RandomBalancing ???
-	// 	// var fallback bool
+	// 	var fallback bool
 
-	// 	// get all servers for balancing
-	// 	var status *balancer.Status
-	// 	if e = cluster.Balance(chunkname, prefix); e == nil {
-	// 		rlog(ctx).Error().Msg("there is no status with payload and error from balancer")
-	// 	}
+	// 	for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
 
-	// 	if errors.As(e, &status) {
-	// 		if e = status.Err(); e != nil {
-	// 			rlog(ctx).Error().Err(e).Interface("cluster", status.Cluster()).Msg(status.Descr())
-	// 			continue
+	// 		// so if fails limit reached - use new cluster or fallback to baremetal random balancing
+	// 		if fails == gCli.Int("balancer-server-max-fails") {
+	// 			if fallback {
+	// 				rlog(ctx).Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+	// 					Msg("internal balancer error; too many balance errors; using fallback func()...")
+	// 				return m.fbMidAppBalanceFallback(ctx)
+	// 			} else {
+	// 				fallback = true
+	// 				rlog(ctx).Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+	// 					Msg("internal balancer error; too many balance errors; using next cluster...")
+	// 				break
+	// 			}
 	// 		}
-	// 	} else {
-	// 		rlog(ctx).Error().Err(e).Msg("undefined error from balancer")
-	// 	}
 
-	// 	// parse given servers
-	// 	for _, server := range status.Servers {
+	// 		// trying to balance with giver cluster
+	// 		_, server, e = cluster.BalanceByChunk(
+	// 			prefixbuf.String(),
+	// 			string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
+
+	// 		if errors.Is(e, balancer.ErrServerIsDown) {
+	// 			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).
+	// 				Str("cluster", cluster.GetClusterName()).Msg("trying to roll new server...")
+	// 			continue
+	// 		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) {
+	// 			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("temporary upstream error")
+	// 			continue
+	// 		} else if e != nil {
+	// 			rlog(ctx).Error().Err(e).Str("req", reqid).
+	// 				Str("cluster", cluster.GetClusterName()).Msg("could not balance; undefined error")
+	// 			break
+	// 		}
+
 	// 		// if all ok (if no errors) - save destination and go to the next fiber handler:
 	// 		ctx.Locals("srv",
 	// 			strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
@@ -162,54 +240,6 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 	// 		return ctx.Next()
 	// 	}
 	// }
-
-	for _, cluster := range []balancer.Balancer{m.cloudBalancer, m.bareBalancer} {
-		var fallback bool
-
-		for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
-
-			// so if fails limit reached - use new cluster or fallback to baremetal random balancing
-			if fails == gCli.Int("balancer-server-max-fails") {
-				if fallback {
-					rlog(ctx).Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
-						Msg("internal balancer error; too many balance errors; using fallback func()...")
-					return m.fbMidAppBalanceFallback(ctx)
-				} else {
-					fallback = true
-					rlog(ctx).Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
-						Msg("internal balancer error; too many balance errors; using next cluster...")
-					break
-				}
-			}
-
-			// trying to balance with giver cluster
-			_, server, e = cluster.BalanceByChunk(
-				prefixbuf.String(),
-				string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
-
-			if errors.Is(e, balancer.ErrServerUnavailable) {
-				rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).
-					Str("cluster", cluster.GetClusterName()).Msg("trying to roll new server...")
-				continue
-			} else if errors.Is(e, balancer.ErrUpstreamUnavailable) {
-				rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("temporary upstream error")
-				continue
-			} else if e != nil {
-				rlog(ctx).Error().Err(e).Str("req", reqid).
-					Str("cluster", cluster.GetClusterName()).Msg("could not balance; undefined error")
-				break
-			}
-
-			// if all ok (if no errors) - save destination and go to the next fiber handler:
-			ctx.Locals("srv",
-				strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
-
-			return ctx.Next()
-		}
-	}
-
-	// if we here - no alive balancers, so return error
-	return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 }
 
 func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {

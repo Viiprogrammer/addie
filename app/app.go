@@ -79,9 +79,17 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 
 		DisableDefaultContentType: true,
 
-		// ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-		// 	return ctx.SendStatus(fiber.StatusInternalServerError)
-		// },
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+
+			var e *fiber.Error
+			if !errors.As(err, &e) {
+				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+			}
+
+			rlog(c).Error().Msgf("%v", err)
+			return c.SendStatus(e.Code)
+		},
 	})
 
 	// storage setup for fiber's limiter

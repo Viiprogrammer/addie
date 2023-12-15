@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -28,7 +29,7 @@ func (m *App) fiberConfigure() {
 
 	// prefixed logger initialization
 	m.fb.Use(func(c *fiber.Ctx) error {
-		l := gLog.With().Str("spanid", c.Locals("requestid").(string)).Logger()
+		l := gLog.With().Str("id", c.Locals("requestid").(string)).Logger()
 		c.Locals("logger", &l)
 
 		return c.Next()
@@ -45,30 +46,35 @@ func (m *App) fiberConfigure() {
 
 		start, e := time.Now(), c.Next()
 		stop := time.Now()
+		total := stop.Sub(start).Round(time.Microsecond)
+
+		status, lvl, err := c.Response().StatusCode(), zerolog.InfoLevel, new(fiber.Error)
+		if errors.As(e, &err) || status >= fiber.StatusInternalServerError {
+			status, lvl = err.Code, zerolog.WarnLevel
+		}
 
 		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
 			rlog(c).Trace().Msg("non sign request detected, skipping timings...")
 			return
 		}
 
-		total := stop.Sub(start).Round(time.Microsecond)
-		setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBeforeRoute)).Round(time.Microsecond)
-		routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
-		precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond)
-		blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrFakeQuality)).Round(time.Microsecond)
-		fquality := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrConsulLottery)).Round(time.Microsecond)
-		clottery := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrReqSign)).Round(time.Microsecond)
-		reqsign := stop.Sub(stop).Round(time.Microsecond)
-
-		reqsign = clottery - reqsign
-		clottery = fquality - clottery
-		fquality = blist - fquality
-		blist = precond - blist
-		precond = routing - precond
-		routing = setup - routing
-		setup = total - setup
-
 		if rlog(c).GetLevel() <= zerolog.DebugLevel {
+			setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBeforeRoute)).Round(time.Microsecond)
+			routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
+			precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond)
+			blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrFakeQuality)).Round(time.Microsecond)
+			fquality := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrConsulLottery)).Round(time.Microsecond)
+			clottery := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrReqSign)).Round(time.Microsecond)
+			reqsign := stop.Sub(stop).Round(time.Microsecond)
+
+			reqsign = clottery - reqsign
+			clottery = fquality - clottery
+			fquality = blist - fquality
+			blist = precond - blist
+			precond = routing - precond
+			routing = setup - routing
+			setup = total - setup
+
 			rlog(c).Debug().
 				Dur("setup", setup).
 				Dur("routing", routing).
@@ -87,9 +93,9 @@ func (m *App) fiberConfigure() {
 			rlog(c).Trace().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
 		}
 
-		if rlog(c).GetLevel() <= zerolog.InfoLevel {
-			rlog(c).Info().
-				Int("status", c.Response().StatusCode()).
+		if rlog(c).GetLevel() <= zerolog.InfoLevel || status != fiber.StatusOK {
+			rlog(c).WithLevel(lvl).
+				Int("status", status).
 				Str("method", c.Method()).
 				Str("path", c.Path()).
 				Str("ip", c.IP()).
@@ -108,6 +114,8 @@ func (m *App) fiberConfigure() {
 			rlog(c).Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
 				Msg("panic has been caught")
 			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
+
+			c.Status(fiber.StatusInternalServerError)
 		},
 	}))
 

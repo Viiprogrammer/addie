@@ -59,6 +59,83 @@ func (m *ClusterBalancer) GetClusterName() string {
 	}
 }
 
+func (m *ClusterBalancer) rLock(rel ...bool) (e error) {
+	if rel = append(rel, false); rel[0] {
+		m.RUnlock()
+		return
+	}
+
+	if !m.TryRLock() {
+		e = NewError(m, errLockMiss).SetFlag(IsRetriable)
+	}
+	return
+}
+
+func (m *ClusterBalancer) IsDown() (dwn bool, e error) {
+	if e = m.rLock(); e != nil {
+		return
+	}
+	defer m.rLock(true)
+
+	dwn, e = m.isDown, NewError(m, errUpstreamIsDown).SetFlag(IsNextClusterRouted)
+	return
+}
+
+func (m *ClusterBalancer) getChunkKey(chunkname *string) (key string, e error) {
+	if strings.Contains(*chunkname, "_") {
+		key = strings.Split(*chunkname, "_")[1]
+	} else if strings.Contains(*chunkname, "fff") {
+		key = strings.ReplaceAll(*chunkname, "fff", "")
+	}
+
+	if key = strings.TrimSpace(key); key == "" {
+		e = NewErrorF(m, errUnparsableChunk, chunkname)
+	}
+	return
+}
+
+func (m *ClusterBalancer) getServer2(idx1, idx2 uint64, coll uint8) (ip *net.IP, e error) {
+	if e = m.rLock(); e != nil {
+		return
+	}
+	defer m.rLock(true)
+
+	// by default coll = 0, but if balancer receive errors: coll += 1 (limited by const MaxTries)
+	// ? maybe `MaxTries^coll` is not needed; use `coll` only?
+	idx0 := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size)) + uint64(MaxTries^coll)
+	ip = m.ips[idx0%uint64(m.size)]
+	return
+}
+
+func (m *ClusterBalancer) BalanceByChunkname(prefix, chunkname string, try uint8) (_ string, server *BalancerServer, e error) {
+	var dwn bool
+	if dwn, e = m.IsDown(); dwn {
+		return
+	}
+
+	var key string
+	if key, e = m.getChunkKey(&chunkname); e != nil {
+		return
+	}
+
+	var ip *net.IP
+	idx1, idx2 := murmur3.Sum128([]byte(prefix + key))
+	if ip, e = m.getServer2(idx1, idx2, try); e != nil {
+		return
+	}
+
+	var ok bool
+	if server, ok = m.upstream.getServer(&m.ulock, ip.String()); !ok {
+		e = NewError(m, errUndefined).SetFlag(IsNextClusterRouted)
+	} else if server.isDown {
+		e = NewErrorF(m, errServerIsDown2, server.Name).SetFlag(IsNextServerRouted)
+	} else {
+		server.statRequest()
+	}
+
+	return ip.String(), server, e
+}
+
 func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerServer, e error) {
 	var ip *net.IP
 	if ip = m.getRandomServer(force); ip == nil {
@@ -70,7 +147,7 @@ func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerS
 	if !ok || server == nil {
 		panic("balance result could not be find in balancer's upstream")
 	} else if server.isDown {
-		e = ErrServerUnavailable
+		// e = ErrServerIsDown
 	} else {
 		server.statRequest()
 	}
@@ -95,7 +172,7 @@ func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, se
 	if !ok || server == nil {
 		panic("balance result could not be find in balancer's upstream")
 	} else if server.isDown {
-		e = ErrServerUnavailable
+		// e = ErrServErrServerIsDownerIsDown
 	} else {
 		server.statRequest()
 	}
@@ -126,8 +203,8 @@ func (m *ClusterBalancer) getServer(idx1, idx2 uint64) (ip *net.IP) {
 		return
 	}
 
-	idx0 := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size))
-	ip = m.ips[idx0%uint64(m.size)]
+	idx := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size))
+	ip = m.ips[idx%uint64(m.size)]
 	return ip
 }
 
