@@ -77,7 +77,7 @@ func (m *ClusterBalancer) IsDown() (dwn bool, e error) {
 	}
 	defer m.rLock(true)
 
-	dwn, e = m.isDown, NewError(m, errUpstreamIsDown).SetFlag(IsNextClusterRouted)
+	dwn, e = m.isDown, NewError(m, errUpstreamIsDown).SetFlag(IsReroutable)
 	return
 }
 
@@ -126,9 +126,9 @@ func (m *ClusterBalancer) BalanceByChunkname(prefix, chunkname string, try uint8
 
 	var ok bool
 	if server, ok = m.upstream.getServer(&m.ulock, ip.String()); !ok {
-		e = NewError(m, errUndefined).SetFlag(IsNextClusterRouted)
+		e = NewError(m, errUndefined).SetFlag(IsReroutable)
 	} else if server.isDown {
-		e = NewErrorF(m, errServerIsDown2, server.Name).SetFlag(IsNextServerRouted)
+		e = NewErrorF(m, errServerIsDown, server.Name).SetFlag(IsBackupable)
 	} else {
 		server.statRequest()
 	}

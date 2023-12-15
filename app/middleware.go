@@ -179,11 +179,11 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 					try++
 				}
 				continue
-			} else if berr.Has(balancer.IsNextServerRouted) {
+			} else if berr.Has(balancer.IsBackupable) {
 				rlog(ctx).Trace().Uint8("try", try).Msg("IsNextServerRouted")
 				// ! use backup server
 				continue
-			} else if berr.Has(balancer.IsNextClusterRouted) {
+			} else if berr.Has(balancer.IsReroutable) {
 				rlog(ctx).Trace().Uint8("try", try).Msg("IsNextClusterRouted")
 				// ! use next cluster
 				break
@@ -242,16 +242,16 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 	// }
 }
 
-func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
-	server, e := m.getServerFromRandomBalancer(ctx)
-	if e != nil {
-		return e
-	}
+// func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
+// 	server, e := m.getServerFromRandomBalancer(ctx)
+// 	if e != nil {
+// 		return e
+// 	}
 
-	ctx.Locals("srv",
-		strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
-	return ctx.Next()
-}
+// 	ctx.Locals("srv",
+// 		strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+// 	return ctx.Next()
+// }
 
 // blocklist
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {

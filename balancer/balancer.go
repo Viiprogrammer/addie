@@ -32,17 +32,6 @@ var (
 	ErrServerIsDown = errors.New("rolled server is marked as down")
 )
 
-const (
-	errUnparsableChunkname = "could not get key from given chunkname"
-
-	errBalancerLockMiss  = "could not get balancer read-lock"
-	errBalancerIsDown    = "balancer is marked as down"
-	errBalancerEmpty     = "balancer's upstream has no servers"
-	errBalancerUndefined = "undefined error occured"
-
-	// ---
-)
-
 type BalancerCluster uint8
 
 const (
