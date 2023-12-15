@@ -16,8 +16,7 @@ const (
 )
 
 const (
-	FbReqTmrBeforeRoute ContextKey = iota
-	FbReqTmrPreCond
+	FbReqTmrPreCond ContextKey = iota
 	FbReqTmrBlocklist
 	FbReqTmrFakeQuality
 	FbReqTmrConsulLottery

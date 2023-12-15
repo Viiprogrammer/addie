@@ -37,6 +37,10 @@ func (m *App) fiberConfigure() {
 
 	// time collector + logger
 	m.fb.Use(func(c *fiber.Ctx) (e error) {
+		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
+			// rlog(c).Trace().Msg("non sign request detected, skipping timings...")
+			return c.Next()
+		}
 
 		c.SetUserContext(context.WithValue(
 			c.UserContext(),
@@ -53,13 +57,7 @@ func (m *App) fiberConfigure() {
 			status, lvl = err.Code, zerolog.WarnLevel
 		}
 
-		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
-			rlog(c).Trace().Msg("non sign request detected, skipping timings...")
-			return
-		}
-
 		if rlog(c).GetLevel() <= zerolog.DebugLevel {
-			setup := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBeforeRoute)).Round(time.Microsecond)
 			routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
 			precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond)
 			blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrFakeQuality)).Round(time.Microsecond)
@@ -72,11 +70,9 @@ func (m *App) fiberConfigure() {
 			fquality = blist - fquality
 			blist = precond - blist
 			precond = routing - precond
-			routing = setup - routing
-			setup = total - setup
+			routing = total - routing
 
 			rlog(c).Debug().
-				Dur("setup", setup).
 				Dur("routing", routing).
 				Dur("precond", precond).
 				Dur("blist", blist).
@@ -88,8 +84,8 @@ func (m *App) fiberConfigure() {
 				Msg("")
 
 			rlog(c).Trace().Msgf(
-				"Total: %s, Setup %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
-				total, setup, routing, precond, blist, fquality, clottery, reqsign)
+				"Total: %s; Routing %s; PreCond %s; Blocklist %s; FQuality %s; CLottery %s; ReqSign %s;",
+				total, routing, precond, blist, fquality, clottery, reqsign)
 			rlog(c).Trace().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
 		}
 
@@ -147,7 +143,6 @@ func (m *App) fiberConfigure() {
 
 	// time collector - Before routing
 	m.fb.Use(func(c *fiber.Ctx) error {
-		m.lapRequestTimer(c, utils.FbReqTmrBeforeRoute)
 		return c.Next()
 	})
 
