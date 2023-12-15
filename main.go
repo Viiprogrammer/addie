@@ -301,7 +301,7 @@ func (SeverityHook) Run(e *zerolog.Event, level zerolog.Level, _ string) {
 	e.Str("func", fn[len(fn)-1:][0])
 }
 
-func callerMarshalFunc(pc uintptr, file string, line int) string {
+func callerMarshalFunc(_ uintptr, file string, line int) string {
 	short := file
 	for i := len(file) - 1; i > 0; i-- {
 		if file[i] == '/' {
