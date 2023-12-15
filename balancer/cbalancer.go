@@ -94,7 +94,7 @@ func (m *ClusterBalancer) getChunkKey(chunkname *string) (key string, e error) {
 	return
 }
 
-func (m *ClusterBalancer) getServer2(idx1, idx2 uint64, coll uint8) (ip *net.IP, e error) {
+func (m *ClusterBalancer) getServer(idx1, idx2 uint64, coll uint8) (ip *net.IP, e error) {
 	if e = m.rLock(); e != nil {
 		return
 	}
@@ -120,7 +120,7 @@ func (m *ClusterBalancer) BalanceByChunkname(prefix, chunkname string, try uint8
 
 	var ip *net.IP
 	idx1, idx2 := murmur3.Sum128([]byte(prefix + key))
-	if ip, e = m.getServer2(idx1, idx2, try); e != nil {
+	if ip, e = m.getServer(idx1, idx2, try); e != nil {
 		return
 	}
 
@@ -153,59 +153,6 @@ func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerS
 	}
 
 	return ip.String(), server, e
-}
-
-func (m *ClusterBalancer) BalanceByChunk(prefix, chunkname string) (_ string, server *BalancerServer, e error) {
-	var key string
-	if key, e = m.getKeyFromChunkName(&chunkname); e != nil {
-		m.log.Debug().Err(e).Msgf("chunkname - '%s'; fallback to legacy balancing", chunkname)
-		return
-	}
-
-	var ip *net.IP
-	if ip = m.getServer(murmur3.Sum128([]byte(prefix + key))); ip == nil {
-		e = ErrUpstreamUnavailable
-		return
-	}
-
-	server, ok := m.upstream.getServer(&m.ulock, ip.String())
-	if !ok || server == nil {
-		panic("balance result could not be find in balancer's upstream")
-	} else if server.isDown {
-		// e = ErrServErrServerIsDownerIsDown
-	} else {
-		server.statRequest()
-	}
-
-	return ip.String(), server, e
-}
-
-func (*ClusterBalancer) getKeyFromChunkName(chunkname *string) (key string, e error) {
-	if strings.Contains(*chunkname, "_") {
-		key = strings.Split(*chunkname, "_")[1]
-	} else if strings.Contains(*chunkname, "fff") {
-		key = strings.ReplaceAll(*chunkname, "fff", "")
-	} else {
-		e = ErrUnparsableChunk
-	}
-
-	return
-}
-
-func (m *ClusterBalancer) getServer(idx1, idx2 uint64) (ip *net.IP) {
-	if !m.TryRLock() {
-		m.log.Warn().Msg("could not get lock for reading upstream; fallback to legacy balancing")
-		return
-	}
-	defer m.RUnlock()
-
-	if m.size == 0 {
-		return
-	}
-
-	idx := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size))
-	ip = m.ips[idx%uint64(m.size)]
-	return ip
 }
 
 func (m *ClusterBalancer) getRandomServer(force bool) (ip *net.IP) {
