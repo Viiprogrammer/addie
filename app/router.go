@@ -142,11 +142,6 @@ func (m *App) fiberConfigure() {
 		}))
 	}
 
-	// time collector - Before routing
-	m.fb.Use(func(c *fiber.Ctx) error {
-		return c.Next()
-	})
-
 	// Routes
 
 	// group api - /api
