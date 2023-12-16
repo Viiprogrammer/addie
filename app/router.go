@@ -43,7 +43,6 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(func(c *fiber.Ctx) error {
 		l := gLog.With().Str("id", c.Locals("requestid").(string)).Logger()
 		c.Locals("logger", &l)
-
 		return c.Next()
 	})
 
