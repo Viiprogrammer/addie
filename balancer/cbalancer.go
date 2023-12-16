@@ -110,7 +110,7 @@ func (m *ClusterBalancer) getServer(idx1, idx2 uint64, coll uint8) (ip *net.IP, 
 	defer m.rLock(true)
 
 	if m.size == 0 {
-		e = NewErrorF(m, errUndefined, "m.size == 0").SetFlag(IsRetriable)
+		e = NewError(m, errUndefined+": m.size == 0").SetFlag(IsRetriable)
 		return
 	}
 
