@@ -162,8 +162,7 @@ func (m *App) Bootstrap() (e error) {
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
-
-	if e = balancer.SetMaxTries(gCli.Uint("balancer-max-fails")); e != nil {
+	if e = balancer.SetMaxTries(gCli.Uint("balancer-max-tries")); e != nil {
 		return
 	}
 

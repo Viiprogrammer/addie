@@ -49,8 +49,8 @@ func NewClusterBalancer(ctx context.Context, cluster BalancerCluster) *ClusterBa
 }
 
 func SetMaxTries(max uint) error {
-	if max > 10 {
-		return errors.New("balancer - max tries could not be more than 10")
+	if max > 10 || max == 0 {
+		return errors.New("balancer - max tries could not be more than 10 or == 0")
 	}
 
 	MaxTries = uint8(max)

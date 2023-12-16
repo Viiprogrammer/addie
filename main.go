@@ -26,6 +26,7 @@ func main() {
 	dwr := diode.NewWriter(os.Stdout, 1000, 10*time.Millisecond, func(missed int) {
 		fmt.Fprintf(os.Stderr, "diodes dropped %d messages; check your log-rate, please\n", missed)
 	})
+	defer dwr.Close()
 
 	// logger
 	log := zerolog.New(zerolog.ConsoleWriter{
@@ -160,7 +161,7 @@ func main() {
 
 		// balancer
 		&cli.UintFlag{
-			Name:  "balancer-max-fails",
+			Name:  "balancer-max-tries",
 			Usage: "max fails for one request; max value - 10",
 			Value: 3,
 		},
@@ -278,7 +279,13 @@ func main() {
 	sort.Sort(cli.CommandsByName(app.Commands))
 
 	if e := app.Run(os.Args); e != nil {
-		log.Fatal().Err(e).Msg("")
+		log.WithLevel(zerolog.FatalLevel).Msg(e.Error())
+
+		// fucking diode was no `wait` method, so we need to use this `250` shit
+		log.Debug().Msg("waiting for diode buf")
+		time.Sleep(250 * time.Millisecond)
+
+		os.Exit(1)
 	}
 }
 
