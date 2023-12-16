@@ -44,19 +44,15 @@ const (
 // 	}
 // }
 
-// func (m *App) fbMidBalanceCond(ctx *fiber.Ctx) (skip bool) {
-// 	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
-// 	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-node-internal balancer")
-// }
-
-// balancer api - precond
-func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
+func (m *App) fbMidBalanceCond(ctx *fiber.Ctx) (skip bool) {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
-	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-node-internal balancer")
+	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-XXX-internal precond balancer")
 
 	var errs appMidError
 
-	if huri := strings.TrimSpace(ctx.Get(apiHeaderUri)); huri == "" {
+	// parse and test given chunk uri
+	huri := strings.TrimSpace(ctx.Get(apiHeaderUri))
+	if huri == "" {
 		errs = errs | errMidAppPreHeaderUri
 	} else if !m.chunkRegexp.Match([]byte(huri)) {
 		errs = errs | errMidAppPreUriRegexp
@@ -64,43 +60,21 @@ func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
 		ctx.Locals("uri", huri)
 	}
 
+	if strings.HasPrefix(ctx.Path(), "/videos/media/ts") {
+		var id, server string
+
+		if id = strings.TrimSpace(ctx.Get(apiHeaderId)); id == "" {
+			errs = errs | errMidAppPreHeaderId
+		} else if server = strings.TrimSpace(ctx.Get(apiHeaderServer)); server == "" {
+			errs = errs | errMidAppPreHeaderServer
+		}
+
+		ctx.Locals("srv", server)
+		ctx.Locals("uid", id)
+	}
+
 	ctx.Locals("errors", errs)
 	return errs == 0
-}
-
-// API precondition check
-func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
-	m.lapRequestTimer(ctx, utils.FbReqTmrPreCond)
-	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-cloud-internal balancer")
-
-	var errs appMidError
-
-	switch h := ctx.GetReqHeaders(); {
-	case strings.TrimSpace(h[apiHeaderUri][0]) == "":
-		errs = errs | errMidAppPreHeaderUri
-		ctx.Locals("errors", errs)
-		return
-	case strings.TrimSpace(h[apiHeaderId][0]) == "":
-		errs = errs | errMidAppPreHeaderId
-		ctx.Locals("errors", errs)
-		return
-	case strings.TrimSpace(h[apiHeaderServer][0]) == "":
-		errs = errs | errMidAppPreHeaderServer
-		ctx.Locals("errors", errs)
-		return
-	}
-
-	// match uri
-	if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
-		errs = errs | errMidAppPreUriRegexp
-		ctx.Locals("errors", errs)
-		return
-	}
-
-	ctx.Locals("uid", strings.TrimSpace(ctx.Get(apiHeaderId)))
-	ctx.Locals("srv", strings.TrimSpace(ctx.Get(apiHeaderServer)))
-
-	return true
 }
 
 // fake quality check
@@ -108,7 +82,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrFakeQuality)
 	rlog(ctx).Trace().Msg("fake quality check")
 
-	uri := ctx.Get(apiHeaderUri)
+	uri := ctx.Locals("uri").(string)
 	tsr := NewTitleSerieRequest(uri)
 
 	if !tsr.isValid() {

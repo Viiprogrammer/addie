@@ -167,13 +167,13 @@ func (m *App) fiberConfigure() {
 	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
 	upstr.Post("/reset", m.fbHndApiBalancerReset)
 
-	upstrCluster := upstr.Group("/cluster", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
+	upstrCluster := upstr.Group("/cluster", skip.New(m.fbHndApiPreCondErr, m.fbMidBalanceCond))
 	upstrCluster.Get("/cache-nodes", m.fbHndBlcNodesBalance)
 	// m.fbHndBlcNodesBalance,
 	// m.fbHndBlcNodesBalanceFallback)
 
 	// group media - /videos/media/ts
-	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
+	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidBalanceCond))
 
 	// group media - blocklist && limiter
 	media.Use(m.fbMidAppBlocklist)
