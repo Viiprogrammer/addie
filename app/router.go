@@ -196,8 +196,6 @@ func (m *App) fiberConfigure() {
 
 	// group media - sign handler
 	media.Use(m.fbHndAppRequestSign)
-
-	return
 }
 
 func (*App) lapRequestTimer(c *fiber.Ctx, k utils.ContextKey) {
