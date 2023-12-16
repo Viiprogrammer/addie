@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"regexp"
@@ -46,12 +47,16 @@ type App struct {
 	bareBalancer  balancer.Balancer
 
 	chunkRegexp *regexp.Regexp
+
+	syslogWriter io.Writer
 }
 
-func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
+func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 	gCli, gLog = c, l
 
 	app = &App{}
+	app.syslogWriter = s
+
 	app.fb = fiber.New(fiber.Config{
 		EnableTrustedProxyCheck: len(gCli.String("http-trusted-proxies")) > 0,
 		TrustedProxies:          strings.Split(gCli.String("http-trusted-proxies"), ","),
@@ -243,4 +248,13 @@ LOOP:
 
 func rlog(c *fiber.Ctx) *zerolog.Logger {
 	return c.Locals("logger").(*zerolog.Logger)
+}
+
+func (m *App) rsyslog(c *fiber.Ctx) *zerolog.Logger {
+	if en, ok := m.runtime.GetClusterStdoutAccess(); ok && en == 0 {
+		l := c.Locals("logger").(*zerolog.Logger).Output(m.syslogWriter)
+		return &l
+	}
+
+	return rlog(c)
 }
