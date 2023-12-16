@@ -120,7 +120,7 @@ func (m *consulClient) bootstrap() {
 		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
 	})
 
-	listenChanges(&wg, "clusters_minimal", func() {
+	listenChanges(&wg, "a5bility", func() {
 		m.listenRuntimeConfigKey(utils.CfgClusterA5bility, rpatcher)
 	})
 
