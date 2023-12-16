@@ -1,7 +1,7 @@
 package app
 
 import (
-	"crypto/md5"
+	"crypto/md5" // skipcq: GSC-G501 md5 used in nginx, no choise to fix it
 	"encoding/base64"
 	"strconv"
 	"strings"
