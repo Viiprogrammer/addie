@@ -4,23 +4,22 @@ import (
 	"fmt"
 )
 
-
 const (
 	errUndefined = "undefined error occurred"
 
 	errUnparsableChunk = "could not get key from given chunkname %s"
 	errLockMiss        = "could not get balancer read-lock"
 
-	errUpstreamIsDown  = "balancer is marked as down"
+	errUpstreamIsDown = "balancer is marked as down"
 	// errUpstreamIsEmpty = "balancer's upstream has no servers"
-	errServerIsDown   = "server %s is marked as down"
+	errServerIsDown = "server %s is marked as down"
 )
 
 type BalancerEFlag uint8
 
 // IsRetriable - can be retried in current upstream
-// IsNextServerRouted = must be routed to the next cluster's server
-// IsNextClusterRouted - must be routed to the next cluster
+// IsNextServerRouted (IsBackupable) - must be routed to the next cluster's server
+// IsNextClusterRouted (IsReroutable) - must be routed to the next cluster
 const (
 	IsRetriable BalancerEFlag = 1 << iota
 	IsBackupable

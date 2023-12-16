@@ -159,8 +159,9 @@ func main() {
 		},
 
 		// balancer
-		&cli.IntFlag{
-			Name:  "balancer-server-max-fails",
+		&cli.UintFlag{
+			Name:  "balancer-max-fails",
+			Usage: "max fails for one request; max value - 10",
 			Value: 3,
 		},
 

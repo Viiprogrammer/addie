@@ -1,7 +1,6 @@
 package balancer
 
 import (
-	"errors"
 	"io"
 	"net"
 )
@@ -13,14 +12,7 @@ type Balancer interface {
 	ResetStats()
 	ResetUpstream()
 	GetClusterName() string
-
-	// BalanceRandom(force bool) (_ string, server *BalancerServer, e error)
 }
-
-var (
-	ErrUpstreamUnavailable = errors.New("upstream is empty or undefined - balancing is impossible")
-	ErrServerIsDown        = errors.New("rolled server is marked as down")
-)
 
 type BalancerCluster uint8
 
@@ -29,4 +21,4 @@ const (
 	BalancerClusterCloud
 )
 
-const MaxTries = uint8(3)
+var MaxTries = uint8(3)

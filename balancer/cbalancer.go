@@ -3,6 +3,7 @@ package balancer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"math"
 	"net"
@@ -45,6 +46,15 @@ func NewClusterBalancer(ctx context.Context, cluster BalancerCluster) *ClusterBa
 		cluster:  cluster,
 		upstream: &upstream,
 	}
+}
+
+func SetMaxTries(max uint) error {
+	if max > 10 {
+		return errors.New("balancer - max tries could not be more than 10")
+	}
+
+	MaxTries = uint8(max)
+	return nil
 }
 
 func (m *ClusterBalancer) GetClusterName() string {
