@@ -92,6 +92,15 @@ func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 			}
 
+			gLog.Warn().Err(e).
+				Int("status", e.Code).
+				Str("method", c.Method()).
+				Str("path", c.Path()).
+				Str("ip", c.IP()).
+				Str("user-agent", c.Get(fiber.HeaderUserAgent)).
+				Msg("")
+
+			// panic here
 			rlog(c).Error().Msgf("%v", err)
 			return c.SendStatus(e.Code)
 		},

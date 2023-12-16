@@ -109,6 +109,11 @@ func (m *ClusterBalancer) getServer(idx1, idx2 uint64, coll uint8) (ip *net.IP, 
 	}
 	defer m.rLock(true)
 
+	if m.size == 0 {
+		e = NewErrorF(m, errUndefined, "m.size == 0").SetFlag(IsRetriable)
+		return
+	}
+
 	// by default coll = 0, but if balancer receive errors: coll += 1 (limited by const MaxTries)
 	// ? maybe `MaxTries^coll` is not needed; use `coll` only?
 	idx0 := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size)) + uint64(MaxTries^coll)
