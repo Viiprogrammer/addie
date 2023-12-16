@@ -167,7 +167,7 @@ func (m *ClusterBalancer) getRandomServer(force bool) (ip *net.IP) {
 		return
 	}
 
-	ip = m.ips[rand.Intn(m.size)]
+	ip = m.ips[rand.Intn(m.size)] // skipcq: GSC-G404 math/rand OK there
 	return
 }
 
