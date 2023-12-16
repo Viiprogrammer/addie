@@ -37,8 +37,9 @@ func (m *App) fiberConfigure() {
 
 	// time collector + logger
 	m.fb.Use(func(c *fiber.Ctx) (e error) {
-		if !strings.HasPrefix(c.Path(), "/videos/media/ts") {
-			// rlog(c).Trace().Msg("non sign request detected, skipping timings...")
+		if !strings.HasPrefix(c.Path(), "/videos/media/ts") &&
+			!strings.HasPrefix(c.Path(), "/api/balancer/cluster") {
+			rlog(c).Trace().Str("path", c.Path()).Msg("non sign request detected, skipping timings...")
 			return c.Next()
 		}
 
@@ -153,17 +154,6 @@ func (m *App) fiberConfigure() {
 	api.Post("logger/level", m.fbHndApiLoggerLevel)
 	api.Post("limiter/switch", m.fbHndApiLimiterSwitch)
 
-	// group upstream
-	upstr := api.Group("/balancer")
-	upstr.Get("/stats", m.fbHndApiBalancerStats)
-	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
-	upstr.Post("/reset", m.fbHndApiBalancerReset)
-
-	upstrCluster := upstr.Group("/cluster", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
-	upstrCluster.Get("/cache-nodes",
-		m.fbHndBlcNodesBalance,
-		m.fbHndBlcNodesBalanceFallback)
-
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")
 	blist.Post("/add", m.fbHndApiBlockIp)
@@ -171,13 +161,22 @@ func (m *App) fiberConfigure() {
 	blist.Post("/switch", m.fbHndApiBListSwitch)
 	blist.Post("/reset", m.fbHndApiBlockReset)
 
+	// group upstream - /api/balancer
+	upstr := api.Group("/balancer")
+	upstr.Get("/stats", m.fbHndApiBalancerStats)
+	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
+	upstr.Post("/reset", m.fbHndApiBalancerReset)
+
+	upstrCluster := upstr.Group("/cluster", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
+	upstrCluster.Get("/cache-nodes", m.fbHndBlcNodesBalance)
+	// m.fbHndBlcNodesBalance,
+	// m.fbHndBlcNodesBalanceFallback)
+
 	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))
 
-	// group media - blocklist
+	// group media - blocklist && limiter
 	media.Use(m.fbMidAppBlocklist)
-
-	// group media - limiter
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
 			if limiting, ok := m.runtime.GetLimiterStatus(); limiting == 0 || !ok {

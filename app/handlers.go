@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"net/url"
@@ -247,69 +246,89 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
-	uri := ctx.Locals("uri").(*string)
-	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
+	// uri := ctx.Locals("uri").(*string)
+	// sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
 
-	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
-	buf.Write(sub[utils.ChunkEpisodeId])
-	buf.Write(sub[utils.ChunkQualityLevel])
+	// buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	// buf.Write(sub[utils.ChunkEpisodeId])
+	// buf.Write(sub[utils.ChunkQualityLevel])
 
-	_, server, e := m.bareBalancer.BalanceByChunkname(buf.String(), string(sub[utils.ChunkName]), 0)
-	if errors.Is(e, balancer.ErrServerIsDown) {
-		rlog(ctx).Debug().Err(e).Msg("balancer soft error; fallback to random balancing")
-		return ctx.Next()
-	} else if e != nil {
-		rlog(ctx).Warn().Err(e).Msg("balancer critical error; fallback to random balancing")
-		return ctx.Next()
+	//
+
+	rlog(ctx).Trace().Msg("im here!")
+
+	err := m.balanceFiberRequest(ctx, []balancer.Balancer{m.bareBalancer})
+
+	var ferr *fiber.Error
+	if errors.As(err, &ferr) {
+		rlog(ctx).Trace().Msgf("im here! %d %s", ferr.Code, ferr.Message)
+		// ! error here
+		return err
+	} else if err != nil {
+		// ! undefined error here
+		panic("undefined error in BM balancer")
 	}
 
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Set("X-Location", srv)
-
+	ctx.Set("X-Location", ctx.Locals("srv").(string))
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
-func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
-	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
+// _, server, e := m.bareBalancer.BalanceByChunkname(buf.String(), string(sub[utils.ChunkName]), 0)
+// if errors.Is(e, balancer.ErrServerIsDown) {
+// 	rlog(ctx).Debug().Err(e).Msg("balancer soft error; fallback to random balancing")
+// 	return ctx.Next()
+// } else if e != nil {
+// 	rlog(ctx).Warn().Err(e).Msg("balancer critical error; fallback to random balancing")
+// 	return ctx.Next()
+// }
 
-	server, e := m.getServerFromRandomBalancer(ctx)
-	if e != nil {
-		return e
-	}
+// srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+// ctx.Set("X-Location", srv)
 
-	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Set("X-Location", srv)
+// return ctx.SendStatus(fiber.StatusNoContent)
+// }
 
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
+// func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
+// 	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
-func (m *App) getServerFromRandomBalancer(ctx *fiber.Ctx) (server *balancer.BalancerServer, e error) {
-	reqid, force := ctx.Locals("requestid").(string), false
+// 	server, e := m.getServerFromRandomBalancer(ctx)
+// 	if e != nil {
+// 		return e
+// 	}
 
-	for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
-		if fails == gCli.Int("balancer-server-max-fails") {
-			rlog(ctx).Error().Str("req", reqid).Msg("internal balancer error; too many balance errors")
-			e = fiber.NewError(fiber.StatusInternalServerError, "internal balancer error")
-			return
-		}
+// 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+// 	ctx.Set("X-Location", srv)
 
-		_, server, e = m.bareBalancer.BalanceRandom(force)
+// 	return ctx.SendStatus(fiber.StatusNoContent)
+// }
 
-		if errors.Is(e, balancer.ErrServerIsDown) {
-			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to roll new server...")
-			continue
-		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) && !force {
-			force = true
-			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to force balancer")
-			continue
-		} else if e != nil {
-			rlog(ctx).Error().Err(e).Str("req", reqid).Msg("could not balance the request")
-			e = fiber.NewError(fiber.StatusInternalServerError, e.Error())
-			return
-		}
+// func (m *App) getServerFromRandomBalancer(ctx *fiber.Ctx) (server *balancer.BalancerServer, e error) {
+// 	reqid, force := ctx.Locals("requestid").(string), false
 
-		return
-	}
+// 	for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
+// 		if fails == gCli.Int("balancer-server-max-fails") {
+// 			rlog(ctx).Error().Str("req", reqid).Msg("internal balancer error; too many balance errors")
+// 			e = fiber.NewError(fiber.StatusInternalServerError, "internal balancer error")
+// 			return
+// 		}
 
-	return
-}
+// 		_, server, e = m.bareBalancer.BalanceRandom(force)
+
+// 		if errors.Is(e, balancer.ErrServerIsDown) {
+// 			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to roll new server...")
+// 			continue
+// 		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) && !force {
+// 			force = true
+// 			rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to force balancer")
+// 			continue
+// 		} else if e != nil {
+// 			rlog(ctx).Error().Err(e).Str("req", reqid).Msg("could not balance the request")
+// 			e = fiber.NewError(fiber.StatusInternalServerError, e.Error())
+// 			return
+// 		}
+
+// 		return
+// 	}
+
+// 	return
+// }
