@@ -22,6 +22,7 @@ const (
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
 	RuntimePatchA5bility
+	RuntimePatchStdoutAccess
 )
 
 var (
@@ -34,6 +35,7 @@ var (
 		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
 		utils.CfgClusterA5bility:   RuntimePatchA5bility,
+		utils.CfgStdoutAccessLog:   RuntimePatchStdoutAccess,
 	}
 
 	// intenal
@@ -46,6 +48,7 @@ var (
 		RuntimePatchBlocklistIps: "blocklist ips",
 		RuntimePatchLimiter:      "limiter switch",
 		RuntimePatchA5bility:     "balancer's cluster availability",
+		RuntimePatchStdoutAccess: "stdout access log switcher",
 	}
 )
 
@@ -65,6 +68,9 @@ type (
 
 		gA5bilityLock sync.RWMutex
 		gA5bility     int
+
+		gStdoutAccessLock sync.RWMutex
+		gStdoutAccess     int
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -140,6 +146,23 @@ func (m *Runtime) updateA5bility(c int) {
 	m.gA5bility = c
 }
 
+func (m *Runtime) GetClusterStdoutAccess() (s int, ok bool) {
+	if !m.gStdoutAccessLock.TryRLock() {
+		return 0, false
+	}
+	defer m.gStdoutAccessLock.RUnlock()
+
+	s, ok = m.gStdoutAccess, true
+	return
+}
+
+func (m *Runtime) updateStdoutAccess(c int) {
+	m.gStdoutAccessLock.Lock()
+	defer m.gStdoutAccessLock.Unlock()
+
+	m.gStdoutAccess = c
+}
+
 func NewRuntime(ctx context.Context) *Runtime {
 	blist := ctx.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
 	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
@@ -151,6 +174,7 @@ func NewRuntime(ctx context.Context) *Runtime {
 		gLotteryChance:  0,
 		gLimiterEnabled: 0,
 		gA5bility:       100,
+		gStdoutAccess:   0,
 	}
 }
 
@@ -173,6 +197,8 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = m.applyLimitterSwitch(patch.Patch)
 	case RuntimePatchA5bility:
 		e = m.applyA5bility(patch.Patch)
+	case RuntimePatchStdoutAccess:
+		e = m.applyStdoutAccess(patch.Patch)
 	default:
 		panic("internal error - undefined runtime patch type")
 	}
@@ -305,5 +331,29 @@ func (m *Runtime) applyA5bility(input []byte) (e error) {
 	log.Info().Msgf("runtime config - applied cluster availability %s", string(input))
 
 	m.updateA5bility(percent)
+	return
+}
+
+func (m *Runtime) applyStdoutAccess(input []byte) (e error) {
+	var enabled int
+	if enabled, e = strconv.Atoi(string(input)); e != nil {
+		return
+	}
+
+	log.Trace().Msgf("runtime config - limiter apply value %d", enabled)
+
+	switch enabled {
+	case 0:
+		fallthrough
+	case 1:
+		m.updateStdoutAccess(enabled)
+
+		log.Info().Msg("runtime config - stdout-accesslog status updated")
+		log.Debug().Msgf("apply stdout-accesslog - updated value - %d", enabled)
+	default:
+		log.Warn().Int("enabled", enabled).
+			Msg("runtime config - stdout-accesslog could not be non 0 or non 1")
+		return
+	}
 	return
 }

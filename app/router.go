@@ -91,7 +91,7 @@ func (m *App) fiberConfigure() {
 		}
 
 		if rlog(c).GetLevel() <= zerolog.InfoLevel || status != fiber.StatusOK {
-			rlog(c).WithLevel(lvl).
+			m.rsyslog(c).WithLevel(lvl).
 				Int("status", status).
 				Str("method", c.Method()).
 				Str("path", c.Path()).

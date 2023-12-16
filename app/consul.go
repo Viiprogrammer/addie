@@ -124,6 +124,10 @@ func (m *consulClient) bootstrap() {
 		m.listenRuntimeConfigKey(utils.CfgClusterA5bility, rpatcher)
 	})
 
+	listenChanges(&wg, "stdout-accesslog", func() {
+		m.listenRuntimeConfigKey(utils.CfgStdoutAccessLog, rpatcher)
+	})
+
 loop:
 	for {
 		select {
