@@ -251,12 +251,9 @@ func rlog(c *fiber.Ctx) *zerolog.Logger {
 }
 
 func (m *App) rsyslog(c *fiber.Ctx) *zerolog.Logger {
-	if en, ok := m.runtime.GetClusterStdoutAccess(); ok {
-		switch en {
-		case 0:
-			l := c.Locals("logger").(*zerolog.Logger).Output(m.syslogWriter)
-			return &l
-		}
+	if en, ok := m.runtime.GetClusterStdoutAccess(); ok && en == 0 {
+		l := c.Locals("logger").(*zerolog.Logger).Output(m.syslogWriter)
+		return &l
 	}
 
 	return rlog(c)
