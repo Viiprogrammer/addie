@@ -30,7 +30,7 @@ func main() {
 	// logger
 	log := zerolog.New(zerolog.ConsoleWriter{
 		Out: dwr,
-	}).With().Timestamp().Logger().Hook(SeverityHook{})
+	}).With().Timestamp().Caller().Logger().Hook(SeverityHook{})
 	zerolog.CallerMarshalFunc = callerMarshalFunc
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
