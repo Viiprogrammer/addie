@@ -120,6 +120,10 @@ func (m *consulClient) bootstrap() {
 		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
 	})
 
+	listenChanges(&wg, "a5bility", func() {
+		m.listenRuntimeConfigKey(utils.CfgClusterA5bility, rpatcher)
+	})
+
 loop:
 	for {
 		select {
