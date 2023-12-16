@@ -135,41 +135,6 @@ func (m *ClusterBalancer) BalanceByChunkname(prefix, chunkname string, try uint8
 	return ip.String(), server, e
 }
 
-// func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerServer, e error) {
-// 	var ip *net.IP
-// 	if ip = m.getRandomServer(force); ip == nil {
-// 		e = ErrUpstreamUnavailable
-// 		return
-// 	}
-
-// 	server, ok := m.upstream.getServer(&m.ulock, ip.String())
-// 	if !ok || server == nil {
-// 		panic("balance result could not be find in balancer's upstream")
-// 	} else if server.isDown {
-// 		// e = ErrServerIsDown
-// 	} else {
-// 		server.statRequest()
-// 	}
-
-// 	return ip.String(), server, e
-// }
-
-// func (m *ClusterBalancer) getRandomServer(force bool) (ip *net.IP) {
-// 	if !force && !m.TryRLock() {
-// 		m.log.Error().Msg("could not get lock for reading upstream and force flag is false")
-// 		return
-// 	}
-// 	defer m.RUnlock()
-
-// 	if m.size == 0 {
-// 		m.log.Error().Msg("could not get random server because of empty upstream")
-// 		return
-// 	}
-
-// 	ip = m.ips[rand.Intn(m.size)] // skipcq: GSC-G404 math/rand OK there
-// 	return
-// }
-
 func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	m.log.Trace().Msg("upstream servers debugging (I/II update iterations)")
 	m.log.Info().Msg("[II] upstream update triggered")
