@@ -22,6 +22,9 @@ var version = "devel" // -ldflags="-X main.version=X.X.X"
 var buildtime = "never"
 
 func main() {
+	retcode := 0
+	defer func() { os.Exit(retcode) }()
+
 	// non-blocking writer
 	dwr := diode.NewWriter(os.Stdout, 1000, 10*time.Millisecond, func(missed int) {
 		fmt.Fprintf(os.Stderr, "diodes dropped %d messages; check your log-rate, please\n", missed)
@@ -280,13 +283,12 @@ func main() {
 
 	if e := app.Run(os.Args); e != nil {
 		log.WithLevel(zerolog.FatalLevel).Msg(e.Error())
-
-		// fucking diode was no `wait` method, so we need to use this `250` shit
-		log.Debug().Msg("waiting for diode buf")
-		time.Sleep(250 * time.Millisecond)
-
-		os.Exit(1)
+		retcode = 1
 	}
+
+	// fucking diode was no `wait` method, so we need to use this `250` shit
+	log.Debug().Msg("waiting for diode buf")
+	time.Sleep(250 * time.Millisecond)
 }
 
 type SeverityHook struct{}
