@@ -39,7 +39,7 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(func(c *fiber.Ctx) (e error) {
 		if !strings.HasPrefix(c.Path(), "/videos/media/ts") &&
 			!strings.HasPrefix(c.Path(), "/api/balancer/cluster") {
-			rlog(c).Trace().Str("path", c.Path()).Msg("non sign request detected, skipping timings...")
+			// rlog(c).Trace().Str("path", c.Path()).Msg("non sign request detected, skipping timings...")
 			return c.Next()
 		}
 

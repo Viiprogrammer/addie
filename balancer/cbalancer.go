@@ -182,10 +182,12 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 
 	if (dwn != 0 && dwn*100/m.size < avail) || m.size == 0 {
 		m.isDown = true
-		m.log.Warn().Msg("cluster was marked as `offline`")
+		m.log.Warn().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `offline`\n",
+			dwn*100/m.size, avail, dwn, m.size)
 	} else if m.isDown {
 		m.isDown = false
-		m.log.Info().Msg("cluster was maerked as `online`")
+		m.log.Info().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `online`\n",
+			dwn*100/m.size, avail, dwn, m.size)
 	}
 
 	m.log.Trace().Interface("ips", m.ips).Msg("[II]")
