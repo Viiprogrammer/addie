@@ -246,7 +246,7 @@ func main() {
 			zerolog.SetGlobalLevel(zerolog.Disabled)
 		}
 
-		var syslogWriter io.Writer = io.Discard
+		var syslogWriter = io.Discard
 		if len(c.String("syslog-server")) != 0 {
 			if runtime.GOOS == "windows" {
 				log.Error().Msg("sorry, but syslog is not worked for windows; golang does not support syslog for win systems")
