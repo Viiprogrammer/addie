@@ -185,9 +185,6 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	avail, _ := m.runtime.GetClusterA5bility()
 	m.ips, m.size = m.upstream.getIps(&m.ulock)
 
-	m.log.Warn().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `NaN`",
-		dwn*100/m.size, 100-avail, dwn, m.size)
-
 	if (dwn != 0 && dwn*100/m.size > (100-avail)) || m.size == 0 {
 		m.isDown = true
 		m.log.Warn().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `offline`",
