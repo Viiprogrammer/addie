@@ -100,6 +100,9 @@ func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 				Str("user-agent", c.Get(fiber.HeaderUserAgent)).
 				Msg("")
 
+			fmt.Printf("Error debug: %+v\n", err)
+			fmt.Printf("Context debug: %+v\n", c)
+
 			// panic here
 			rlog(c).Error().Msgf("%v", err)
 			return c.SendStatus(e.Code)
