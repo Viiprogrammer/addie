@@ -85,6 +85,13 @@ func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 		DisableDefaultContentType: true,
 
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// reject invalid requests
+			if strings.TrimSpace(c.Hostname()) == "" {
+				gLog.Warn().Msgf("invalid request closed from %s", c.Context().Conn().RemoteAddr().String())
+				gLog.Debug().Msgf("invalid request: %+v ; error - %+v", c, err)
+				return c.Context().Conn().Close()
+			}
+
 			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 			var e *fiber.Error
@@ -92,18 +99,6 @@ func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 				return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 			}
 
-			gLog.Warn().Err(e).
-				Int("status", e.Code).
-				Str("method", c.Method()).
-				Str("path", c.Path()).
-				Str("ip", c.IP()).
-				Str("user-agent", c.Get(fiber.HeaderUserAgent)).
-				Msg("")
-
-			fmt.Printf("Error debug: %+v\n", err)
-			fmt.Printf("Context debug: %+v\n", c)
-
-			// panic here
 			rlog(c).Error().Msgf("%v", err)
 			return c.SendStatus(e.Code)
 		},
