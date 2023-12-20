@@ -26,6 +26,7 @@ func (m *App) balanceFiberRequest(ctx *fiber.Ctx, balancers []balancer.Balancer)
 
 	// simplify the upstream switching (using) with constant slice
 	// minifies code and removes copy-paste blocks
+loop:
 	for _, cluster := range balancers {
 
 		// common && backup balancing with one upstream ("balancer")
@@ -78,7 +79,7 @@ func (m *App) balanceFiberRequest(ctx *fiber.Ctx, balancers []balancer.Balancer)
 				break
 			}
 
-			panic("balancer internal error - undefined error flag")
+			break loop
 		}
 	}
 

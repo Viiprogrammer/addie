@@ -109,6 +109,11 @@ func (m *ClusterBalancer) getServer(idx1, idx2 uint64, coll uint8) (ip *net.IP, 
 	}
 	defer m.rLock(true)
 
+	if m.size == 0 {
+		e = NewError(m, errUndefined+": m.size == 0").SetFlag(IsRetriable)
+		return
+	}
+
 	// by default coll = 0, but if balancer receive errors: coll += 1 (limited by const MaxTries)
 	// ? maybe `MaxTries^coll` is not needed; use `coll` only?
 	idx0 := (idx1 % uint64(m.size)) + (idx2 % uint64(m.size)) + uint64(MaxTries^coll)
@@ -180,17 +185,14 @@ func (m *ClusterBalancer) UpdateServers(servers map[string]net.IP) {
 	avail, _ := m.runtime.GetClusterA5bility()
 	m.ips, m.size = m.upstream.getIps(&m.ulock)
 
-	m.log.Warn().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `NaN`",
-		dwn*100/m.size, 100-avail, dwn, m.size)
-
 	if (dwn != 0 && dwn*100/m.size > (100-avail)) || m.size == 0 {
 		m.isDown = true
-		m.log.Warn().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `offline`",
-			dwn*100/m.size, 100-avail, dwn, m.size)
+		m.log.Warn().Msgf("calc - (%d * 100 / %d), avail(calc) - %d, size - %d) cluster was marked as `offline`",
+			dwn, m.size, 100-avail, m.size)
 	} else if m.isDown {
 		m.isDown = false
-		m.log.Info().Msgf("calc - %d, avail - %d, dwn - %d, size - %d) cluster was marked as `online`",
-			dwn*100/m.size, 100-avail, dwn, m.size)
+		m.log.Info().Msgf("calc - (%d * 100 / %d), avail(calc) - %d, size - %d) cluster was marked as `online`",
+			dwn, m.size, 100-avail, m.size)
 	}
 
 	m.log.Trace().Interface("ips", m.ips).Msg("[II]")

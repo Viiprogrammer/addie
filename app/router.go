@@ -24,6 +24,18 @@ import (
 
 func (m *App) fiberConfigure() {
 
+	// panic recover for all handlers
+	m.fb.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
+			rlog(c).Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
+				Msg("panic has been caught")
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
+
+			c.Status(fiber.StatusInternalServerError)
+		},
+	}))
+
 	// request id
 	m.fb.Use(requestid.New())
 
@@ -31,7 +43,6 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(func(c *fiber.Ctx) error {
 		l := gLog.With().Str("id", c.Locals("requestid").(string)).Logger()
 		c.Locals("logger", &l)
-
 		return c.Next()
 	})
 
@@ -104,18 +115,6 @@ func (m *App) fiberConfigure() {
 		return
 	})
 
-	// panic recover for all handlers
-	m.fb.Use(recover.New(recover.Config{
-		EnableStackTrace: true,
-		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
-			rlog(c).Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
-				Msg("panic has been caught")
-			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
-
-			c.Status(fiber.StatusInternalServerError)
-		},
-	}))
-
 	// debug
 	if gCli.Bool("http-pprof-enable") {
 		m.fb.Use(pprof.New())
@@ -141,11 +140,6 @@ func (m *App) fiberConfigure() {
 			}, ","),
 		}))
 	}
-
-	// time collector - Before routing
-	m.fb.Use(func(c *fiber.Ctx) error {
-		return c.Next()
-	})
 
 	// Routes
 

@@ -85,6 +85,13 @@ func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 		DisableDefaultContentType: true,
 
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// reject invalid requests
+			if strings.TrimSpace(c.Hostname()) == "" {
+				gLog.Warn().Msgf("invalid request from %s", c.Context().Conn().RemoteAddr().String())
+				gLog.Debug().Msgf("invalid request: %+v ; error - %+v", c, err)
+				return c.Context().Conn().Close()
+			}
+
 			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 			var e *fiber.Error
