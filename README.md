@@ -22,6 +22,6 @@ ADDIE helps to provide high-quality media content with high stability and minima
 
 ### Warning!
 
-This software is maintained by the official team of the AniLibria project! It is developed for project purpose and will not be updated for public use.
+This software is maintained by the official AniLibria project team! It is developed for project internal purpose and will not be updated for public use.
 
 For any questions, please open the issue in a free format.
