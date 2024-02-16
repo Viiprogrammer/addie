@@ -13,8 +13,16 @@ type (
 	ConfigEid   uint8
 	ConfigParam uint8
 
-	ConfigEntry   map[ConfigEid]interface{}
-	ConfigStorage map[ConfigParam]ConfigEntry
+	// ConfigEntry   map[ConfigEid]interface{}
+	ConfigStorage map[ConfigParam]*ConfigEntry
+
+	ConfigEntry struct {
+		sync.RWMutex
+
+		Payload interface{}
+		Target  interface{}
+		Step    int
+	}
 )
 
 const (
@@ -24,7 +32,7 @@ const (
 	ConfigParamBlocklistIps
 	ConfigParamLimiter
 
-	_configParamSize
+	_configParamMaxSize
 )
 
 var ConfigParamDefaults = map[ConfigParam]interface{}{
@@ -41,7 +49,7 @@ const (
 	configEntryTarget                   // interface{}
 	configEntryStep                     // int
 
-	_configEntrySize
+	_configEntryMaxSize
 )
 
 var sLocker sync.RWMutex
@@ -59,103 +67,98 @@ func NewConfigStorage() ConfigStorage {
 	deployStep = ccx.Int("balancer-softer-step")
 	deployInteration = ccx.Duration("balancer-softer-tick")
 
-	return make(ConfigStorage, _configParamSize)
+	return make(ConfigStorage, _configParamMaxSize)
 }
 
 func (m ConfigStorage) GetValue(param ConfigParam) (val interface{}, ok bool, e error) {
-	var entry ConfigEntry
-	if entry, ok, e = m.getEntry(&param); e != nil || !ok {
-		return
-	}
-
-	return entry.getPayload()
+	return m.getEntry(param)
 }
 
 func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
 	var ok bool
-	var entry ConfigEntry
+	var entry *ConfigEntry
 
-	if entry, ok, e = m.getEntry(&param); e != nil {
+	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = newEntry(&param), true
+		entry, ok = newConfigEntry(param), true
 	}
 
-	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
+	if !entry.TryLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
+	defer entry.Unlock()
 
-	entry[configEntryPayload] = val
-	entry[configEntryLocker].(*sync.RWMutex).Unlock()
+	entry.Payload = val
 
-	return m.setEntry(&param, entry)
+	return m.setEntry(param, entry)
 }
 
 func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e error) {
 	var ok bool
-	var entry ConfigEntry
+	var entry *ConfigEntry
 
 	os.Exit(1)
 	// if value != target - continue
+	// !!!
+	// !!!
+	// !!!
 
-	if entry, ok, e = m.getEntry(&param); e != nil {
+	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = newEntry(&param), true
+		entry, ok = newConfigEntry(param), true
 	}
 
 	entry.nextDeployStep(true)
 
-	if !entry[configEntryLocker].(*sync.RWMutex).TryLock() {
+	if !entry.TryLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
-	defer entry[configEntryLocker].(*sync.RWMutex).Unlock()
+	defer entry.Unlock()
 
-	entry[configEntryTarget] = val
+	entry.Target = val
 	go entry.bootstrapDeploy()
 
-	return m.setEntry(&param, entry)
+	return m.setEntry(param, entry)
 }
 
 //
 
-func (m ConfigStorage) getEntry(param *ConfigParam) (entry ConfigEntry, ok bool, e error) {
+func (m ConfigStorage) getEntry(param ConfigParam) (entry *ConfigEntry, ok bool, e error) {
 	if !sLocker.TryRLock() {
 		e = ErrConfigStorageLockFailure
 		return
 	}
 	defer sLocker.RUnlock()
 
-	entry, ok = m[*param]
+	entry, ok = m[param]
 	return
 }
 
-func (m ConfigStorage) setEntry(param *ConfigParam, entry ConfigEntry) (e error) {
+func (m ConfigStorage) setEntry(param ConfigParam, entry *ConfigEntry) (e error) {
 	if !sLocker.TryLock() {
 		e = ErrConfigStorageLockFailure
 		return
 	}
 	defer sLocker.Unlock()
 
-	m[*param] = entry
+	m[param] = entry
 	return
 }
 
 //
 
-func newEntry(param *ConfigParam) ConfigEntry {
-	entry := make(ConfigEntry, _configEntrySize)
-
-	entry[configEntryLocker] = new(sync.RWMutex)
-	entry[configEntryPayload] = ConfigParamDefaults[*param]
-	entry[configEntryStep] = -1
-
-	return entry
+func newConfigEntry(param ConfigParam) *ConfigEntry {
+	return &ConfigEntry{
+		Payload: ConfigParamDefaults[param],
+		Step:    -1,
+	}
 }
 
-func (m ConfigEntry) bootstrapDeploy() error {
+func (m *ConfigEntry) bootstrapDeploy() error {
 	log.Trace().Msg("smooth deploy has been started")
 	defer log.Trace().Msg("smooth deploy has been stopped")
 
@@ -183,65 +186,65 @@ loop:
 	return m.commitTargetValue()
 }
 
-func (m ConfigEntry) getLotteryResult(key int) (val interface{}, ok bool) {
-	switch key % m[configEntryStep].(int) {
+func (m *ConfigEntry) getLotteryResult(key int) (val interface{}, ok bool) {
+	switch key % m.Step {
 	case 0:
-		val, ok = m[configEntryTarget]
+		val = m.Target
 	default:
-		val, ok = m[configEntryPayload]
+		val = m.Payload
 	}
 
 	return
 }
 
-func (m ConfigEntry) getPayload(bkey ...int) (val interface{}, ok bool, e error) {
+func (m *ConfigEntry) getPayload(bkey ...int) (val interface{}, ok bool, e error) {
 	bkey = append(bkey, 0)
 
-	if !m[configEntryLocker].(*sync.RWMutex).TryRLock() {
+	if !m.TryRLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
-	defer m[configEntryLocker].(*sync.RWMutex).RUnlock()
+	defer m.Unlock()
 
-	switch m[configEntryStep] {
+	switch m.Step {
 	case -1:
 		val, ok = m.getLotteryResult(bkey[0])
 	default:
-		val, ok = m[configEntryPayload]
+		val = m.Payload
 	}
 
 	return
 }
 
-func (m ConfigEntry) nextDeployStep(init ...bool) (_ bool, e error) {
+func (m *ConfigEntry) nextDeployStep(init ...bool) (_ bool, e error) {
 	init = append(init, false)
 
-	if !m[configEntryLocker].(*sync.RWMutex).TryLock() {
+	if !m.TryLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
-	defer m[configEntryLocker].(*sync.RWMutex).Unlock()
+	defer m.Unlock()
 
 	if init[0] {
-		m[configEntryStep] = deployStep
+		m.Step = deployStep
 		return
 	}
 
-	log.Trace().Int("step", m[configEntryStep].(int)).Msg("")
-	m[configEntryStep] = m[configEntryStep].(int) - 1
-	return m[configEntryStep] == 0, e
+	log.Trace().Int("step", m.Step).Msg("")
+	m.Step = m.Step - 1
+	return m.Step == 0, e
 }
 
-func (m ConfigEntry) commitTargetValue() (e error) {
-	if !m[configEntryLocker].(*sync.RWMutex).TryLock() {
+func (m *ConfigEntry) commitTargetValue() (e error) {
+	if !m.TryLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
 
-	log.Debug().Interface("old", m[configEntryPayload]).Interface("new", m[configEntryTarget]).
+	log.Debug().Interface("old", m.Payload).Interface("new", m.Target).
 		Msg("config entry - new value has been commited")
 
-	m[configEntryPayload], m[configEntryStep] = m[configEntryTarget], -1
-	m[configEntryLocker].(*sync.RWMutex).Unlock()
+	m.Payload, m.Step = m.Target, -1
+	m.Unlock()
 	return
 }
