@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MindHunter86/anilibria-hlp-service/runtime"
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/MindHunter86/addie/runtime"
+	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"

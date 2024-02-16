@@ -12,7 +12,7 @@ name = "secrets"
 name = "go"
 
   [analyzers.meta]
-  import_root = "github.com/MindHunter86/anilibria-hlp-service"
+  import_root = "github.com/MindHunter86/addie"
   dependencies_vendored = true
 
 [[transformers]]

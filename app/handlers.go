@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/MindHunter86/anilibria-hlp-service/balancer"
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/MindHunter86/addie/balancer"
+	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )
@@ -287,6 +287,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
 
 	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	buf.Write(sub[utils.ChunkEpisodeId])
 	buf.Write(sub[utils.ChunkQualityLevel])
 
 	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))

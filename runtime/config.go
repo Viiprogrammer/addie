@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MindHunter86/anilibria-hlp-service/utils"
+	"github.com/MindHunter86/addie/utils"
 )
 
 type (
