@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"errors"
-	"os"
 	"sync"
 	"time"
 
@@ -99,7 +98,7 @@ func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e e
 	var ok bool
 	var entry *ConfigEntry
 
-	os.Exit(1)
+	// os.Exit(1)
 	// if value != target - continue
 	// !!!
 	// !!!

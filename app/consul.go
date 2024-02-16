@@ -79,9 +79,9 @@ func (m *consulClient) bootstrap() {
 	}
 
 	// goroutine helper - consul KV
-	listenChanges := func(wait *sync.WaitGroup, humanize string, payload func()) {
+	listenClusterKVs := func(wait *sync.WaitGroup, payload func()) {
 		wait.Add(1)
-		gLog.Debug().Msgf("consul config listener started (%s)", humanize)
+		gLog.Debug().Msg("starting consul config watchdog")
 
 		go func(done, gopayload func()) {
 			gopayload()
@@ -98,26 +98,9 @@ func (m *consulClient) bootstrap() {
 	}
 
 	// consul KV watchdog
-	rpatcher := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
-
-	listenChanges(&wg, "lottery", func() {
-		m.listenRuntimeConfigKey(utils.CfgLotteryChance, rpatcher)
-	})
-
-	listenChanges(&wg, "quality", func() {
-		m.listenRuntimeConfigKey(utils.CfgQualityLevel, rpatcher)
-	})
-
-	listenChanges(&wg, "blocklist_ips", func() {
-		m.listenRuntimeConfigKey(utils.CfgBlockList, rpatcher)
-	})
-
-	listenChanges(&wg, "blocklist", func() {
-		m.listenRuntimeConfigKey(utils.CfgBlockListSwitcher, rpatcher)
-	})
-
-	listenChanges(&wg, "limiter", func() {
-		m.listenRuntimeConfigKey(utils.CfgLimiterSwitcher, rpatcher)
+	runpatch := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)
+	listenClusterKVs(&wg, func() {
+		m.configKeyWatchdog(runpatch)
 	})
 
 loop:
@@ -220,7 +203,7 @@ func (m *consulClient) getHealthServers(idx uint64, service string) (_ map[strin
 
 func (m *consulClient) updateBlocklistSwitcher(enabled string) (e error) {
 	kv := &capi.KVPair{}
-	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockListSwitcher), []byte(enabled)
+	kv.Key, kv.Value = m.getPrefixedSettingsKey(utils.CfgBlockListSwitcher), []byte(enabled)
 
 	_, e = m.KV().Put(kv, nil)
 	return e
@@ -228,7 +211,7 @@ func (m *consulClient) updateBlocklistSwitcher(enabled string) (e error) {
 
 func (m *consulClient) updateLimiterSwitcher(enabled string) (e error) {
 	kv := &capi.KVPair{}
-	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgLimiterSwitcher), []byte(enabled)
+	kv.Key, kv.Value = m.getPrefixedSettingsKey(utils.CfgLimiterSwitcher), []byte(enabled)
 
 	_, e = m.KV().Put(kv, nil)
 	return e
@@ -277,18 +260,18 @@ func (m *consulClient) removeIpFromBlocklist(ip string) (e error) {
 
 func (m *consulClient) resetIpsInBlocklist() (e error) {
 	kv := &capi.KVPair{}
-	kv.Key, kv.Value = m.getPrefixeSettingsdKey(utils.CfgBlockList), []byte("")
+	kv.Key, kv.Value = m.getPrefixedSettingsKey(utils.CfgBlockList), []byte("")
 
 	_, e = m.KV().Put(kv, nil)
 	return e
 }
 
-func (*consulClient) getPrefixeSettingsdKey(key string) string {
+func (*consulClient) getPrefixedSettingsKey(key string) string {
 	return fmt.Sprintf("%s/settings/%s", gCli.String("consul-kv-prefix"), key)
 }
 
 func (m *consulClient) getBlocklistIps() (kv *capi.KVPair, e error) {
-	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(utils.CfgBlockList)
+	opts, ckey := *defaultOpts, m.getPrefixedSettingsKey(utils.CfgBlockList)
 
 	if kv, _, e = m.KV().Get(ckey, opts.WithContext(m.ctx)); errors.Is(e, context.Canceled) {
 		gLog.Trace().Msg("context deadline for blocklist KV get")
@@ -305,7 +288,7 @@ func (m *consulClient) getBlocklistIps() (kv *capi.KVPair, e error) {
 }
 
 func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
-	kv.Key = m.getPrefixeSettingsdKey(utils.CfgBlockList)
+	kv.Key = m.getPrefixedSettingsKey(utils.CfgBlockList)
 
 	if _, e = m.KV().Put(kv, nil); errors.Is(e, context.Canceled) {
 		gLog.Trace().Msg("context deadline for blocklist KV get")
@@ -320,7 +303,7 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 
 func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *runtime.RuntimePatch) {
 	var idx uint64
-	opts, ckey := *defaultOpts, m.getPrefixeSettingsdKey(key)
+	opts, ckey := *defaultOpts, m.getPrefixedSettingsKey(key)
 
 loop:
 	for {
@@ -357,6 +340,71 @@ loop:
 			}
 
 			rpatcher <- patch
+			idx = meta.LastIndex
+		}
+	}
+}
+
+func (m *consulClient) configKeyWatchdog(runpatch chan *runtime.RuntimePatch) {
+	var idx uint64
+	opts, prefix := *defaultOpts, m.getPrefixedSettingsKey("")
+
+	timeCooler := func() { time.Sleep(5 * time.Second) }
+
+loop:
+	for {
+		select {
+		case <-m.ctx.Done():
+			break loop
+		default:
+			opts.WaitIndex = idx
+			pairs, meta, e := m.KV().List(prefix, opts.WithContext(m.ctx))
+
+			if errors.Is(e, context.Canceled) {
+				break loop
+			} else if e != nil {
+				gLog.Error().Err(e).Msgf("could not get consul values for %s prefix", prefix)
+				timeCooler()
+				continue
+			} else if len(pairs) == 0 {
+				gLog.Warn().Msg("consul sent empty values")
+				timeCooler()
+				continue
+			}
+
+			for _, kvpair := range pairs {
+				if kvpair == nil {
+					gLog.Warn().Msg("empty value detected in kvpairs from consul response")
+					continue
+				}
+
+				pathkey := strings.Split(kvpair.Key, "/")
+				patchkey := pathkey[len(pathkey)-1]
+
+				ptype, ok := runtime.RuntimeUtilsBindings[patchkey]
+				if !ok {
+					gLog.Warn().Msgf("consul key %s not found in runtime bindings", patchkey)
+					continue
+				}
+
+				gLog.Debug().
+					Msgf("found key %s in runtime bindings, applying runtime patch", patchkey)
+
+				// default patch
+				patch := &runtime.RuntimePatch{
+					Type:  ptype,
+					Patch: kvpair.Value,
+				}
+
+				// exclusions:
+				if patch.Type == runtime.RuntimePatchBlocklistIps && len(patch.Patch) == 0 {
+					patch.Patch = []byte("_")
+				}
+
+				runpatch <- patch
+
+			}
+
 			idx = meta.LastIndex
 		}
 	}
