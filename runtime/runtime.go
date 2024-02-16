@@ -196,6 +196,7 @@ func (m *Runtime) applyLotteryChance(input []byte, sdeploy ...bool) (e error) {
 	}
 
 	log.Trace().Msg("runtime config - using smooth deployment")
+	m.Config.SetValueSmoothly(ConfigParamLottery, chance)
 	return
 }
 
