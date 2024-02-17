@@ -32,11 +32,15 @@ var (
 	gConsul *consulClient
 
 	gAniApi *ApiClient
+
+	gController *Controller
 )
 
 type App struct {
 	fb     *fiber.App
 	fbstor fiber.Storage
+
+	controller *Controller
 
 	cache     *CachedTitlesBucket
 	blocklist *blocklist.Blocklist
@@ -70,6 +74,8 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		ReadTimeout:  1000 * time.Millisecond,
 		WriteTimeout: 200 * time.Millisecond,
 
+		DisableDefaultContentType: true,
+
 		RequestMethods: []string{
 			fiber.MethodHead,
 			fiber.MethodGet,
@@ -95,6 +101,9 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 			Reset:    false,
 		})
 	}
+
+	// api controller init
+	gController = NewController()
 
 	// router configuration
 	app.fiberConfigure()
@@ -154,6 +163,15 @@ func (m *App) Bootstrap() (e error) {
 
 	m.bareBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterNodes)
 	m.cloudBalancer = balancer.NewClusterBalancer(gCtx, balancer.BalancerClusterCloud)
+
+	// update API controller after balancers initialization
+	gCtx = context.WithValue(gCtx, utils.ContextKeyBalancers,
+		map[balancer.BalancerCluster]balancer.Balancer{
+			balancer.BalancerClusterCloud: m.cloudBalancer,
+			balancer.BalancerClusterNodes: m.bareBalancer,
+		})
+
+	gController.SetReady()
 
 	// consul
 	gLog.Info().Msg("starting consul client...")

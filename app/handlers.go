@@ -3,14 +3,12 @@ package app
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/MindHunter86/addie/balancer"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
-	"github.com/rs/zerolog"
 )
 
 var (
@@ -18,211 +16,21 @@ var (
 	errFbApiInvalidQuality = errors.New("quality argument is invalid; 480, 720, 1080 values are permited only")
 )
 
-func (*App) fbHndApiQuality(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
-
-	mode, quality :=
-		strings.TrimSpace(ctx.Query("mode", "soft")),
-		strings.TrimSpace(ctx.Query("level", "1080"))
-
-	switch mode {
-	case "soft":
-		fallthrough
-	case "hard":
-		//
+func (*App) fbHndApiModuleStats(ctx *fiber.Ctx) (e error) {
+	switch buf := strings.TrimSpace(ctx.Query("module", "")); buf {
+	case "runtime":
+		// !!
+		// !!
+		break
+	case "":
+		e = fiber.NewError(fiber.StatusBadRequest, "module could not be empty")
+		return
 	default:
-		return fiber.NewError(fiber.StatusInternalServerError, errFbApiInvalidMode.Error())
-	}
-
-	switch quality {
-	case "480":
-		fallthrough
-	case "720":
-		fallthrough
-	case "1080":
-		//
-	default:
-		return fiber.NewError(fiber.StatusInternalServerError, errFbApiInvalidQuality.Error())
-	}
-
-	//
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
-
-func (*App) getBalancersClusterArg(ctx *fiber.Ctx) (cluster balancer.BalancerCluster, e error) {
-	var buf string
-	if buf = ctx.Query("cluster"); buf == "" {
-		e = fiber.NewError(fiber.StatusBadRequest, "cluster could not be empty")
+		e = fiber.NewError(fiber.StatusNotFound, "module not found")
 		return
 	}
 
-	switch buf = strings.TrimSpace(buf); buf {
-	case "cache-nodes":
-		cluster = balancer.BalancerClusterNodes
-	case "cache-cloud":
-		cluster = balancer.BalancerClusterCloud
-	default:
-		e = fiber.NewError(fiber.StatusBadRequest, "invalid cluster name")
-	}
-
-	return
-}
-
-func (m *App) fbHndApiBalancerStats(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
-
-	var cluster balancer.BalancerCluster
-	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
-		return
-	}
-
-	switch cluster {
-	case balancer.BalancerClusterNodes:
-		fmt.Fprint(ctx, m.bareBalancer.GetStats())
-	case balancer.BalancerClusterCloud:
-		fmt.Fprint(ctx, m.cloudBalancer.GetStats())
-	}
-
-	return ctx.SendStatus(fiber.StatusOK)
-}
-
-func (m *App) fbHndApiStatsReset(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
-	gLog.Debug().Msg("servers stats reset")
-
-	var cluster balancer.BalancerCluster
-	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
-		return
-	}
-
-	switch cluster {
-	case balancer.BalancerClusterNodes:
-		m.bareBalancer.ResetStats()
-	case balancer.BalancerClusterCloud:
-		m.cloudBalancer.ResetStats()
-	}
-
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
-
-func (m *App) fbHndApiBalancerReset(ctx *fiber.Ctx) (e error) {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
-	gLog.Debug().Msg("upstream reset")
-
-	var cluster balancer.BalancerCluster
-	if cluster, e = m.getBalancersClusterArg(ctx); e != nil {
-		return
-	}
-
-	switch cluster {
-	case balancer.BalancerClusterNodes:
-		m.bareBalancer.ResetUpstream()
-	case balancer.BalancerClusterCloud:
-		m.cloudBalancer.ResetUpstream()
-	}
-
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
-
-func (m *App) fbHndApiBlockIp(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
-
-	ip := ctx.Query("ip")
-	if ip == "" {
-		return fiber.NewError(fiber.StatusBadRequest, "given ip is empty")
-	}
-
-	if e := gConsul.addIpToBlocklist(ip); e != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
-	}
-
-	fmt.Fprintln(ctx, ip+" has been banned")
-	return ctx.SendStatus(fiber.StatusOK)
-}
-
-func (m *App) fbHndApiUnblockIp(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
-
-	ip := ctx.Query("ip")
-	if ip == "" {
-		return fiber.NewError(fiber.StatusBadRequest, "given ip is empty")
-	}
-
-	if e := gConsul.removeIpFromBlocklist(ip); e != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
-	}
-
-	fmt.Fprintln(ctx, ip+" has been unbanned")
-	return ctx.SendStatus(fiber.StatusOK)
-}
-
-func (m *App) fbHndApiBlockReset(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
-
-	if e := gConsul.resetIpsInBlocklist(); e != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
-	}
-
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
-
-func (m *App) fbHndApiBListSwitch(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
-
-	enabled := ctx.Query("enabled")
-	switch enabled {
-	case "0":
-		fallthrough
-	case "1":
-		if e := gConsul.updateBlocklistSwitcher(enabled); e != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
-		}
-	default:
-		return fiber.NewError(fiber.StatusBadRequest, "enabled query can be only 0 or 1")
-	}
-
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
-
-func (m *App) fbHndApiLimiterSwitch(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextHTMLCharsetUTF8)
-
-	enabled := ctx.Query("enabled")
-	switch enabled {
-	case "0":
-		fallthrough
-	case "1":
-		if e := gConsul.updateLimiterSwitcher(enabled); e != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, e.Error())
-		}
-	default:
-		return fiber.NewError(fiber.StatusBadRequest, "enabled query can be only 0 or 1")
-	}
-
-	return ctx.SendStatus(fiber.StatusNoContent)
-}
-
-func (m *App) fbHndApiLoggerLevel(ctx *fiber.Ctx) error {
-	lvl := ctx.Query("level")
-
-	switch lvl {
-	case "trace":
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	case "debug":
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "info":
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	case "warn":
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	case "error":
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	default:
-		return fiber.NewError(fiber.StatusBadRequest, "unknown level sent")
-	}
-
-	gLog.Error().Msgf("[falsepositive]> new log level applied - %s", lvl)
-
-	fmt.Fprintln(ctx, lvl+" logger level has been applied")
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
 	return ctx.SendStatus(fiber.StatusOK)
 }
 

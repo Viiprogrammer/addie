@@ -21,8 +21,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/skip"
 	"github.com/rs/zerolog"
 
-	"github.com/gofiber/swagger"
 	_ "github.com/MindHunter86/addie/docs"
+	"github.com/gofiber/swagger"
 )
 
 // @title Fiber Example API
@@ -157,15 +157,15 @@ func (m *App) fiberConfigure() {
 
 	// group api - /api
 	api := m.fb.Group("/api")
-	api.Post("logger/level", m.fbHndApiLoggerLevel)
-	api.Post("limiter/switch", m.fbHndApiLimiterSwitch)
-	api.Post("quality", m.fbHndApiQuality)
+	api.Post("logger/level", gController.SetLoggerLevel)
+	api.Post("limiter/switch", gController.LimiterSwitch)
+	api.Post("quality", gController.UpdateQualityRewrite)
 
 	// group upstream
 	upstr := api.Group("/balancer")
-	upstr.Get("/stats", m.fbHndApiBalancerStats)
-	upstr.Post("/stats/reset", m.fbHndApiStatsReset)
-	upstr.Post("/reset", m.fbHndApiBalancerReset)
+	upstr.Get("/stats", gController.GetBalancerStats)
+	upstr.Post("/stats/reset", gController.BalancerStatsReset)
+	upstr.Post("/reset", gController.BalancerUpstreamReset)
 
 	upstrCluster := upstr.Group("/cluster", skip.New(m.fbHndApiPreCondErr, m.fbMidBlcPreCond))
 	upstrCluster.Get("/cache-nodes",
@@ -174,10 +174,10 @@ func (m *App) fiberConfigure() {
 
 	// group blocklist - /api/blocklist
 	blist := api.Group("/blocklist")
-	blist.Post("/add", m.fbHndApiBlockIp)
-	blist.Post("/remove", m.fbHndApiUnblockIp)
-	blist.Post("/switch", m.fbHndApiBListSwitch)
-	blist.Post("/reset", m.fbHndApiBlockReset)
+	blist.Post("/add", gController.BlockIP)
+	blist.Post("/remove", gController.UnblockIP)
+	blist.Post("/switch", gController.BlocklistSwitch)
+	blist.Post("/reset", gController.BlocklistReset)
 
 	// group media - /videos/media/ts
 	media := m.fb.Group("/videos/media/ts", skip.New(m.fbHndApiPreCondErr, m.fbMidAppPreCond))

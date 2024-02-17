@@ -28,3 +28,8 @@ const (
 	BalancerClusterNodes BalancerCluster = iota
 	BalancerClusterCloud
 )
+
+var GetBalancerByString = map[string]BalancerCluster{
+	"cache-nodes": BalancerClusterNodes,
+	"cache-cloud": BalancerClusterCloud,
+}

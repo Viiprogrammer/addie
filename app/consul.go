@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -264,6 +265,14 @@ func (m *consulClient) resetIpsInBlocklist() (e error) {
 
 	_, e = m.KV().Put(kv, nil)
 	return e
+}
+
+func (m *consulClient) updateQualityRewrite(q utils.TitleQuality) (e error) {
+	kv, buf := &capi.KVPair{}, bytes.NewBufferString(q.String())
+	kv.Key, kv.Value = m.getPrefixedSettingsKey(utils.CfgQualityLevel), buf.Bytes()
+
+	_, e = m.KV().Put(kv, nil)
+	return
 }
 
 func (*consulClient) getPrefixedSettingsKey(key string) string {

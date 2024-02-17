@@ -8,6 +8,7 @@ const (
 	ContextKeyAbortFunc
 	ContextKeyRPatcher
 	ContextKeyBlocklist
+	ContextKeyBalancers
 )
 
 const (
@@ -48,6 +49,12 @@ const (
 	TitleQualityHD
 	TitleQualityFHD
 )
+
+var GetTitleQualityByString = map[string]TitleQuality{
+	"480":  TitleQualitySD,
+	"720":  TitleQualityHD,
+	"1080": TitleQualityFHD,
+}
 
 func (m *TitleQuality) String() string {
 	switch *m {
