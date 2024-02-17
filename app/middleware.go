@@ -53,15 +53,15 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 
 	gLog.Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("debug")
 	switch h := ctx.GetReqHeaders(); {
-	case strings.TrimSpace(h[apiHeaderUri]) == "":
+	case strings.TrimSpace(h[apiHeaderUri][0]) == "":
 		errs = errs | errMidAppPreHeaderUri
 		ctx.Locals("errors", errs)
 		return
-	case strings.TrimSpace(h[apiHeaderId]) == "":
+	case strings.TrimSpace(h[apiHeaderId][0]) == "":
 		errs = errs | errMidAppPreHeaderId
 		ctx.Locals("errors", errs)
 		return
-	case strings.TrimSpace(h[apiHeaderServer]) == "":
+	case strings.TrimSpace(h[apiHeaderServer][0]) == "":
 		errs = errs | errMidAppPreHeaderServer
 		ctx.Locals("errors", errs)
 		return
