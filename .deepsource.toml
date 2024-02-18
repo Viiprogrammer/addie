@@ -13,7 +13,7 @@ name = "go"
 
   [analyzers.meta]
   import_root = "github.com/MindHunter86/addie"
-  dependencies_vendored = true
+  dependencies_vendored = false
 
 [[transformers]]
 name = "gofmt"
