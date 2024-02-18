@@ -58,15 +58,19 @@ type (
 	}
 )
 
-func NewRuntime(c context.Context) *Runtime {
+func NewRuntime(c context.Context) (r *Runtime, e error) {
 	blist := c.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
 	log = c.Value(utils.ContextKeyLogger).(*zerolog.Logger)
 
-	return &Runtime{
-		Config: NewConfigStorage(c),
-
+	r = &Runtime{
 		blocklist: blist,
 	}
+
+	if r.Config, e = NewConfigStorage(c); e != nil {
+		return
+	}
+
+	return
 }
 
 func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
@@ -168,6 +172,23 @@ func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
 	log.Info().Msgf("runtime patch has been applied for LotteryChance with %d", chance)
 	st.SetValueSmoothly(ConfigParamLottery, chance)
 	return
+}
+
+func (m *Runtime) Stats() {
+	for uid := range ConfigParamDefaults {
+		name := GetNameByConfigParam[uid]
+		val, _, _ := m.Config.GetValue(uid)
+
+		fmt.Printf("%s - %+v\n", name, val)
+	}
+	// refval := reflect.ValueOf(m.Config)
+	// reftype := reflect.TypeOf(m.Config)
+
+	// for i := 0; i < refval.NumField(); i++ {
+	// 	field := refval.Field(i)
+	// 	fieldtype := reftype.Field(i)
+
+	// }
 }
 
 // func (m *Runtime) Stats() io.Reader {

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/MindHunter86/addie/balancer"
+	"github.com/MindHunter86/addie/runtime"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
@@ -16,9 +17,12 @@ import (
 type Controller struct {
 	log *zerolog.Logger
 
-	mu        sync.RWMutex
+	mu sync.RWMutex
+
 	balancers map[balancer.BalancerCluster]balancer.Balancer
-	isReady   bool
+	runtime   *runtime.Runtime
+
+	isReady bool
 }
 
 func NewController() *Controller {
@@ -39,6 +43,7 @@ func (m *Controller) WithContext(c context.Context) *Controller {
 	defer m.mu.Unlock()
 
 	m.balancers = c.Value(utils.ContextKeyBalancers).(map[balancer.BalancerCluster]balancer.Balancer)
+	m.runtime = c.Value(utils.ContextKeyRuntime).(*runtime.Runtime)
 	return m
 }
 
@@ -68,13 +73,18 @@ func (m *Controller) getBalancerByString(input string) (_ balancer.BalancerClust
 	return cluster, e
 }
 
+func (m *Controller) GetConfigStorageStats(c *fiber.Ctx) error {
+	m.runtime.Stats()
+	return respondPlainWithStatus(c, fiber.StatusNoContent)
+}
+
 func (m *Controller) GetBalancerStats(c *fiber.Ctx) (e error) {
 	cluster, e := m.getBalancerByString(strings.TrimSpace(c.Query("cluster")))
 	if e != nil {
 		return
 	}
 
-	fmt.Print(c, m.balancers[cluster].GetStats())
+	fmt.Fprintln(c, m.balancers[cluster].GetStats())
 	return respondPlainWithStatus(c, fiber.StatusOK)
 }
 

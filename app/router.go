@@ -160,6 +160,7 @@ func (m *App) fiberConfigure() {
 	api.Post("logger/level", gController.SetLoggerLevel)
 	api.Post("limiter/switch", gController.LimiterSwitch)
 	api.Post("quality", gController.UpdateQualityRewrite)
+	api.Get("config", gController.GetConfigStorageStats)
 
 	// group upstream
 	upstr := api.Group("/balancer")

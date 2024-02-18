@@ -3,7 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
-	"os"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -45,6 +45,14 @@ var ConfigParamDefaults = map[ConfigParam]interface{}{
 	ConfigParamLimiter:      0,
 }
 
+var GetNameByConfigParam = map[ConfigParam]string{
+	ConfigParamLottery:      "lottery",
+	ConfigParamQuality:      "quality",
+	ConfigParamBlocklist:    "blocklist",
+	ConfigParamBlocklistIps: "blocklist_ips",
+	ConfigParamLimiter:      "limiter",
+}
+
 const (
 	configEntryLocker  ConfigEid = iota // sync.RWMutex
 	configEntryPayload                  // interface{}
@@ -65,9 +73,10 @@ var (
 	ErrConfigStorageLockFailure = errors.New("config storage - could not lock storage")
 	ErrConfigEntryLockFailure   = errors.New("config storage - could not lock entry")
 	ErrConfigInvalidParam       = errors.New("config storage - invalid param or internal map error")
+	ErrConfigInvalidStep        = errors.New("config storage - softer-step must be >= 0")
 )
 
-func NewConfigStorage(c context.Context) ConfigStorage {
+func NewConfigStorage(c context.Context) (ConfigStorage, error) {
 	done = c.Done
 
 	ccx := c.Value(utils.ContextKeyCliContext).(*cli.Context)
@@ -75,11 +84,25 @@ func NewConfigStorage(c context.Context) ConfigStorage {
 		ccx.Int("balancer-softer-step"),
 		ccx.Duration("balancer-softer-tick")
 
-	return make(ConfigStorage, _configParamMaxSize)
+	if deployStep < 0 {
+		return nil, ErrConfigInvalidStep
+	}
+
+	if deployInteration < 10*time.Second {
+		log.Warn().Msg("low value detected for softer-tick arg")
+	}
+
+	return make(ConfigStorage, _configParamMaxSize), nil
 }
 
 func (m ConfigStorage) GetValue(param ConfigParam) (val interface{}, ok bool, e error) {
-	return m.getEntry(param)
+	var entry *ConfigEntry
+	if entry, ok, e = m.getEntry(param); e != nil || !ok {
+		return
+	}
+
+	val, e = entry.Value()
+	return
 }
 
 func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
@@ -89,51 +112,32 @@ func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
 	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = newConfigEntry(param), true
+		entry = newConfigEntry(param, val, nil)
+		return m.setEntry(param, entry)
 	}
 
-	if !entry.TryLock() {
-		e = ErrConfigEntryLockFailure
-		return
-	}
-	defer entry.Unlock()
-
-	entry.Payload = val
-
-	return m.setEntry(param, entry)
+	return entry.SetValue(val)
 }
 
 func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e error) {
 	var ok bool
 	var entry *ConfigEntry
 
-	os.Exit(1)
-	// if value != target - continue
-	// !!!
-	// !!!
-	// !!!
-
 	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry, ok = newConfigEntry(param), true
+		entry = newConfigEntry(param, nil, val)
+
+		if e = m.setEntry(param, entry); e != nil {
+			return
+		}
 	}
 
 	entry.nextDeployStep(true)
-
-	if !entry.TryLock() {
-		e = ErrConfigEntryLockFailure
-		return
-	}
-	defer entry.Unlock()
-
-	entry.Target = val
 	go entry.bootstrapDeploy()
 
-	return m.setEntry(param, entry)
+	return
 }
-
-//
 
 func (m ConfigStorage) getEntry(param ConfigParam) (entry *ConfigEntry, ok bool, e error) {
 	if !sLocker.TryRLock() {
@@ -157,13 +161,46 @@ func (m ConfigStorage) setEntry(param ConfigParam, entry *ConfigEntry) (e error)
 	return
 }
 
-//
+// ---
 
-func newConfigEntry(param ConfigParam) *ConfigEntry {
-	return &ConfigEntry{
-		Payload: ConfigParamDefaults[param],
-		Step:    -1,
+func newConfigEntry(param ConfigParam, value, target interface{}) *ConfigEntry {
+	payload := ConfigParamDefaults[param]
+
+	if value != nil {
+		payload = value
 	}
+
+	return &ConfigEntry{
+		Payload: payload,
+		Target:  target,
+
+		Step: -1,
+	}
+}
+
+func (m *ConfigEntry) SetValue(val interface{}) error {
+	if !m.TryLock() {
+		return ErrConfigEntryLockFailure
+	}
+	defer m.Unlock()
+
+	m.Payload = val
+	return nil
+}
+
+func (m *ConfigEntry) Value() (val interface{}, e error) {
+	if !m.TryRLock() {
+		return nil, ErrConfigEntryLockFailure
+	}
+	defer m.RUnlock()
+
+	if m.Step == -1 {
+		val = m.Payload
+		return
+	}
+
+	// smoothly logic
+	return m.getPayload(rand.Intn(deployStep) + 1)
 }
 
 func (m *ConfigEntry) bootstrapDeploy() error {
@@ -194,7 +231,7 @@ loop:
 	return m.commitTargetValue()
 }
 
-func (m *ConfigEntry) getLotteryResult(key int) (val interface{}, ok bool) {
+func (m *ConfigEntry) getLotteryResult(key int) (val interface{}) {
 	switch key % m.Step {
 	case 0:
 		val = m.Target
@@ -205,21 +242,20 @@ func (m *ConfigEntry) getLotteryResult(key int) (val interface{}, ok bool) {
 	return
 }
 
-func (m *ConfigEntry) getPayload(bkey ...int) (val interface{}, ok bool, e error) {
-	bkey = append(bkey, 0)
-
+func (m *ConfigEntry) getPayload(bkey ...int) (val interface{}, e error) {
 	if !m.TryRLock() {
 		e = ErrConfigEntryLockFailure
 		return
 	}
 	defer m.Unlock()
 
-	switch m.Step {
-	case -1:
-		val, ok = m.getLotteryResult(bkey[0])
-	default:
+	if m.Step == -1 {
 		val = m.Payload
+		return
 	}
+
+	bkey = append(bkey, 0) // default value
+	val = m.getLotteryResult(bkey[0])
 
 	return
 }

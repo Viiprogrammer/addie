@@ -116,8 +116,8 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
 	lottery, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamLottery)
 	if !ok || e != nil {
-		gLog.Warn().Msg("could not get lock for reading lottery chance; fallback to old method")
-		return !ok
+		gLog.Warn().Msg(e.Error())
+		return !ok // always true
 	}
 
 	return lottery.(int) < rand.Intn(99)+1

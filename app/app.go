@@ -156,7 +156,10 @@ func (m *App) Bootstrap() (e error) {
 	gCtx = context.WithValue(gCtx, utils.ContextKeyBlocklist, m.blocklist)
 
 	// runtime
-	m.runtime = runtime.NewRuntime(gCtx)
+	if m.runtime, e = runtime.NewRuntime(gCtx); e != nil {
+		return
+	}
+	gCtx = context.WithValue(gCtx, utils.ContextKeyRuntime, m.runtime)
 
 	// balancer V2
 	gLog.Info().Msg("bootstrap balancer_v2 subsystems...")
@@ -171,6 +174,7 @@ func (m *App) Bootstrap() (e error) {
 			balancer.BalancerClusterNodes: m.bareBalancer,
 		})
 
+	gController.WithContext(gCtx)
 	gController.SetReady()
 
 	// consul
