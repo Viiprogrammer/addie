@@ -74,7 +74,7 @@ func (m *Controller) getBalancerByString(input string) (_ balancer.BalancerClust
 }
 
 func (m *Controller) GetConfigStorageStats(c *fiber.Ctx) error {
-	m.runtime.Stats()
+	m.runtime.StatsPrint()
 	return respondPlainWithStatus(c, fiber.StatusNoContent)
 }
 

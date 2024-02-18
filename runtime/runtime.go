@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/MindHunter86/addie/blocklist"
 	"github.com/MindHunter86/addie/utils"
@@ -45,9 +46,12 @@ var (
 	}
 )
 
+var smoothlyStats *RuntimeStats
+
 type (
 	Runtime struct {
 		Config ConfigStorage
+		Stats  *RuntimeStats
 
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
@@ -56,7 +60,32 @@ type (
 		Type  RuntimePatchType
 		Patch []byte
 	}
+
+	RuntimeStats struct {
+		sync.RWMutex
+		sentPayload, sentTarget int
+	}
 )
+
+func (m *RuntimeStats) SentPayload() {
+	m.Lock()
+	m.sentPayload++
+	m.Unlock()
+}
+
+func (m *RuntimeStats) SentTarget() {
+	m.Lock()
+	m.sentTarget++
+	m.Unlock()
+}
+
+func (m *RuntimeStats) Stats() (payload, target int) {
+	m.RLock()
+	defer m.RUnlock()
+
+	payload, target = m.sentPayload, m.sentTarget
+	return
+}
 
 func NewRuntime(c context.Context) (r *Runtime, e error) {
 	blist := c.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
@@ -64,7 +93,10 @@ func NewRuntime(c context.Context) (r *Runtime, e error) {
 
 	r = &Runtime{
 		blocklist: blist,
+		Stats:     &RuntimeStats{},
 	}
+
+	smoothlyStats = r.Stats
 
 	if r.Config, e = NewConfigStorage(c); e != nil {
 		return
@@ -118,6 +150,10 @@ func (m *RuntimePatch) ApplyBlocklistIps(st *ConfigStorage, bl *blocklist.Blockl
 	ips := strings.Split(buf, ",")
 	bl.Push(ips...)
 
+	// dummy code
+	// ???
+	// st.SetValue(ConfigParamBlocklistIps, ips)
+
 	log.Info().Msgf("runtime patch has been for Blocklist, applied %d ips", len(ips))
 	log.Debug().Msgf("apply blocklist: last size - %d, new - %d", lastsize, bl.Size())
 	return
@@ -140,10 +176,6 @@ func (m *RuntimePatch) ApplySwitch(st *ConfigStorage, param ConfigParam) (e erro
 	return
 }
 
-func (m *RuntimePatch) ApplyValue(param ConfigParam, smoothly bool) (e error) {
-	return
-}
-
 func (m *RuntimePatch) ApplyQualityLevel(st *ConfigStorage) (e error) {
 	buf := string(m.Patch)
 
@@ -154,7 +186,7 @@ func (m *RuntimePatch) ApplyQualityLevel(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for QualityLevel with %s", buf)
-	st.SetValue(ConfigParamQuality, quality)
+	st.SetValueSmoothly(ConfigParamQuality, quality)
 	return
 }
 
@@ -174,13 +206,20 @@ func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
 	return
 }
 
-func (m *Runtime) Stats() {
+func (m *Runtime) StatsPrint() {
 	for uid := range ConfigParamDefaults {
-		name := GetNameByConfigParam[uid]
+		name, ok := GetNameByConfigParam[uid]
+		if !ok {
+			continue
+		}
+
 		val, _, _ := m.Config.GetValue(uid)
 
 		fmt.Printf("%s - %+v\n", name, val)
 	}
+
+	x, y := m.Stats.Stats()
+	fmt.Printf("Payload - %d, Target - %d\n", x, y)
 	// refval := reflect.ValueOf(m.Config)
 	// reftype := reflect.TypeOf(m.Config)
 

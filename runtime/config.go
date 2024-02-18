@@ -39,18 +39,18 @@ const (
 
 var ConfigParamDefaults = map[ConfigParam]interface{}{
 	ConfigParamLottery:      0,
-	ConfigParamQuality:      utils.TitleQualityFHD,
+	ConfigParamQuality:      utils.TitleQualitySD,
 	ConfigParamBlocklist:    0,
 	ConfigParamBlocklistIps: []string{},
 	ConfigParamLimiter:      0,
 }
 
 var GetNameByConfigParam = map[ConfigParam]string{
-	ConfigParamLottery:      "lottery",
-	ConfigParamQuality:      "quality",
-	ConfigParamBlocklist:    "blocklist",
-	ConfigParamBlocklistIps: "blocklist_ips",
-	ConfigParamLimiter:      "limiter",
+	// ConfigParamLottery:      "lottery",
+	ConfigParamQuality: "quality",
+	// ConfigParamBlocklist:    "blocklist",
+	// ConfigParamBlocklistIps: "blocklist_ips",
+	// ConfigParamLimiter:      "limiter",
 }
 
 const (
@@ -235,8 +235,10 @@ func (m *ConfigEntry) getLotteryResult(key int) (val interface{}) {
 	switch key % m.Step {
 	case 0:
 		val = m.Target
+		smoothlyStats.SentTarget()
 	default:
 		val = m.Payload
+		smoothlyStats.SentPayload()
 	}
 
 	return
@@ -247,7 +249,7 @@ func (m *ConfigEntry) getPayload(bkey ...int) (val interface{}, e error) {
 		e = ErrConfigEntryLockFailure
 		return
 	}
-	defer m.Unlock()
+	defer m.RUnlock()
 
 	if m.Step == -1 {
 		val = m.Payload
