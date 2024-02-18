@@ -2,6 +2,7 @@ package blocklist
 
 import (
 	"context"
+	"runtime"
 	"sync"
 
 	"github.com/MindHunter86/addie/utils"
@@ -20,24 +21,9 @@ func NewBlocklist(ctx context.Context) *Blocklist {
 	return &Blocklist{}
 }
 
-// func (*Blocklist) IsEnabled() (enabled bool) {
-// 	eLocker.RLock()
-// 	defer eLocker.RUnlock()
-
-// 	enabled = Enabled
-// 	return
-// }
-
-// func (*Blocklist) Disable(disabled ...bool) {
-// 	eLocker.Lock()
-// 	defer eLocker.Unlock()
-
-// 	disabled = append(disabled, true)
-// 	Enabled = !disabled[0]
-// }
-
 func (m *Blocklist) Reset() {
 	*m = Blocklist{}
+	runtime.GC() // ??
 }
 
 func (m *Blocklist) Push(ips ...string) {
