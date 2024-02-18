@@ -230,7 +230,11 @@ func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
 
-	if !m.blocklist.IsEnabled() {
+	if buf, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamBlocklist); !ok || e != nil {
+		gLog.Warn().
+			Msg("could not get lock for reading quality or softer says no; skipping fake quality chain")
+		return ctx.Next()
+	} else if buf.(int) == 0 {
 		return ctx.Next()
 	}
 

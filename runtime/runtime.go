@@ -1,16 +1,15 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/MindHunter86/addie/blocklist"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/rs/zerolog"
-	"github.com/urfave/cli/v2"
 )
 
 type RuntimePatchType uint8
@@ -36,8 +35,6 @@ var (
 
 	// intenal
 	log *zerolog.Logger
-	ccx *cli.Context
-	ctx context.Context
 
 	runtimeChangesHumanize = map[RuntimePatchType]string{
 		RuntimePatchLottery:      "lottery chance",
@@ -62,20 +59,13 @@ type (
 )
 
 func NewRuntime(c context.Context) *Runtime {
-	ctx = c
-
-	blist := ctx.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
-	log = ctx.Value(utils.ContextKeyLogger).(*zerolog.Logger)
-	ccx = ctx.Value(utils.ContextKeyCliContext).(*cli.Context)
+	blist := c.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
+	log = c.Value(utils.ContextKeyLogger).(*zerolog.Logger)
 
 	return &Runtime{
-		Config: NewConfigStorage(),
+		Config: NewConfigStorage(c),
 
 		blocklist: blist,
-
-		// gQualityLevel:   utils.TitleQualityFHD,
-		// gLotteryChance:  0,
-		// gLimiterEnabled: 0,
 	}
 }
 
@@ -87,15 +77,18 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 
 	switch patch.Type {
 	case RuntimePatchLottery:
-		e = m.applyLotteryChance(patch.Patch)
+		e = patch.ApplyLotteryChance(&m.Config)
+
 	case RuntimePatchQuality:
-		e = m.applyQualityLevel(patch.Patch)
-	case RuntimePatchBlocklist:
-		e = m.applyBlocklistSwitch(patch.Patch)
+		e = patch.ApplyQualityLevel(&m.Config)
 	case RuntimePatchBlocklistIps:
-		e = m.applyBlocklistChanges(patch.Patch)
+		e = patch.ApplyBlocklistIps(&m.Config, m.blocklist)
+
+	case RuntimePatchBlocklist:
+		e = patch.ApplySwitch(&m.Config, ConfigParamBlocklist)
 	case RuntimePatchLimiter:
-		e = m.applyLimitterSwitch(patch.Patch)
+		e = patch.ApplySwitch(&m.Config, ConfigParamLimiter)
+
 	default:
 		panic("internal error - undefined runtime patch type")
 	}
@@ -108,116 +101,112 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	return
 }
 
-func (m *Runtime) applyBlocklistChanges(input []byte) (e error) {
-	log.Debug().Msgf("runtime config - blocklist update requested")
-	log.Debug().Msgf("apply blocklist - old size - %d", m.blocklist.Size())
+func (m *RuntimePatch) ApplyBlocklistIps(st *ConfigStorage, bl *blocklist.Blocklist) (e error) {
+	buf := string(m.Patch)
 
-	if bytes.Equal(input, []byte("_")) {
-		m.blocklist.Reset()
-		log.Info().Msg("runtime config - blocklist has been reseted")
+	if buf == "_" {
+		bl.Reset()
+		log.Info().Msg("runtime patch has been for Blocklist.Reset")
 		return
 	}
 
-	ips := strings.Split(string(input), ",")
-	m.blocklist.Push(ips...)
+	lastsize := bl.Size()
+	ips := strings.Split(buf, ",")
+	bl.Push(ips...)
 
-	log.Info().Msg("runtime config - blocklist update completed")
-	log.Debug().Msgf("apply blocklist - updated size - %d", m.blocklist.Size())
+	log.Info().Msgf("runtime patch has been for Blocklist, applied %d ips", len(ips))
+	log.Debug().Msgf("apply blocklist: last size - %d, new - %d", lastsize, bl.Size())
 	return
 }
 
-func (m *Runtime) applyBlocklistSwitch(input []byte) (e error) {
+func (m *RuntimePatch) ApplySwitch(st *ConfigStorage, param ConfigParam) (e error) {
+	buf := string(m.Patch)
 
-	var enabled int
-	if enabled, e = strconv.Atoi(string(input)); e != nil {
-		return
-	}
-
-	log.Trace().Msgf("runtime config - blocklist apply value %d", enabled)
-
-	switch enabled {
-	case 0:
-		m.blocklist.Disable(true)
-	case 1:
-		m.blocklist.Disable(false)
+	switch buf {
+	case "0":
+		st.SetValue(param, 0)
+	case "1":
+		st.SetValue(param, 1)
 	default:
-		log.Warn().Int("enabled", enabled).
-			Msg("runtime config - blocklist switcher could not be non 0 or non 1")
+		e = fmt.Errorf("invalid value in runtime bool patch for %d : %s", param, buf)
 		return
 	}
 
-	log.Info().Msg("runtime config - blocklist status updated")
-	log.Debug().Msgf("apply blocklist - updated value - %d", enabled)
+	log.Debug().Msgf("runtime patch has been applied for %d with %s", param, buf)
 	return
 }
 
-func (m *Runtime) applyLimitterSwitch(input []byte) (e error) {
-	var enabled int
-	if enabled, e = strconv.Atoi(string(input)); e != nil {
-		return
-	}
-
-	log.Trace().Msgf("runtime config - limiter apply value %d", enabled)
-
-	switch enabled {
-	case 0:
-		fallthrough
-	case 1:
-		m.Config.SetValueSmoothly(ConfigParamLimiter, enabled)
-
-		log.Info().Msg("runtime config - limiter status updated")
-		log.Debug().Msgf("apply limiter - updated value - %d", enabled)
-	default:
-		log.Warn().Int("enabled", enabled).
-			Msg("runtime config - limiter switcher could not be non 0 or non 1")
-		return
-	}
+func (m *RuntimePatch) ApplyValue(param ConfigParam, smoothly bool) (e error) {
 	return
 }
 
-func (m *Runtime) applyLotteryChance(input []byte, sdeploy ...bool) (e error) {
-	sdeploy = append(sdeploy, false)
+func (m *RuntimePatch) ApplyQualityLevel(st *ConfigStorage) (e error) {
+	buf := string(m.Patch)
 
+	quality, ok := utils.GetTitleQualityByString[buf]
+	if !ok {
+		e = fmt.Errorf("quality is invalid; 480, 720, 1080 values are permited only, current - %s", buf)
+		return
+	}
+
+	log.Info().Msgf("runtime patch has been applied for QualityLevel with %s", buf)
+	st.SetValue(ConfigParamQuality, quality)
+	return
+}
+
+func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
 	var chance int
-	if chance, e = strconv.Atoi(string(input)); e != nil {
+	if chance, e = strconv.Atoi(string(m.Patch)); e != nil {
 		return
 	}
 
 	if chance < 0 || chance > 100 {
-		log.Warn().Int("chance", chance).Msg("chance could not be less than 0 and more than 100")
+		e = fmt.Errorf("chance could not be less than 0 and more than 100, current %d", chance)
 		return
 	}
 
-	log.Info().Msgf("runtime config - applied lottery chance %s", string(input))
-
-	if !sdeploy[0] {
-		m.Config.SetValue(ConfigParamLottery, chance)
-		return
-	}
-
-	log.Trace().Msg("runtime config - using smooth deployment")
-	m.Config.SetValueSmoothly(ConfigParamLottery, chance)
+	log.Info().Msgf("runtime patch has been applied for LotteryChance with %d", chance)
+	st.SetValueSmoothly(ConfigParamLottery, chance)
 	return
 }
 
-func (m *Runtime) applyQualityLevel(input []byte) (e error) {
-	log.Debug().Msg("quality settings change requested")
+// func (m *Runtime) Stats() io.Reader {
+// 	tb := table.NewWriter()
+// 	defer tb.Render()
 
-	var quality utils.TitleQuality
+// 	buf := bytes.NewBuffer(nil)
+// 	tb.SetOutputMirror(buf)
+// 	tb.AppendHeader(table.Row{
+// 		"Key", "Value",
+// 	})
 
-	switch string(input) {
-	case "480":
-		quality = utils.TitleQualitySD
-	case "720":
-		quality = utils.TitleQualityHD
-	case "1080":
-		quality = utils.TitleQualityFHD
-	default:
-		log.Warn().Str("input", string(input)).Msg("qulity level can be 480 720 or 1080 only")
-		return
-	}
+// 	var runconfig = make(map[string]string)
+// 	for key, bind := range RuntimeUtilsBindings {
+// 		val, _, _ := m.Config.GetValue(bind).(string)
+// 		runconfig[key] = val
+// 	}
 
-	m.Config.SetValue(ConfigParamQuality, quality)
-	log.Info().Msgf("runtime config - applied quality %s", string(input))
-	return
-}
+// 	servers := m.upstream.getServers(&m.ulock)
+
+// 	for idx, server := range servers {
+// 		var firstdiff, lastdiff float64
+
+// 		if servers[0].handledRequests != 0 {
+// 			firstdiff = (float64(server.handledRequests) * 100.00 / float64(servers[0].handledRequests)) - 100.00
+// 		}
+
+// 		if idx != 0 && servers[idx-1].handledRequests != 0 {
+// 			lastdiff = (float64(server.handledRequests) * 100.00 / float64(servers[idx-1].handledRequests)) - 100.00
+// 		}
+
+// 		tb.AppendRow([]interface{}{
+// 			server.Name, server.Ip,
+// 			server.handledRequests, round(lastdiff, 2), round(firstdiff, 2), server.lastRequestTime.Format("2006-01-02T15:04:05.000"),
+// 			isDownHumanize(server.isDown), server.lastChanged.Format("2006-01-02T15:04:05.000"),
+// 		})
+// 	}
+
+// 	tb.Style().Options.SeparateRows = true
+
+// 	return buf
+// }

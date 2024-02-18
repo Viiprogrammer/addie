@@ -11,9 +11,6 @@ import (
 type Blocklist []string
 
 var (
-	eLocker sync.RWMutex
-	Enabled bool
-
 	blLocker sync.RWMutex
 	log      *zerolog.Logger
 )
@@ -23,21 +20,21 @@ func NewBlocklist(ctx context.Context) *Blocklist {
 	return &Blocklist{}
 }
 
-func (*Blocklist) IsEnabled() (enabled bool) {
-	eLocker.RLock()
-	defer eLocker.RUnlock()
+// func (*Blocklist) IsEnabled() (enabled bool) {
+// 	eLocker.RLock()
+// 	defer eLocker.RUnlock()
 
-	enabled = Enabled
-	return
-}
+// 	enabled = Enabled
+// 	return
+// }
 
-func (*Blocklist) Disable(disabled ...bool) {
-	eLocker.Lock()
-	defer eLocker.Unlock()
+// func (*Blocklist) Disable(disabled ...bool) {
+// 	eLocker.Lock()
+// 	defer eLocker.Unlock()
 
-	disabled = append(disabled, true)
-	Enabled = !disabled[0]
-}
+// 	disabled = append(disabled, true)
+// 	Enabled = !disabled[0]
+// }
 
 func (m *Blocklist) Reset() {
 	*m = Blocklist{}

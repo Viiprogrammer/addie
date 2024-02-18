@@ -1,11 +1,14 @@
 package runtime
 
 import (
+	"context"
 	"errors"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/MindHunter86/addie/utils"
+	"github.com/urfave/cli/v2"
 )
 
 type (
@@ -56,15 +59,21 @@ var sLocker sync.RWMutex
 var deployStep int
 var deployInteration time.Duration
 
+var done func() <-chan struct{}
+
 var (
 	ErrConfigStorageLockFailure = errors.New("config storage - could not lock storage")
 	ErrConfigEntryLockFailure   = errors.New("config storage - could not lock entry")
 	ErrConfigInvalidParam       = errors.New("config storage - invalid param or internal map error")
 )
 
-func NewConfigStorage() ConfigStorage {
-	deployStep = ccx.Int("balancer-softer-step")
-	deployInteration = ccx.Duration("balancer-softer-tick")
+func NewConfigStorage(c context.Context) ConfigStorage {
+	done = c.Done
+
+	ccx := c.Value(utils.ContextKeyCliContext).(*cli.Context)
+	deployStep, deployInteration =
+		ccx.Int("balancer-softer-step"),
+		ccx.Duration("balancer-softer-tick")
 
 	return make(ConfigStorage, _configParamMaxSize)
 }
@@ -98,7 +107,7 @@ func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e e
 	var ok bool
 	var entry *ConfigEntry
 
-	// os.Exit(1)
+	os.Exit(1)
 	// if value != target - continue
 	// !!!
 	// !!!
@@ -176,7 +185,7 @@ loop:
 				break loop
 			}
 			log.Trace().Msg("smooth_deploy - tick called, descrease entry's steps")
-		case <-ctx.Done():
+		case <-done():
 			log.Trace().Msg("smooth_deploy - internal abort() has been caught")
 			break loop
 		}

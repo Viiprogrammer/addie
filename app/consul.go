@@ -411,7 +411,6 @@ loop:
 				}
 
 				runpatch <- patch
-
 			}
 
 			idx = meta.LastIndex

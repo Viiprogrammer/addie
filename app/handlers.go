@@ -16,24 +16,6 @@ var (
 	errFbApiInvalidQuality = errors.New("quality argument is invalid; 480, 720, 1080 values are permited only")
 )
 
-func (*App) fbHndApiModuleStats(ctx *fiber.Ctx) (e error) {
-	switch buf := strings.TrimSpace(ctx.Query("module", "")); buf {
-	case "runtime":
-		// !!
-		// !!
-		break
-	case "":
-		e = fiber.NewError(fiber.StatusBadRequest, "module could not be empty")
-		return
-	default:
-		e = fiber.NewError(fiber.StatusNotFound, "module not found")
-		return
-	}
-
-	ctx.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
-	return ctx.SendStatus(fiber.StatusOK)
-}
-
 func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 	switch ctx.Locals("errors").(appMidError) {
 	case errMidAppPreHeaderUri:
