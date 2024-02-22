@@ -191,7 +191,7 @@ func (m *ConfigEntry) Value() (val interface{}, e error) {
 	}
 
 	// smoothly logic
-	return m.getPayload(rand.Intn(deployStep) + 1)
+	return m.getPayload(rand.Intn(deployStep) + 1) // skipcq: GSC-G404 math/rand is enough
 }
 
 func (m *ConfigEntry) bootstrapDeploy() error {

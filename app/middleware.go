@@ -120,7 +120,7 @@ func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
 		return !ok // always true
 	}
 
-	return lottery.(int) < rand.Intn(99)+1
+	return lottery.(int) < rand.Intn(99)+1 // skipcq: GSC-G404 math/rand is enough
 }
 
 func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
