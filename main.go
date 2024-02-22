@@ -162,13 +162,6 @@ func main() {
 			Value: 5 * time.Minute,
 		},
 
-		// balancer
-		&cli.UintFlag{
-			Name:  "balancer-max-tries",
-			Usage: "max fails for one request; max value - 10",
-			Value: 3,
-		},
-
 		// bbolt settings
 		&cli.StringFlag{
 			Name:  "database-prefix",

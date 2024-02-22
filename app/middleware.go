@@ -51,8 +51,6 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-XXX-internal precond balancer")
 
 	var errs appMidError
-
-	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("debug")
 	switch h := ctx.GetReqHeaders(); {
 	case strings.TrimSpace(h[apiHeaderUri][0]) == "":
 		errs = errs | errMidAppPreHeaderUri
