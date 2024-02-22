@@ -46,21 +46,12 @@ var ConfigParamDefaults = map[ConfigParam]interface{}{
 }
 
 var GetNameByConfigParam = map[ConfigParam]string{
-	// ConfigParamLottery:      "lottery",
+	ConfigParamLottery:      "lottery",
 	ConfigParamQuality: "quality",
-	// ConfigParamBlocklist:    "blocklist",
-	// ConfigParamBlocklistIps: "blocklist_ips",
-	// ConfigParamLimiter:      "limiter",
+	ConfigParamBlocklist:    "blocklist",
+	ConfigParamBlocklistIps: "blocklist_ips",
+	ConfigParamLimiter:      "limiter",
 }
-
-const (
-	configEntryLocker  ConfigEid = iota // sync.RWMutex
-	configEntryPayload                  // interface{}
-	configEntryTarget                   // interface{}
-	configEntryStep                     // int
-
-	_configEntryMaxSize
-)
 
 var sLocker sync.RWMutex
 

@@ -40,8 +40,6 @@ type App struct {
 	fb     *fiber.App
 	fbstor fiber.Storage
 
-	controller *Controller
-
 	cache     *CachedTitlesBucket
 	blocklist *blocklist.Blocklist
 	runtime   *runtime.Runtime
