@@ -137,7 +137,7 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	return
 }
 
-func (m *RuntimePatch) ApplyBlocklistIps(st *ConfigStorage, bl *blocklist.Blocklist) (e error) {
+func (m *RuntimePatch) ApplyBlocklistIps(_ *ConfigStorage, bl *blocklist.Blocklist) (e error) {
 	buf := string(m.Patch)
 
 	if buf == "_" {
