@@ -33,6 +33,7 @@ const (
 	ConfigParamBlocklist
 	ConfigParamBlocklistIps
 	ConfigParamLimiter
+	ConfigParamA5bility
 
 	_configParamMaxSize
 )

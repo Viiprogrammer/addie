@@ -17,8 +17,7 @@ const (
 )
 
 const (
-	FbReqTmrBeforeRoute ContextKey = iota
-	FbReqTmrPreCond
+	FbReqTmrPreCond ContextKey = iota
 	FbReqTmrBlocklist
 	FbReqTmrFakeQuality
 	FbReqTmrConsulLottery
@@ -32,6 +31,7 @@ const (
 	CfgBlockList         = "block-list"
 	CfgBlockListSwitcher = "block-list-switcher"
 	CfgLimiterSwitcher   = "limiter-switcher"
+	CfgClusterA5bility   = "cluster-availability"
 )
 
 const (

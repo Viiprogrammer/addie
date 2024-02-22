@@ -33,3 +33,5 @@ var GetBalancerByString = map[string]BalancerCluster{
 	"cache-nodes": BalancerClusterNodes,
 	"cache-cloud": BalancerClusterCloud,
 }
+
+var MaxTries = uint8(3)

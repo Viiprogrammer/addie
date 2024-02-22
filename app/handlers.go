@@ -19,23 +19,23 @@ var (
 func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 	switch ctx.Locals("errors").(appMidError) {
 	case errMidAppPreHeaderUri:
-		gLog.Warn().Msg(errApiPreBadUri.Error())
+		rlog(ctx).Warn().Msg(errApiPreBadUri.Error())
 		ctx.Set("X-Error", errApiPreBadUri.Error())
 		ctx.SendString(errApiPreBadUri.Error())
 	case errMidAppPreHeaderId:
-		gLog.Warn().Msg(errApiPreBadId.Error())
+		rlog(ctx).Warn().Msg(errApiPreBadId.Error())
 		ctx.Set("X-Error", errApiPreBadId.Error())
 		ctx.SendString(errApiPreBadId.Error())
 	case errMidAppPreHeaderServer:
-		gLog.Warn().Msg(errApiPreBadServer.Error())
+		rlog(ctx).Warn().Msg(errApiPreBadServer.Error())
 		ctx.Set("X-Error", errApiPreBadServer.Error())
 		ctx.SendString(errApiPreBadServer.Error())
 	case errMidAppPreUriRegexp:
-		gLog.Warn().Msg(errApiPreUriRegexp.Error())
+		rlog(ctx).Warn().Msg(errApiPreUriRegexp.Error())
 		ctx.Set("X-Error", errApiPreUriRegexp.Error())
 		ctx.SendString(errApiPreUriRegexp.Error())
 	default:
-		gLog.Warn().Msg("unknown error")
+		rlog(ctx).Warn().Msg("unknown error")
 	}
 
 	return ctx.SendStatus(fiber.StatusPreconditionFailed)
@@ -43,7 +43,7 @@ func (*App) fbHndApiPreCondErr(ctx *fiber.Ctx) error {
 
 func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 	m.lapRequestTimer(ctx, utils.FbReqTmrReqSign)
-	gLog.Trace().Msg("new 'sign request' request")
+	rlog(ctx).Trace().Msg("new 'sign request' request")
 
 	srv, uri := ctx.Locals("srv").(string), ctx.Locals("uri").(string)
 	expires, extra := m.getHlpExtra(
@@ -54,7 +54,7 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 
 	var rrl *url.URL
 	if rrl, e = url.Parse(srv + uri); e != nil {
-		gLog.Debug().Str("url_parse", srv+uri).Str("remote_addr", ctx.IP()).
+		rlog(ctx).Debug().Str("url_parse", srv+uri).Str("remote_addr", ctx.IP()).
 			Msg("could not sign request; url.Parse error")
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
@@ -64,14 +64,14 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 	rgs.Add("extra", extra)
 	rrl.RawQuery, rrl.Scheme = rgs.Encode(), "https"
 
-	gLog.Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.IP()).
+	rlog(ctx).Debug().Str("computed_request", rrl.String()).Str("remote_addr", ctx.IP()).
 		Msg("request signing completed")
 	ctx.Set(apiHeaderLocation, rrl.String())
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
-	ctx.Type(fiber.MIMETextPlainCharsetUTF8)
+	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 	uri := ctx.Locals("uri").(*string)
 	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
