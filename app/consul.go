@@ -310,50 +310,6 @@ func (m *consulClient) setBlocklistIps(kv *capi.KVPair) (e error) {
 	return
 }
 
-func (m *consulClient) listenRuntimeConfigKey(key string, rpatcher chan *runtime.RuntimePatch) {
-	var idx uint64
-	opts, ckey := *defaultOpts, m.getPrefixedSettingsKey(key)
-
-loop:
-	for {
-		select {
-		case <-m.ctx.Done():
-			break loop
-		default:
-			opts.WaitIndex = idx
-			pair, meta, e := m.KV().Get(ckey, opts.WithContext(m.ctx))
-
-			if errors.Is(e, context.Canceled) {
-				break loop
-			} else if e != nil {
-				gLog.Error().Err(e).Msgf("could not get consul value for %s key", key)
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			if pair == nil {
-				gLog.Warn().Msg("consul sent empty values while runtime config getting")
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			// default patch
-			patch := &runtime.RuntimePatch{
-				Type:  runtime.RuntimeUtilsBindings[key],
-				Patch: pair.Value,
-			}
-
-			// exclusions:
-			if patch.Type == runtime.RuntimePatchBlocklistIps && len(patch.Patch) == 0 {
-				patch.Patch = []byte("_")
-			}
-
-			rpatcher <- patch
-			idx = meta.LastIndex
-		}
-	}
-}
-
 func (m *consulClient) configKeyWatchdog(runpatch chan *runtime.RuntimePatch) {
 	var idx uint64
 	opts, prefix := *defaultOpts, m.getPrefixedSettingsKey("")
