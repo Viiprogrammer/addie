@@ -69,11 +69,6 @@ func (m *Controller) getBalancerByString(input string) (_ balancer.BalancerClust
 	return cluster, e
 }
 
-func (m *Controller) GetConfigStorageStats(c *fiber.Ctx) error {
-	m.runtime.StatsPrint()
-	return respondPlainWithStatus(c, fiber.StatusNoContent)
-}
-
 func (m *Controller) GetBalancerStats(c *fiber.Ctx) (e error) {
 	cluster, e := m.getBalancerByString(strings.TrimSpace(c.Query("cluster")))
 	if e != nil {

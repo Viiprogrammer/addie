@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/MindHunter86/addie/blocklist"
 	"github.com/MindHunter86/addie/utils"
@@ -52,12 +51,9 @@ var (
 	}
 )
 
-var smoothlyStats *RuntimeStats
-
 type (
 	Runtime struct {
 		Config ConfigStorage
-		Stats  *RuntimeStats
 
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
@@ -66,32 +62,7 @@ type (
 		Type  RuntimePatchType
 		Patch []byte
 	}
-
-	RuntimeStats struct {
-		sync.RWMutex
-		sentPayload, sentTarget int
-	}
 )
-
-func (m *RuntimeStats) SentPayload() {
-	m.Lock()
-	m.sentPayload++
-	m.Unlock()
-}
-
-func (m *RuntimeStats) SentTarget() {
-	m.Lock()
-	m.sentTarget++
-	m.Unlock()
-}
-
-func (m *RuntimeStats) Stats() (payload, target int) {
-	m.RLock()
-	defer m.RUnlock()
-
-	payload, target = m.sentPayload, m.sentTarget
-	return
-}
 
 func NewRuntime(c context.Context) (r *Runtime, e error) {
 	blist := c.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
@@ -99,10 +70,7 @@ func NewRuntime(c context.Context) (r *Runtime, e error) {
 
 	r = &Runtime{
 		blocklist: blist,
-		Stats:     &RuntimeStats{},
 	}
-
-	smoothlyStats = r.Stats
 
 	if r.Config, e = NewConfigStorage(c); e != nil {
 		return
@@ -228,68 +196,3 @@ func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
 	log.Info().Msgf("runtime patch has been applied for LotteryChance with %d", chance)
 	return st.SetValueSmoothly(ConfigParamLottery, chance)
 }
-
-func (m *Runtime) StatsPrint() {
-	for uid := range ConfigParamDefaults {
-		name, ok := GetNameByConfigParam[uid]
-		if !ok {
-			continue
-		}
-
-		val, _, _ := m.Config.GetValue(uid)
-
-		fmt.Printf("%s - %+v\n", name, val)
-	}
-
-	x, y := m.Stats.Stats()
-	fmt.Printf("Payload - %d, Target - %d\n", x, y)
-	// refval := reflect.ValueOf(m.Config)
-	// reftype := reflect.TypeOf(m.Config)
-
-	// for i := 0; i < refval.NumField(); i++ {
-	// 	field := refval.Field(i)
-	// 	fieldtype := reftype.Field(i)
-
-	// }
-}
-
-// func (m *Runtime) Stats() io.Reader {
-// 	tb := table.NewWriter()
-// 	defer tb.Render()
-
-// 	buf := bytes.NewBuffer(nil)
-// 	tb.SetOutputMirror(buf)
-// 	tb.AppendHeader(table.Row{
-// 		"Key", "Value",
-// 	})
-
-// 	var runconfig = make(map[string]string)
-// 	for key, bind := range RuntimeUtilsBindings {
-// 		val, _, _ := m.Config.GetValue(bind).(string)
-// 		runconfig[key] = val
-// 	}
-
-// 	servers := m.upstream.getServers(&m.ulock)
-
-// 	for idx, server := range servers {
-// 		var firstdiff, lastdiff float64
-
-// 		if servers[0].handledRequests != 0 {
-// 			firstdiff = (float64(server.handledRequests) * 100.00 / float64(servers[0].handledRequests)) - 100.00
-// 		}
-
-// 		if idx != 0 && servers[idx-1].handledRequests != 0 {
-// 			lastdiff = (float64(server.handledRequests) * 100.00 / float64(servers[idx-1].handledRequests)) - 100.00
-// 		}
-
-// 		tb.AppendRow([]interface{}{
-// 			server.Name, server.Ip,
-// 			server.handledRequests, round(lastdiff, 2), round(firstdiff, 2), server.lastRequestTime.Format("2006-01-02T15:04:05.000"),
-// 			isDownHumanize(server.isDown), server.lastChanged.Format("2006-01-02T15:04:05.000"),
-// 		})
-// 	}
-
-// 	tb.Style().Options.SeparateRows = true
-
-// 	return buf
-// }

@@ -274,10 +274,8 @@ func (m *ConfigEntry) getLotteryResult(key int) (val interface{}) {
 	switch key % m.Step {
 	case 0:
 		val = m.Target
-		smoothlyStats.SentTarget()
 	default:
 		val = m.Payload
-		smoothlyStats.SentPayload()
 	}
 
 	return
