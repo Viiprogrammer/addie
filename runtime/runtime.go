@@ -159,8 +159,7 @@ func (m *RuntimePatch) ApplyA5bility(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for A5Bility with %d", chance)
-	st.SetValue(ConfigParamA5bility, chance)
-	return
+	return st.SetValue(ConfigParamA5bility, chance)
 }
 
 func (m *RuntimePatch) ApplyBlocklistIps(_ *ConfigStorage, bl *blocklist.Blocklist) (e error) {
@@ -190,9 +189,9 @@ func (m *RuntimePatch) ApplySwitch(st *ConfigStorage, param ConfigParam) (e erro
 
 	switch buf {
 	case "0":
-		st.SetValue(param, 0)
+		e = st.SetValue(param, 0)
 	case "1":
-		st.SetValue(param, 1)
+		e = st.SetValue(param, 1)
 	default:
 		e = fmt.Errorf("invalid value in runtime bool patch for %s : %s", GetNameByConfigParam[param], buf)
 		return
@@ -212,8 +211,7 @@ func (m *RuntimePatch) ApplyQualityLevel(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for QualityLevel with %s", buf)
-	st.SetValueSmoothly(ConfigParamQuality, quality)
-	return
+	return st.SetValueSmoothly(ConfigParamQuality, quality)
 }
 
 func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
@@ -228,8 +226,7 @@ func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for LotteryChance with %d", chance)
-	st.SetValueSmoothly(ConfigParamLottery, chance)
-	return
+	return st.SetValueSmoothly(ConfigParamLottery, chance)
 }
 
 func (m *Runtime) StatsPrint() {
