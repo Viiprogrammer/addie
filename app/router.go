@@ -38,6 +38,18 @@ import (
 // @BasePath /
 func (m *App) fiberConfigure() {
 
+	// panic recover for all handlers
+	m.fb.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
+			rlog(c).Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
+				Msg("panic has been caught")
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
+
+			c.Status(fiber.StatusInternalServerError)
+		},
+	}))
+
 	// request id
 	m.fb.Use(requestid.New())
 
@@ -45,7 +57,6 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(func(c *fiber.Ctx) error {
 		l := gLog.With().Str("id", c.Locals("requestid").(string)).Logger()
 		c.Locals("logger", &l)
-
 		return c.Next()
 	})
 
@@ -53,7 +64,7 @@ func (m *App) fiberConfigure() {
 	m.fb.Use(func(c *fiber.Ctx) (e error) {
 		if !strings.HasPrefix(c.Path(), "/videos/media/ts") &&
 			!strings.HasPrefix(c.Path(), "/api/balancer/cluster") {
-			rlog(c).Trace().Str("path", c.Path()).Msg("non sign request detected, skipping timings...")
+			// rlog(c).Trace().Str("path", c.Path()).Msg("non sign request detected, skipping timings...")
 			return c.Next()
 		}
 
@@ -105,7 +116,7 @@ func (m *App) fiberConfigure() {
 		}
 
 		if rlog(c).GetLevel() <= zerolog.InfoLevel || status != fiber.StatusOK {
-			rlog(c).WithLevel(lvl).
+			m.rsyslog(c).WithLevel(lvl).
 				Int("status", status).
 				Str("method", c.Method()).
 				Str("path", c.Path()).
@@ -117,18 +128,6 @@ func (m *App) fiberConfigure() {
 
 		return
 	})
-
-	// panic recover for all handlers
-	m.fb.Use(recover.New(recover.Config{
-		EnableStackTrace: true,
-		StackTraceHandler: func(c *fiber.Ctx, e interface{}) {
-			rlog(c).Error().Str("request", c.Request().String()).Bytes("stack", debug.Stack()).
-				Msg("panic has been caught")
-			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, debug.Stack())) //nolint:errcheck // This will never fail
-
-			c.Status(fiber.StatusInternalServerError)
-		},
-	}))
 
 	// debug
 	if gCli.Bool("http-pprof-enable") {

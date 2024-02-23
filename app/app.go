@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"regexp"
@@ -48,12 +49,16 @@ type App struct {
 	bareBalancer  balancer.Balancer
 
 	chunkRegexp *regexp.Regexp
+
+	syslogWriter io.Writer
 }
 
-func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
+func NewApp(c *cli.Context, l *zerolog.Logger, s io.Writer) (app *App) {
 	gCli, gLog = c, l
 
 	app = &App{}
+	app.syslogWriter = s
+
 	app.fb = fiber.New(fiber.Config{
 		EnableTrustedProxyCheck: len(gCli.String("http-trusted-proxies")) > 0,
 		TrustedProxies:          strings.Split(gCli.String("http-trusted-proxies"), ","),
@@ -82,6 +87,13 @@ func NewApp(c *cli.Context, l *zerolog.Logger) (app *App) {
 		},
 
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// reject invalid requests
+			if strings.TrimSpace(c.Hostname()) == "" {
+				gLog.Warn().Msgf("invalid request from %s", c.Context().Conn().RemoteAddr().String())
+				gLog.Debug().Msgf("invalid request: %+v ; error - %+v", c, err)
+				return c.Context().Conn().Close()
+			}
+
 			c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
 			var e *fiber.Error
@@ -257,4 +269,15 @@ LOOP:
 
 func rlog(c *fiber.Ctx) *zerolog.Logger {
 	return c.Locals("logger").(*zerolog.Logger)
+}
+
+func (m *App) rsyslog(c *fiber.Ctx) *zerolog.Logger {
+	if val, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamStdoutAccess); !ok || e != nil {
+		gLog.Warn().Msg("there are errors in sending events to syslog server")
+	} else if val == 0 {
+		l := c.Locals("logger").(*zerolog.Logger).Output(m.syslogWriter)
+		return &l
+	}
+
+	return rlog(c)
 }

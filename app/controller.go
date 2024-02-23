@@ -15,8 +15,6 @@ import (
 )
 
 type Controller struct {
-	log *zerolog.Logger
-
 	mu sync.RWMutex
 
 	balancers map[balancer.BalancerCluster]balancer.Balancer
@@ -37,8 +35,6 @@ func (m *Controller) SetReady() {
 }
 
 func (m *Controller) WithContext(c context.Context) *Controller {
-	m.log = c.Value(utils.ContextKeyLogger).(*zerolog.Logger)
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -122,7 +118,7 @@ func (m *Controller) BlockIP(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
-	m.log.Info().Msgf("ip %s has been banned by %s", ip, c.IP())
+	rlog(c).Info().Msgf("ip %s has been banned by %s", ip, c.IP())
 	fmt.Fprintln(c, ip+" has been banned")
 
 	return respondPlainWithStatus(c, fiber.StatusOK)
@@ -142,7 +138,7 @@ func (m *Controller) UnblockIP(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, e.Error())
 	}
 
-	m.log.Info().Msgf("ip %s has been unbanned by %s", ip, c.IP())
+	rlog(c).Info().Msgf("ip %s has been unbanned by %s", ip, c.IP())
 	fmt.Fprintln(c, ip+" has been unbanned")
 
 	return respondPlainWithStatus(c, fiber.StatusOK)
@@ -202,7 +198,7 @@ func (m *Controller) SetLoggerLevel(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "unknown level sent")
 	}
 
-	m.log.Error().Msgf("[falsepositive]> new log level applied - %s", level)
+	rlog(c).Error().Msgf("[falsepositive]> new log level applied - %s", level)
 	fmt.Fprintln(c, level+" logger level has been applied")
 
 	return respondPlainWithStatus(c, fiber.StatusOK)
@@ -226,7 +222,7 @@ func (m *Controller) UpdateQualityRewrite(c *fiber.Ctx) (e error) {
 
 	gConsul.updateQualityRewrite(quality)
 
-	m.log.Info().Msgf("quality %s has been applied by %s", quality.String(), c.IP())
+	rlog(c).Info().Msgf("quality %s has been applied by %s", quality.String(), c.IP())
 	fmt.Fprintln(c, quality.String()+" has been applied")
 
 	return respondPlainWithStatus(c, fiber.StatusOK)
