@@ -232,7 +232,7 @@ func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 
 	if buf, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamBlocklist); !ok || e != nil {
 		rlog(ctx).Warn().
-			Msg("could not get lock for reading quality or softer says no; skipping fake quality chain")
+			Msg("could not get lock for reading blocklist or softer says no; skipping blocklist chain")
 		return ctx.Next()
 	} else if buf.(int) == 0 {
 		return ctx.Next()
