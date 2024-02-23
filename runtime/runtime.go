@@ -194,11 +194,11 @@ func (m *RuntimePatch) ApplySwitch(st *ConfigStorage, param ConfigParam) (e erro
 	case "1":
 		st.SetValue(param, 1)
 	default:
-		e = fmt.Errorf("invalid value in runtime bool patch for %d : %s", param, buf)
+		e = fmt.Errorf("invalid value in runtime bool patch for %s : %s", GetNameByConfigParam[param], buf)
 		return
 	}
 
-	log.Debug().Msgf("runtime patch has been applied for %d with %s", param, buf)
+	log.Debug().Msgf("runtime patch has been applied for %s with %s", GetNameByConfigParam[param], buf)
 	return
 }
 
