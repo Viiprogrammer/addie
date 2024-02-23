@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,7 +34,8 @@ func main() {
 	// logger
 	log := zerolog.New(zerolog.ConsoleWriter{
 		Out: dwr,
-	}).With().Timestamp().Caller().Logger().Hook(SeverityHook{})
+	}).With().Timestamp().Caller().Logger()
+
 	zerolog.CallerMarshalFunc = callerMarshalFunc
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
@@ -252,22 +253,24 @@ func main() {
 			zerolog.SetGlobalLevel(zerolog.Disabled)
 		}
 
+		var syslogWriter = io.Discard
 		if len(c.String("syslog-server")) != 0 {
 			if runtime.GOOS == "windows" {
 				log.Error().Msg("sorry, but syslog is not worked for windows; golang does not support syslog for win systems")
 				return os.ErrProcessDone
 			}
-
 			log.Debug().Msg("connecting to syslog server ...")
 
-			var sylog *zerolog.Logger
-			if sylog, e = utils.SetUpSyslogWriter(c); e != nil {
+			if syslogWriter, e = utils.SetUpSyslogWriter(c); e != nil {
 				return
 			}
-
 			log.Debug().Msg("syslog connection established; reset zerolog for MultiLevelWriter set ...")
 
-			log = sylog.Hook(SeverityHook{})
+			log = zerolog.New(zerolog.MultiLevelWriter(
+				zerolog.ConsoleWriter{Out: dwr},
+				syslogWriter,
+			)).With().Timestamp().Caller().Logger()
+
 			log.Info().Msg("zerolog reinitialized; starting app...")
 		}
 
@@ -282,7 +285,7 @@ func main() {
 		}
 
 		log.Debug().Msgf("%s (%s) builded %s now is ready...", app.Name, version, buildtime)
-		return application.NewApp(c, &log).Bootstrap()
+		return application.NewApp(c, &log, syslogWriter).Bootstrap()
 	}
 
 	// TODO sort.Sort of Flags uses too much allocs; temporary disabled
@@ -297,26 +300,6 @@ func main() {
 	// fucking diode was no `wait` method, so we need to use this `250` shit
 	log.Debug().Msg("waiting for diode buf")
 	time.Sleep(250 * time.Millisecond)
-}
-
-type SeverityHook struct{}
-
-func (SeverityHook) Run(e *zerolog.Event, level zerolog.Level, _ string) {
-	if level > zerolog.DebugLevel || version != "devel" {
-		return
-	}
-
-	rfn := "unknown"
-	pcs := make([]uintptr, 1)
-
-	if runtime.Callers(4, pcs) != 0 {
-		if fun := runtime.FuncForPC(pcs[0] - 1); fun != nil {
-			rfn = fun.Name()
-		}
-	}
-
-	fn := strings.Split(rfn, "/")
-	e.Str("func", fn[len(fn)-1:][0])
 }
 
 func callerMarshalFunc(_ uintptr, file string, line int) string {

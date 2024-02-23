@@ -22,6 +22,7 @@ const (
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
 	RuntimePatchA5bility
+	RuntimePatchStdoutAccess
 )
 
 var (
@@ -34,6 +35,7 @@ var (
 		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
 		utils.CfgClusterA5bility:   RuntimePatchA5bility,
+		utils.CfgStdoutAccessLog:   RuntimePatchStdoutAccess,
 	}
 
 	// intenal
@@ -46,6 +48,7 @@ var (
 		RuntimePatchBlocklistIps: "blocklist ips",
 		RuntimePatchLimiter:      "limiter switch",
 		RuntimePatchA5bility:     "balancer's cluster availability",
+		RuntimePatchStdoutAccess: "stdout access log switcher",
 	}
 )
 
@@ -129,6 +132,8 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = patch.ApplySwitch(&m.Config, ConfigParamBlocklist)
 	case RuntimePatchLimiter:
 		e = patch.ApplySwitch(&m.Config, ConfigParamLimiter)
+	case RuntimePatchStdoutAccess:
+		e = patch.ApplySwitch(&m.Config, ConfigParamStdoutAccess)
 
 	default:
 		panic("internal error - undefined runtime patch type")

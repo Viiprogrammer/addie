@@ -34,6 +34,7 @@ const (
 	ConfigParamBlocklistIps
 	ConfigParamLimiter
 	ConfigParamA5bility
+	ConfigParamStdoutAccess
 
 	_configParamMaxSize
 )
@@ -44,14 +45,18 @@ var ConfigParamDefaults = map[ConfigParam]interface{}{
 	ConfigParamBlocklist:    0,
 	ConfigParamBlocklistIps: []string{},
 	ConfigParamLimiter:      0,
+	ConfigParamA5bility:     0,
+	ConfigParamStdoutAccess: 0,
 }
 
 var GetNameByConfigParam = map[ConfigParam]string{
 	ConfigParamLottery:      "lottery",
-	ConfigParamQuality: "quality",
+	ConfigParamQuality:      "quality",
 	ConfigParamBlocklist:    "blocklist",
 	ConfigParamBlocklistIps: "blocklist_ips",
 	ConfigParamLimiter:      "limiter",
+	ConfigParamA5bility:     "cluster-availability",
+	ConfigParamStdoutAccess: "stdout-access-log",
 }
 
 var sLocker sync.RWMutex
