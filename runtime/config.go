@@ -109,7 +109,7 @@ func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
 	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry = newConfigEntry(param, val, nil)
+		entry = newConfigEntry(param, val)
 		return m.setEntry(param, entry)
 	}
 
@@ -132,7 +132,7 @@ func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e e
 	if entry, ok, e = m.getEntry(param); e != nil {
 		return
 	} else if !ok {
-		entry = newConfigEntry(param, nil, val)
+		entry = newConfigEntry(param, nil)
 
 		if e = m.setEntry(param, entry); e != nil {
 			return
@@ -148,7 +148,14 @@ func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e e
 		return
 	}
 
-	entry.nextDeployStep(true)
+	if e = entry.SetTarget(val); e != nil {
+		return
+	}
+
+	if _, e = entry.nextDeployStep(true); e != nil {
+		return
+	}
+
 	go entry.bootstrapDeploy()
 
 	return
@@ -178,7 +185,7 @@ func (m ConfigStorage) setEntry(param ConfigParam, entry *ConfigEntry) (e error)
 
 // ---
 
-func newConfigEntry(param ConfigParam, value, target interface{}) *ConfigEntry {
+func newConfigEntry(param ConfigParam, value interface{}) *ConfigEntry {
 	payload := ConfigParamDefaults[param]
 
 	if value != nil {
@@ -187,9 +194,7 @@ func newConfigEntry(param ConfigParam, value, target interface{}) *ConfigEntry {
 
 	return &ConfigEntry{
 		Payload: payload,
-		Target:  target,
-
-		Step: -1,
+		Step:    -1,
 	}
 }
 
@@ -200,6 +205,16 @@ func (m *ConfigEntry) SetValue(val interface{}) error {
 	defer m.Unlock()
 
 	m.Payload = val
+	return nil
+}
+
+func (m *ConfigEntry) SetTarget(val interface{}) error {
+	if !m.TryLock() {
+		return ErrConfigEntryLockFailure
+	}
+	defer m.Unlock()
+
+	m.Target = val
 	return nil
 }
 
