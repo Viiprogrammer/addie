@@ -40,9 +40,9 @@ const (
 )
 
 var ConfigParamDefaults = map[ConfigParam]interface{}{
-	ConfigParamLottery:      0,
-	ConfigParamQuality:      utils.TitleQualitySD,
-	ConfigParamBlocklist:    0,
+	ConfigParamLottery:      100,
+	ConfigParamQuality:      utils.TitleQualityHD,
+	ConfigParamBlocklist:    1,
 	ConfigParamBlocklistIps: []string{},
 	ConfigParamLimiter:      0,
 	ConfigParamA5bility:     0,
