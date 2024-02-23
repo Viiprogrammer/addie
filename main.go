@@ -181,6 +181,13 @@ func main() {
 			Value: "https://api.anilibria.tv/v2",
 		},
 
+		// balancer
+		&cli.UintFlag{
+			Name:  "balancer-server-max-fails",
+			Usage: "max fails for one request; max value - 10",
+			Value: 3,
+		},
+
 		// ...
 		&cli.DurationFlag{
 			Name:    "link-expiration",

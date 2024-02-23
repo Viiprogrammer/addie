@@ -113,6 +113,15 @@ func (m ConfigStorage) SetValue(param ConfigParam, val interface{}) (e error) {
 		return m.setEntry(param, entry)
 	}
 
+	var eval interface{}
+	if eval, e = entry.Value(); e != nil {
+		log.Debug().Msgf("could not get value for config-deploy: %s", e.Error())
+		return
+	} else if eval == val {
+		log.Trace().Msg("config deploy will be skipped, because of no changes")
+		return
+	}
+
 	return entry.SetValue(val)
 }
 
@@ -128,6 +137,15 @@ func (m ConfigStorage) SetValueSmoothly(param ConfigParam, val interface{}) (e e
 		if e = m.setEntry(param, entry); e != nil {
 			return
 		}
+	}
+
+	var eval interface{}
+	if eval, e = entry.Value(); e != nil {
+		log.Debug().Msgf("could not get value for smooth-deploy: %s", e.Error())
+		return
+	} else if eval == val {
+		log.Trace().Msg("smooth-deploy will be skipped, because of no changes")
+		return
 	}
 
 	entry.nextDeployStep(true)
@@ -204,27 +222,36 @@ func (m *ConfigEntry) bootstrapDeploy() error {
 	log.Trace().Msg("smooth deploy has been started")
 	defer log.Trace().Msg("smooth deploy has been stopped")
 
-	ticker := time.NewTicker(deployInteration)
+	ticker, errors := time.NewTicker(deployInteration), 0
 
 loop:
 	for {
 		select {
 		case <-ticker.C:
 			if ok, e := m.nextDeployStep(); e != nil {
+				errors++
 				log.Warn().Err(e).Msg("smooth_deploy - there some problems in runtime config deploying")
+
+				if errors >= 3 {
+					ticker.Stop()
+					log.Error().Err(e).Msg("smooth-deploy has been crashed")
+					return e
+				}
+
 				continue
 			} else if ok {
 				log.Debug().Msg("smooth_deploy - deploy prcess has been completed")
-				ticker.Stop()
 				break loop
 			}
 			log.Trace().Msg("smooth_deploy - tick called, descrease entry's steps")
+
 		case <-done():
 			log.Trace().Msg("smooth_deploy - internal abort() has been caught")
 			break loop
 		}
 	}
 
+	ticker.Stop()
 	return m.commitTargetValue()
 }
 

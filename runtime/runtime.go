@@ -125,18 +125,18 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 
 	case RuntimePatchQuality:
 		e = patch.ApplyQualityLevel(&m.Config)
-	case RuntimePatchBlocklistIps:
-		e = patch.ApplyBlocklistIps(&m.Config, m.blocklist)
+	// case RuntimePatchBlocklistIps:
+	// 	e = patch.ApplyBlocklistIps(&m.Config, m.blocklist)
 
-	case RuntimePatchBlocklist:
-		e = patch.ApplySwitch(&m.Config, ConfigParamBlocklist)
+	// case RuntimePatchBlocklist:
+	// 	e = patch.ApplySwitch(&m.Config, ConfigParamBlocklist)
 	case RuntimePatchLimiter:
 		e = patch.ApplySwitch(&m.Config, ConfigParamLimiter)
 	case RuntimePatchStdoutAccess:
 		e = patch.ApplySwitch(&m.Config, ConfigParamStdoutAccess)
 
-	default:
-		panic("internal error - undefined runtime patch type")
+		// default:
+		// 	panic("internal error - undefined runtime patch type")
 	}
 
 	if e != nil {
@@ -194,11 +194,11 @@ func (m *RuntimePatch) ApplySwitch(st *ConfigStorage, param ConfigParam) (e erro
 	case "1":
 		st.SetValue(param, 1)
 	default:
-		e = fmt.Errorf("invalid value in runtime bool patch for %d : %s", param, buf)
+		e = fmt.Errorf("invalid value in runtime bool patch for %s : %s", GetNameByConfigParam[param], buf)
 		return
 	}
 
-	log.Debug().Msgf("runtime patch has been applied for %d with %s", param, buf)
+	log.Debug().Msgf("runtime patch has been applied for %s with %s", GetNameByConfigParam[param], buf)
 	return
 }
 
