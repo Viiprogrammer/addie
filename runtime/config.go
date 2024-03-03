@@ -57,8 +57,7 @@ type Storage struct {
 }
 
 var (
-	sLocker sync.RWMutex
-	done    func() <-chan struct{}
+	done func() <-chan struct{}
 
 	deployStep       int
 	deployInteration time.Duration
