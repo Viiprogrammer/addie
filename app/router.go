@@ -165,7 +165,6 @@ func (m *App) fiberConfigure() {
 	api.Post("logger/level", gController.SetLoggerLevel)
 	api.Post("limiter/switch", gController.LimiterSwitch)
 	api.Post("quality", gController.UpdateQualityRewrite)
-	api.Get("config", gController.GetConfigStorageStats)
 
 	// group upstream
 	upstr := api.Group("/balancer")
@@ -192,10 +191,7 @@ func (m *App) fiberConfigure() {
 	media.Use(m.fbMidAppBlocklist)
 	media.Use(limiter.New(limiter.Config{
 		Next: func(c *fiber.Ctx) bool {
-			if limiting, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamLimiter); e != nil {
-				gLog.Warn().Err(e).Msg("internal runtime config error")
-				return true
-			} else if limiting == 0 || !ok {
+			if m.runtime.Config.Get(runtime.ParamLimiter).(int) == 0 {
 				return true
 			}
 

@@ -54,9 +54,9 @@ func (m *ClusterBalancer) GetClusterName() string {
 	}
 }
 
-func (m *ClusterBalancer) BalanceRandom(force bool) (_ string, server *BalancerServer, e error) {
+func (m *ClusterBalancer) BalanceRandom() (_ string, server *BalancerServer, e error) {
 	var ip *net.IP
-	if ip = m.getRandomServer(force); ip == nil {
+	if ip = m.getRandomServer(); ip == nil {
 		e = ErrUpstreamUnavailable
 		return
 	}
@@ -129,8 +129,8 @@ func (m *ClusterBalancer) getServer(idx1, idx2 uint64) (ip *net.IP) {
 	return ip
 }
 
-func (m *ClusterBalancer) getRandomServer(force bool) (ip *net.IP) {
-	if !force && !m.TryRLock() {
+func (m *ClusterBalancer) getRandomServer() (ip *net.IP) {
+	if !m.TryRLock() {
 		m.log.Error().Msg("could not get lock for reading upstream and force flag is false")
 		return
 	}
