@@ -91,14 +91,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 		return ctx.Next()
 	}
 
-	buf, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamQuality)
-	if !ok || e != nil {
-		rlog(ctx).Warn().
-			Msg("could not get lock for reading quality or softer says no; skipping fake quality chain")
-		return ctx.Next()
-	}
-
-	quality := buf.(utils.TitleQuality)
+	quality := m.runtime.Config.Get(runtime.ParamQuality).(utils.TitleQuality)
 	rlog(ctx).Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")
 	if tsr.getTitleQuality() <= quality {
@@ -113,13 +106,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 
 // if return value == true - Balance() will be skipped
 func (m *App) fbMidAppBalancerLottery(ctx *fiber.Ctx) bool {
-	lottery, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamLottery)
-	if !ok || e != nil {
-		rlog(ctx).Warn().Msg(e.Error())
-		return !ok // always true
-	}
-
-	return lottery.(int) < rand.Intn(99)+1 // skipcq: GSC-G404 math/rand is enough
+	return m.runtime.Config.Get(runtime.ParamLottery).(int) < rand.Intn(99)+1 // skipcq: GSC-G404 math/rand is enough
 }
 
 func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
@@ -230,11 +217,7 @@ func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
 func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlocklist)
 
-	if buf, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamBlocklist); !ok || e != nil {
-		rlog(ctx).Warn().
-			Msg("could not get lock for reading blocklist or softer says no; skipping blocklist chain")
-		return ctx.Next()
-	} else if buf.(int) == 0 {
+	if m.runtime.Config.Get(runtime.ParamBlocklist).(int) == 0 {
 		return ctx.Next()
 	}
 

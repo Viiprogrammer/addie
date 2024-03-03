@@ -272,9 +272,7 @@ func rlog(c *fiber.Ctx) *zerolog.Logger {
 }
 
 func (m *App) rsyslog(c *fiber.Ctx) *zerolog.Logger {
-	if val, ok, e := m.runtime.Config.GetValue(runtime.ConfigParamStdoutAccess); !ok || e != nil {
-		gLog.Warn().Msg("there are errors in sending events to syslog server")
-	} else if val == 0 {
+	if m.runtime.Config.Get(runtime.ParamStdoutAccess).(int) == 0 {
 		l := c.Locals("logger").(*zerolog.Logger).Output(m.syslogWriter)
 		return &l
 	}

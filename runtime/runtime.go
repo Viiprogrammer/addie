@@ -53,7 +53,7 @@ var (
 
 type (
 	Runtime struct {
-		Config ConfigStorage
+		Config *Storage
 
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
@@ -72,7 +72,7 @@ func NewRuntime(c context.Context) (r *Runtime, e error) {
 		blocklist: blist,
 	}
 
-	if r.Config, e = NewConfigStorage(c); e != nil {
+	if r.Config, e = NewStorage(c); e != nil {
 		return
 	}
 
@@ -87,21 +87,21 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 
 	switch patch.Type {
 	case RuntimePatchLottery:
-		e = patch.ApplyLotteryChance(&m.Config)
+		e = patch.ApplyLotteryChance(m.Config)
 	case RuntimePatchA5bility:
-		e = patch.ApplyA5bility(&m.Config)
+		e = patch.ApplyA5bility(m.Config)
 
 	case RuntimePatchQuality:
-		e = patch.ApplyQualityLevel(&m.Config)
+		e = patch.ApplyQualityLevel(m.Config)
 	case RuntimePatchBlocklistIps:
-		e = patch.ApplyBlocklistIps(&m.Config, m.blocklist)
+		e = patch.ApplyBlocklistIps(m.Config, m.blocklist)
 
 	case RuntimePatchBlocklist:
-		e = patch.ApplySwitch(&m.Config, ConfigParamBlocklist)
+		e = patch.ApplySwitch(m.Config, ParamBlocklist)
 	case RuntimePatchLimiter:
-		e = patch.ApplySwitch(&m.Config, ConfigParamLimiter)
+		e = patch.ApplySwitch(m.Config, ParamLimiter)
 	case RuntimePatchStdoutAccess:
-		e = patch.ApplySwitch(&m.Config, ConfigParamStdoutAccess)
+		e = patch.ApplySwitch(m.Config, ParamStdoutAccess)
 
 	default:
 		panic("internal error - undefined runtime patch type")
@@ -115,7 +115,7 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	return
 }
 
-func (m *RuntimePatch) ApplyA5bility(st *ConfigStorage) (e error) {
+func (m *RuntimePatch) ApplyA5bility(st *Storage) (e error) {
 	var chance int
 	if chance, e = strconv.Atoi(string(m.Patch)); e != nil {
 		return
@@ -127,10 +127,11 @@ func (m *RuntimePatch) ApplyA5bility(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for A5Bility with %d", chance)
-	return st.SetValue(ConfigParamA5bility, chance)
+	st.Set(ParamA5bility, chance)
+	return
 }
 
-func (m *RuntimePatch) ApplyBlocklistIps(_ *ConfigStorage, bl *blocklist.Blocklist) (e error) {
+func (m *RuntimePatch) ApplyBlocklistIps(_ *Storage, bl *blocklist.Blocklist) (e error) {
 	buf := string(m.Patch)
 
 	if buf == "_" {
@@ -145,31 +146,31 @@ func (m *RuntimePatch) ApplyBlocklistIps(_ *ConfigStorage, bl *blocklist.Blockli
 
 	// dummy code
 	// ???
-	// st.SetValue(ConfigParamBlocklistIps, ips)
+	// st.SetValue(ParamBlocklistIps, ips)
 
 	log.Info().Msgf("runtime patch has been for Blocklist, applied %d ips", len(ips))
 	log.Debug().Msgf("apply blocklist: last size - %d, new - %d", lastsize, bl.Size())
 	return
 }
 
-func (m *RuntimePatch) ApplySwitch(st *ConfigStorage, param ConfigParam) (e error) {
+func (m *RuntimePatch) ApplySwitch(st *Storage, param StorageParam) (e error) {
 	buf := string(m.Patch)
 
 	switch buf {
 	case "0":
-		e = st.SetValue(param, 0)
+		st.Set(param, 0)
 	case "1":
-		e = st.SetValue(param, 1)
+		st.Set(param, 1)
 	default:
-		e = fmt.Errorf("invalid value in runtime bool patch for %s : %s", GetNameByConfigParam[param], buf)
+		e = fmt.Errorf("invalid value in runtime bool patch for %s : %s", GetNameByParam[param], buf)
 		return
 	}
 
-	log.Debug().Msgf("runtime patch has been applied for %s with %s", GetNameByConfigParam[param], buf)
+	log.Debug().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
 	return
 }
 
-func (m *RuntimePatch) ApplyQualityLevel(st *ConfigStorage) (e error) {
+func (m *RuntimePatch) ApplyQualityLevel(st *Storage) (e error) {
 	buf := string(m.Patch)
 
 	quality, ok := utils.GetTitleQualityByString[buf]
@@ -179,10 +180,11 @@ func (m *RuntimePatch) ApplyQualityLevel(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for QualityLevel with %s", buf)
-	return st.SetValueSmoothly(ConfigParamQuality, quality)
+	st.SetSmoothly(ParamQuality, quality)
+	return
 }
 
-func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
+func (m *RuntimePatch) ApplyLotteryChance(st *Storage) (e error) {
 	var chance int
 	if chance, e = strconv.Atoi(string(m.Patch)); e != nil {
 		return
@@ -194,5 +196,6 @@ func (m *RuntimePatch) ApplyLotteryChance(st *ConfigStorage) (e error) {
 	}
 
 	log.Info().Msgf("runtime patch has been applied for LotteryChance with %d", chance)
-	return st.SetValueSmoothly(ConfigParamLottery, chance)
+	st.SetSmoothly(ParamLottery, chance)
+	return
 }
