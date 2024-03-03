@@ -105,7 +105,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 }
 
 // if return value == true - Balance() will be skipped
-func (m *App) fbMidAppBalancerLottery(ctx *fiber.Ctx) bool {
+func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
 	return m.runtime.Config.Get(runtime.ParamLottery).(int) < rand.Intn(99)+1 // skipcq: GSC-G404 math/rand is enough
 }
 
