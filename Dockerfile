@@ -21,7 +21,7 @@ ENV CGO_ENABLED=0
 
 # skipcq: DOK-DL3018 i'm a badboy, disable this shit
 RUN echo "ready" \
-  && go build -mod=vendor -trimpath -ldflags="-s -w -X 'main.version=$MAIN_VERSION' -X 'main.buildtime=$MAIN_BUILDTIME'" -o addie \
+  && go build -trimpath -ldflags="-s -w -X 'main.version=$MAIN_VERSION' -X 'main.buildtime=$MAIN_BUILDTIME'" -o addie \
   && apk add --no-cache upx \
   && upx -9 -k addie
 
