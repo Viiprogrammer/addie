@@ -137,7 +137,7 @@ func (m *Storage) Set(param StorageParam, val interface{}) {
 	if !ok && e != nil {
 		panic("value is not nil but param not found in config storage")
 	} else if !ok {
-		e = m.setEntryByValue(param, val)
+		m.setEntryByValue(param, val)
 		return
 	}
 
@@ -149,7 +149,7 @@ func (m *Storage) SetSmoothly(param StorageParam, val interface{}) {
 	if !ok && e != nil {
 		panic("value is not nil but param not found in config storage")
 	} else if !ok {
-		e = m.setEntryByValue(param, val)
+		m.setEntryByValue(param, val)
 		return
 	}
 
