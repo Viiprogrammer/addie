@@ -110,7 +110,7 @@ func (m *App) fbHndBlcNodesBalanceFallback(ctx *fiber.Ctx) error {
 }
 
 func (m *App) getServerFromRandomBalancer(ctx *fiber.Ctx) (server *balancer.BalancerServer, e error) {
-	reqid, force := ctx.Locals("requestid").(string), false
+	reqid := ctx.Locals("requestid").(string)
 
 	for fails := 0; fails <= gCli.Int("balancer-server-max-fails"); fails++ {
 		if fails == gCli.Int("balancer-server-max-fails") {
@@ -119,13 +119,12 @@ func (m *App) getServerFromRandomBalancer(ctx *fiber.Ctx) (server *balancer.Bala
 			return
 		}
 
-		_, server, e = m.bareBalancer.BalanceRandom(force)
+		_, server, e = m.bareBalancer.BalanceRandom()
 
 		if errors.Is(e, balancer.ErrServerUnavailable) {
 			gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to roll new server...")
 			continue
-		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) && !force {
-			force = true
+		} else if errors.Is(e, balancer.ErrUpstreamUnavailable) {
 			gLog.Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("trying to force balancer")
 			continue
 		} else if e != nil {

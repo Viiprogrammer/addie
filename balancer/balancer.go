@@ -8,7 +8,7 @@ import (
 
 type Balancer interface {
 	BalanceByChunk(prefix, chunkname string) (_ string, server *BalancerServer, e error)
-	BalanceRandom(force bool) (_ string, server *BalancerServer, e error)
+	BalanceRandom() (_ string, server *BalancerServer, e error)
 	UpdateServers(servers map[string]net.IP)
 	GetStats() io.Reader
 	ResetStats()
