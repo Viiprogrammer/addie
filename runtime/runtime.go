@@ -93,8 +93,8 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 
 	case RuntimePatchQuality:
 		e = patch.ApplyQualityLevel(m.Config)
-	// case RuntimePatchBlocklistIps:
-	// 	e = patch.ApplyBlocklistIps(m.Config, m.blocklist)
+	case RuntimePatchBlocklistIps:
+		e = patch.ApplyBlocklistIps(m.Config, m.blocklist)
 
 	case RuntimePatchBlocklist:
 		e = patch.ApplySwitch(m.Config, ParamBlocklist)
@@ -103,8 +103,8 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	case RuntimePatchStdoutAccess:
 		e = patch.ApplySwitch(m.Config, ParamStdoutAccess)
 
-		// default:
-		// 	panic("internal error - undefined runtime patch type")
+	default:
+		panic("internal error - undefined runtime patch type")
 	}
 
 	if e != nil {
