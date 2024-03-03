@@ -14,7 +14,7 @@ var (
 	ErrConfigStorageLockFailure = errors.New("config storage - could not lock storage")
 	ErrConfigEntryLockFailure   = errors.New("config storage - could not lock entry")
 	ErrConfigInvalidParam       = errors.New("config storage - invalid param or internal map error")
-	ErrConfigInvalidStep        = errors.New("config storage - softer-step must be >= 0")
+	ErrConfigInvalidStep        = errors.New("config storage - softer-step must be >= 0 and < 100")
 )
 
 type StorageParam uint8
@@ -64,7 +64,7 @@ var (
 	deployInteration time.Duration
 )
 
-func NewStorage(c context.Context) (*Storage, error) {
+func NewStorage(c context.Context) (st *Storage, _ error) {
 	done = c.Done
 
 	ccx := c.Value(utils.ContextKeyCliContext).(*cli.Context)
@@ -72,7 +72,7 @@ func NewStorage(c context.Context) (*Storage, error) {
 		ccx.Int("balancer-softer-step"),
 		ccx.Duration("balancer-softer-tick")
 
-	if deployStep < 0 {
+	if deployStep < 0 || deployStep > 99 {
 		return nil, ErrConfigInvalidStep
 	}
 
@@ -80,9 +80,24 @@ func NewStorage(c context.Context) (*Storage, error) {
 		log.Warn().Msg("low value detected for softer-tick arg")
 	}
 
-	return &Storage{
+	st = &Storage{
 		st: make(map[StorageParam]*Entry, paramMaxSize),
-	}, nil
+	}
+
+	st.loadDefaults()
+	return
+}
+
+func (m *Storage) loadDefaults() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for param, val := range ParamDefaults {
+		e := newEntry(val)
+		m.st[param] = e
+
+		log.Trace().Msgf("loaded default value for %s - %+v", GetNameByParam[param], val)
+	}
 }
 
 func (m *Storage) getEntry(param StorageParam) (e *Entry, ok bool) {
@@ -104,6 +119,7 @@ func (m *Storage) setEntryByValue(param StorageParam, val interface{}) (e *Entry
 	e = newEntry(val)
 	m.st[param] = e
 
+	log.Trace().Msgf("config param %s updated with value %+v", GetNameByParam[param], val)
 	return
 }
 
@@ -112,6 +128,7 @@ func (m *Storage) Get(param StorageParam) interface{} {
 		return e.get()
 	}
 
+	// TODO: remove this
 	panic("undefined entry or param not found in config storage")
 }
 
@@ -133,6 +150,11 @@ func (m *Storage) SetSmoothly(param StorageParam, val interface{}) {
 		panic("value is not nil but param not found in config storage")
 	} else if !ok {
 		e = m.setEntryByValue(param, val)
+		return
+	}
+
+	if deployStep == 0 {
+		e.set(val)
 		return
 	}
 

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -26,7 +27,7 @@ type Entry struct {
 
 func newEntry(v interface{}) *Entry {
 	val := make(map[entryValue]interface{}, entryCandidate)
-	val[entryCandidate] = v
+	val[entryCurrent] = v
 
 	return &Entry{
 		value: val,
@@ -37,6 +38,7 @@ func newEntry(v interface{}) *Entry {
 }
 
 func (m *Entry) deploy(val interface{}) {
+	log.Trace().Msgf("smoothly deploy called with value %+v", val)
 
 	// check if there is active deploy right now
 	if !m.deployed {
@@ -54,8 +56,8 @@ func (m *Entry) deploy(val interface{}) {
 	}
 
 	// disable further deploy for unchanged values
-	if !m.compare(val) {
-		log.Trace().Msgf("given value already has been applied")
+	if m.compare(val) {
+		log.Trace().Msgf("given value already has been applied, deploy stopped")
 		return
 	}
 
@@ -112,16 +114,19 @@ func (m *Entry) tick(initial ...bool) bool {
 
 	initial = append(initial, false)
 	if initial[0] {
-		m.deployStep = deployStep
+		log.Trace().Msgf("initial tick detected with step %d", deployStep)
+		m.deployStep, m.deployed = deployStep, false
 		return false
 	}
 
+	log.Trace().Msgf("ticked with step %d, updated %d", m.deployStep, m.deployStep-1)
 	m.deployStep--
 	return m.deployStep == 0
 }
 
 func (m *Entry) prepare(val interface{}) {
 	m.value[entryCandidate] = val
+	log.Trace().Msgf("candidate commited - %+v", val)
 }
 
 func (m *Entry) compare(val interface{}) bool {
@@ -139,11 +144,11 @@ func (m *Entry) candidate() interface{} {
 }
 
 func (m *Entry) get(force ...bool) interface{} {
+	m.mu.RLock()
 	if force = append(force, false); !m.deployed && !force[0] {
+		m.mu.RUnlock()
 		return m.randomize()
 	}
-
-	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	return m.value[entryCurrent]
@@ -153,7 +158,8 @@ func (m *Entry) randomize() interface{} {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if max := deployStep + 1; max%m.deployStep == 0 {
+	// TODO: find more efficient/smoothly method for value randomizing
+	if m.deployStep < rand.Intn(deployStep)+1 { // skipcq: GSC-G404 math/rand is enough
 		return m.value[entryCandidate]
 	}
 
@@ -161,5 +167,11 @@ func (m *Entry) randomize() interface{} {
 }
 
 func (m *Entry) set(val interface{}) {
+	if m.compare(val) {
+		log.Trace().Msgf("given value already has been applied, deploy stopped")
+		return
+	}
+
 	m.execWithBlock(func() { m.value[entryCurrent], m.value[entryCandidate] = val, nil })
+	log.Trace().Msgf("value commited - %+v", val)
 }
