@@ -11,10 +11,7 @@ import (
 )
 
 var (
-	ErrConfigStorageLockFailure = errors.New("config storage - could not lock storage")
-	ErrConfigEntryLockFailure   = errors.New("config storage - could not lock entry")
-	ErrConfigInvalidParam       = errors.New("config storage - invalid param or internal map error")
-	ErrConfigInvalidStep        = errors.New("config storage - softer-step must be >= 0 and < 100")
+	ErrConfigInvalidStep = errors.New("config storage - softer-step must be >= 0 and < 100")
 )
 
 type StorageParam uint8
