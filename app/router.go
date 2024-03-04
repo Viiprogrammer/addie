@@ -55,7 +55,8 @@ func (m *App) fiberConfigure() {
 
 	// prefixed logger initialization
 	m.fb.Use(func(c *fiber.Ctx) error {
-		l := gLog.With().Str("id", c.Locals("requestid").(string)).Logger()
+		l := gLog.With().Str("id", c.Locals("requestid").(string)).
+			Logger().Level(m.runtime.Config.Get(runtime.ParamAccessLevel).(zerolog.Level))
 		c.Locals("logger", &l)
 		return c.Next()
 	})
@@ -84,12 +85,13 @@ func (m *App) fiberConfigure() {
 		}
 
 		if rlog(c).GetLevel() <= zerolog.DebugLevel {
-			routing := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond)
-			precond := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond)
-			blist := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrFakeQuality)).Round(time.Microsecond)
-			fquality := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrConsulLottery)).Round(time.Microsecond)
-			clottery := stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrReqSign)).Round(time.Microsecond)
-			reqsign := stop.Sub(stop).Round(time.Microsecond)
+			routing, precond, blist, fquality, clottery, reqsign :=
+				stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrPreCond)).Round(time.Microsecond),
+				stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrBlocklist)).Round(time.Microsecond),
+				stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrFakeQuality)).Round(time.Microsecond),
+				stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrConsulLottery)).Round(time.Microsecond),
+				stop.Sub(m.getRequestTimerSegment(c, utils.FbReqTmrReqSign)).Round(time.Microsecond),
+				stop.Sub(stop).Round(time.Microsecond)
 
 			reqsign = clottery - reqsign
 			clottery = fquality - clottery

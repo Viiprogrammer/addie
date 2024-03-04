@@ -20,8 +20,9 @@ const (
 	RuntimePatchBlocklist
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
-	RuntimePatchA5bility
 	RuntimePatchStdoutAccess
+	RuntimePatchAccessStdout
+	RuntimePatchAccessLevel
 )
 
 var (
@@ -33,8 +34,9 @@ var (
 		utils.CfgBlockList:         RuntimePatchBlocklistIps,
 		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
-		utils.CfgClusterA5bility:   RuntimePatchA5bility,
 		utils.CfgStdoutAccessLog:   RuntimePatchStdoutAccess,
+		utils.CfgAccessLogStdout:   RuntimePatchAccessStdout,
+		utils.CfgAccessLogLevel:    RuntimePatchAccessLevel,
 	}
 
 	// intenal
@@ -46,8 +48,9 @@ var (
 		RuntimePatchBlocklist:    "blocklist switch",
 		RuntimePatchBlocklistIps: "blocklist ips",
 		RuntimePatchLimiter:      "limiter switch",
-		RuntimePatchA5bility:     "balancer's cluster availability",
 		RuntimePatchStdoutAccess: "stdout access log switcher",
+		RuntimePatchAccessStdout: "access_log stdout switcher",
+		RuntimePatchAccessLevel:  "access_log loglevel",
 	}
 )
 
@@ -88,8 +91,6 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	switch patch.Type {
 	case RuntimePatchLottery:
 		e = patch.ApplyLotteryChance(m.Config)
-	case RuntimePatchA5bility:
-		e = patch.ApplyA5bility(m.Config)
 
 	case RuntimePatchQuality:
 		e = patch.ApplyQualityLevel(m.Config)
@@ -112,22 +113,6 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 			Msgf("could not apply runtime configuration (%s)", runtimeChangesHumanize[patch.Type])
 	}
 
-	return
-}
-
-func (m *RuntimePatch) ApplyA5bility(st *Storage) (e error) {
-	var chance int
-	if chance, e = strconv.Atoi(string(m.Patch)); e != nil {
-		return
-	}
-
-	if chance < 0 || chance > 100 {
-		e = fmt.Errorf("chance could not be less than 0 and more than 100, current %d", chance)
-		return
-	}
-
-	log.Info().Msgf("runtime patch has been applied for A5Bility with %d", chance)
-	st.Set(ParamA5bility, chance)
 	return
 }
 
