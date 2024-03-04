@@ -101,8 +101,13 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = patch.ApplySwitch(m.Config, ParamBlocklist)
 	case RuntimePatchLimiter:
 		e = patch.ApplySwitch(m.Config, ParamLimiter)
-	case RuntimePatchStdoutAccess:
+	case RuntimePatchStdoutAccess: // TODO : TO DELETE
 		e = patch.ApplySwitch(m.Config, ParamStdoutAccess)
+	case RuntimePatchAccessStdout:
+		e = patch.ApplySwitch(m.Config, ParamAccessStdout)
+
+	case RuntimePatchAccessLevel:
+		e = patch.ApplyLogLevel(m.Config, ParamAccessLevel)
 
 	default:
 		panic("internal error - undefined runtime patch type")
@@ -113,6 +118,29 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 			Msgf("could not apply runtime configuration (%s)", runtimeChangesHumanize[patch.Type])
 	}
 
+	return
+}
+
+func (m *RuntimePatch) ApplyLogLevel(st *Storage, param StorageParam) (e error) {
+	buf, level := strings.TrimSpace(string(m.Patch)), zerolog.NoLevel
+
+	switch buf {
+	case "trace":
+		level = zerolog.TraceLevel
+	case "debug":
+		level = zerolog.DebugLevel
+	case "info":
+		level = zerolog.InfoLevel
+	case "warn":
+		level = zerolog.WarnLevel
+	case "error":
+		level = zerolog.ErrorLevel
+	default:
+		e = fmt.Errorf("unknown level received from consul for %s - %s", GetNameByParam[param], buf)
+		return
+	}
+
+	st.Set(ParamAccessLevel, level)
 	return
 }
 
