@@ -56,6 +56,11 @@ func (m *Entry) deploy(val interface{}) {
 		m.wg.Wait()
 	}
 
+	if val == m.candidate() {
+		log.Debug().Msg("requested value is already patching now, reject new deploy request")
+		return
+	}
+
 	if !m.deployed {
 		panic("unhandled conditions")
 	}
