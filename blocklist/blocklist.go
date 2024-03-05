@@ -57,7 +57,7 @@ func (m *Blocklist) IsExists(ip string) (ok bool) {
 		return
 	}
 
-	log.Trace().Str("ip", ip).Msg("Blocklist isExists has been called")
+	// log.Trace().Str("ip", ip).Msg("Blocklist isExists has been called")
 
 	blLocker.RLock()
 	for _, v := range *m {

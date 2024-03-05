@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 )
 
@@ -18,14 +19,14 @@ func NewCachedTitlesBucket() *CachedTitlesBucket {
 	}
 }
 
-func (m *CachedTitlesBucket) PullSerie(tid, sid uint16) (serie *TitleSerie, _ error) {
+func (m *CachedTitlesBucket) PullSerie(c *fiber.Ctx, tid, sid uint16) (serie *TitleSerie, _ error) {
 	if tid == 0 || sid == 0 {
 		return serie, errors.New("cache: tid, sid zero found")
 	}
 
 	m.locker.RLock()
-	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
-		gLog.Debug().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
+	if zerolog.GlobalLevel() <= zerolog.TraceLevel {
+		rlog(c).Trace().Int("cache_size", len(m.bucket)+1).Msg("cache size debug")
 	}
 
 	serie = m.bucket[uint32(tid)<<16|uint32(sid)]

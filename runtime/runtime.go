@@ -20,8 +20,8 @@ const (
 	RuntimePatchBlocklist
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
-	RuntimePatchA5bility
-	RuntimePatchStdoutAccess
+	RuntimePatchAccessStdout
+	RuntimePatchAccessLevel
 )
 
 var (
@@ -33,8 +33,8 @@ var (
 		utils.CfgBlockList:         RuntimePatchBlocklistIps,
 		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
-		utils.CfgClusterA5bility:   RuntimePatchA5bility,
-		utils.CfgStdoutAccessLog:   RuntimePatchStdoutAccess,
+		utils.CfgAccessLogStdout:   RuntimePatchAccessStdout,
+		utils.CfgAccessLogLevel:    RuntimePatchAccessLevel,
 	}
 
 	// intenal
@@ -46,8 +46,8 @@ var (
 		RuntimePatchBlocklist:    "blocklist switch",
 		RuntimePatchBlocklistIps: "blocklist ips",
 		RuntimePatchLimiter:      "limiter switch",
-		RuntimePatchA5bility:     "balancer's cluster availability",
-		RuntimePatchStdoutAccess: "stdout access log switcher",
+		RuntimePatchAccessStdout: "access_log stdout switcher",
+		RuntimePatchAccessLevel:  "access_log loglevel",
 	}
 )
 
@@ -88,8 +88,6 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	switch patch.Type {
 	case RuntimePatchLottery:
 		e = patch.ApplyLotteryChance(m.Config)
-	case RuntimePatchA5bility:
-		e = patch.ApplyA5bility(m.Config)
 
 	case RuntimePatchQuality:
 		e = patch.ApplyQualityLevel(m.Config)
@@ -100,8 +98,11 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = patch.ApplySwitch(m.Config, ParamBlocklist)
 	case RuntimePatchLimiter:
 		e = patch.ApplySwitch(m.Config, ParamLimiter)
-	case RuntimePatchStdoutAccess:
-		e = patch.ApplySwitch(m.Config, ParamStdoutAccess)
+	case RuntimePatchAccessStdout:
+		e = patch.ApplySwitch(m.Config, ParamAccessStdout)
+
+	case RuntimePatchAccessLevel:
+		e = patch.ApplyLogLevel(m.Config, ParamAccessLevel)
 
 	default:
 		panic("internal error - undefined runtime patch type")
@@ -115,19 +116,27 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	return
 }
 
-func (m *RuntimePatch) ApplyA5bility(st *Storage) (e error) {
-	var chance int
-	if chance, e = strconv.Atoi(string(m.Patch)); e != nil {
+func (m *RuntimePatch) ApplyLogLevel(st *Storage, param StorageParam) (e error) {
+	buf, level := strings.TrimSpace(string(m.Patch)), zerolog.NoLevel
+
+	switch buf {
+	case "trace":
+		level = zerolog.TraceLevel
+	case "debug":
+		level = zerolog.DebugLevel
+	case "info":
+		level = zerolog.InfoLevel
+	case "warn":
+		level = zerolog.WarnLevel
+	case "error":
+		level = zerolog.ErrorLevel
+	default:
+		e = fmt.Errorf("unknown level received from consul for %s - %s", GetNameByParam[param], buf)
 		return
 	}
 
-	if chance < 0 || chance > 100 {
-		e = fmt.Errorf("chance could not be less than 0 and more than 100, current %d", chance)
-		return
-	}
-
-	log.Info().Msgf("runtime patch has been applied for A5Bility with %d", chance)
-	st.Set(ParamA5bility, chance)
+	st.Set(ParamAccessLevel, level)
+	log.Info().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
 	return
 }
 
@@ -166,7 +175,7 @@ func (m *RuntimePatch) ApplySwitch(st *Storage, param StorageParam) (e error) {
 		return
 	}
 
-	log.Debug().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
+	log.Info().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
 	return
 }
 

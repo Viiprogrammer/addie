@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/MindHunter86/addie/utils"
+	"github.com/gofiber/fiber/v2"
 )
 
 type (
@@ -90,8 +91,8 @@ func getHashFromUriPath(upath string) (hash string, ok bool) {
 	return hash, ok
 }
 
-func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool) {
-	serie, e := m.cache.PullSerie(tsr.getTitleId(), tsr.getSerieId())
+func (m *App) getTitleSerieFromCache(c *fiber.Ctx, tsr *TitleSerieRequest) (*TitleSerie, bool) {
+	serie, e := m.cache.PullSerie(c, tsr.getTitleId(), tsr.getSerieId())
 	if e != nil {
 		gLog.Warn().Err(e).Msg("")
 		return nil, false
@@ -100,9 +101,9 @@ func (m *App) getTitleSerieFromCache(tsr *TitleSerieRequest) (*TitleSerie, bool)
 	return serie, serie != nil
 }
 
-func (m *App) getTitleSeriesFromApi(titleId string) (_ []*TitleSerie, e error) {
+func (m *App) getTitleSeriesFromApi(c *fiber.Ctx, titleId string) (_ []*TitleSerie, e error) {
 	var title *Title
-	e = gAniApi.getApiResponse(http.MethodGet, apiMethodGetTitle,
+	e = gAniApi.getApiResponse(c, http.MethodGet, apiMethodGetTitle,
 		[]string{"id", titleId}).parseApiResponse(&title)
 
 	if e != nil {
@@ -147,17 +148,17 @@ func (*App) validateTitleFromApiResponse(title *Title) (tss []*TitleSerie) {
 	return
 }
 
-func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e error) {
+func (m *App) doTitleSerieRequest(c *fiber.Ctx, tsr *TitleSerieRequest) (ts *TitleSerie, e error) {
 	var ok bool
 
-	gLog.Debug().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from cache")
-	if ts, ok = m.getTitleSerieFromCache(tsr); ok {
+	rlog(c).Debug().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from cache")
+	if ts, ok = m.getTitleSerieFromCache(c, tsr); ok {
 		return
 	}
 
 	var tss []*TitleSerie
-	gLog.Info().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from api")
-	if tss, e = m.getTitleSeriesFromApi(tsr.getTitleIdString()); e != nil {
+	rlog(c).Info().Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("trying to get series from api")
+	if tss, e = m.getTitleSeriesFromApi(c, tsr.getTitleIdString()); e != nil {
 		return
 	}
 
@@ -171,7 +172,7 @@ func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e err
 		}
 
 		if e = m.cache.PushSerie(t); e != nil {
-			gLog.Warn().Err(e).Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("")
+			rlog(c).Warn().Err(e).Str("tid", tsr.getTitleIdString()).Str("sid", tsr.getSerieIdString()).Msg("")
 			continue
 		}
 	}
@@ -183,27 +184,27 @@ func (m *App) doTitleSerieRequest(tsr *TitleSerieRequest) (ts *TitleSerie, e err
 	return
 }
 
-func (m *App) getUriWithFakeQuality(tsr *TitleSerieRequest, uri string, quality utils.TitleQuality) string {
-	gLog.Debug().Msg("format check")
+func (m *App) getUriWithFakeQuality(c *fiber.Ctx, tsr *TitleSerieRequest, uri string, quality utils.TitleQuality) string {
+	rlog(c).Debug().Msg("format check")
 	if tsr.isOldFormat() && !tsr.isM3U8() {
-		gLog.Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.String()+"/").Str("uri", uri).Msg("format is old")
+		rlog(c).Info().Str("old", "/"+tsr.getTitleQualityString()+"/").Str("new", "/"+quality.String()+"/").Str("uri", uri).Msg("format is old")
 		return strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.String()+"/")
 	}
 
-	gLog.Debug().Msg("trying to complete tsr")
-	title, e := m.doTitleSerieRequest(tsr)
+	rlog(c).Debug().Msg("trying to complete tsr")
+	title, e := m.doTitleSerieRequest(c, tsr)
 	if e != nil {
-		gLog.Error().Err(e).Msg("could not rewrite quality for the request")
+		rlog(c).Error().Err(e).Msg("could not rewrite quality for the request")
 		return uri
 	}
 
-	gLog.Debug().Msg("trying to get hash")
+	rlog(c).Debug().Msg("trying to get hash")
 	hash, ok := tsr.getTitleHash()
 	if !ok {
 		return uri
 	}
 
-	gLog.Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
+	rlog(c).Debug().Str("old_hash", hash).Str("new_hash", title.QualityHashes[quality]).Str("uri", uri).Msg("")
 	return strings.ReplaceAll(
 		strings.ReplaceAll(uri, "/"+tsr.getTitleQualityString()+"/", "/"+quality.String()+"/"),
 		hash, title.QualityHashes[quality],

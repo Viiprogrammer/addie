@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MindHunter86/addie/utils"
+	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 )
 
@@ -22,8 +23,8 @@ const (
 	ParamBlocklist
 	ParamBlocklistIps
 	ParamLimiter
-	ParamA5bility
-	ParamStdoutAccess
+	ParamAccessStdout
+	ParamAccessLevel
 
 	paramMaxSize // used only for make(maxvalue)
 )
@@ -34,18 +35,18 @@ var ParamDefaults = map[StorageParam]interface{}{
 	ParamBlocklist:    1,
 	ParamBlocklistIps: []string{},
 	ParamLimiter:      0,
-	ParamA5bility:     90,
-	ParamStdoutAccess: 0,
+	ParamAccessStdout: 1,
+	ParamAccessLevel:  zerolog.InfoLevel,
 }
 
 var GetNameByParam = map[StorageParam]string{
-	ParamLottery:      "lottery",
-	ParamQuality:      "quality",
-	ParamBlocklist:    "blocklist",
-	ParamBlocklistIps: "blocklist_ips",
-	ParamLimiter:      "limiter",
-	ParamA5bility:     "cluster-availability",
-	ParamStdoutAccess: "stdout-access-log",
+	ParamLottery:      runtimeChangesHumanize[RuntimePatchLottery],
+	ParamQuality:      runtimeChangesHumanize[RuntimePatchQuality],
+	ParamBlocklist:    runtimeChangesHumanize[RuntimePatchBlocklist],
+	ParamBlocklistIps: runtimeChangesHumanize[RuntimePatchBlocklistIps],
+	ParamLimiter:      runtimeChangesHumanize[RuntimePatchLimiter],
+	ParamAccessStdout: runtimeChangesHumanize[RuntimePatchAccessStdout],
+	ParamAccessLevel:  runtimeChangesHumanize[RuntimePatchAccessLevel],
 }
 
 type Storage struct {

@@ -15,7 +15,9 @@ const (
 )
 
 type Entry struct {
-	wg sync.WaitGroup
+	wg     sync.WaitGroup
+	wginit sync.WaitGroup
+
 	mu sync.RWMutex
 
 	value map[entryValue]interface{}
@@ -39,6 +41,9 @@ func newEntry(v interface{}) *Entry {
 
 func (m *Entry) deploy(val interface{}) {
 	log.Trace().Msgf("smoothly deploy called with value %+v", val)
+
+	// wait for deploy initialization before redeploying
+	m.wginit.Wait()
 
 	// check if there is active deploy right now
 	if !m.deployed {
@@ -66,6 +71,9 @@ func (m *Entry) deploy(val interface{}) {
 		return
 	}
 
+	// block initial proccess
+	m.wginit.Add(1)
+
 	// syncing all goroutines in the deploy process
 	m.wg.Add(1)
 	defer m.wg.Done()
@@ -84,6 +92,9 @@ func (m *Entry) deploy(val interface{}) {
 
 	// set candidate value
 	m.execWithBlock(func() { m.prepare(val) })
+
+	// unblock inital proccess and start event loop
+	m.wginit.Done()
 
 loop:
 	for {

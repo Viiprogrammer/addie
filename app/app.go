@@ -267,15 +267,10 @@ LOOP:
 	}
 }
 
-func rlog(c *fiber.Ctx) *zerolog.Logger {
-	return c.Locals("logger").(*zerolog.Logger)
+func (m *App) rsyslog(c *fiber.Ctx) (l *zerolog.Logger) {
+	return c.Locals("syslogger").(*zerolog.Logger)
 }
 
-func (m *App) rsyslog(c *fiber.Ctx) *zerolog.Logger {
-	if m.runtime.Config.Get(runtime.ParamStdoutAccess).(int) == 0 {
-		l := c.Locals("logger").(*zerolog.Logger).Output(m.syslogWriter)
-		return &l
-	}
-
-	return rlog(c)
+func rlog(c *fiber.Ctx) *zerolog.Logger {
+	return c.Locals("logger").(*zerolog.Logger)
 }
