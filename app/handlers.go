@@ -47,6 +47,7 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 
 	srv, uri := ctx.Locals("srv").(string), ctx.Locals("uri").(string)
 	expires, extra := m.getHlpExtra(
+		ctx,
 		uri,
 		srv,
 		ctx.Locals("uid").(string),

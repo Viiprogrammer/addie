@@ -31,8 +31,9 @@ const (
 	CfgBlockList         = "block-list"
 	CfgBlockListSwitcher = "block-list-switcher"
 	CfgLimiterSwitcher   = "limiter-switcher"
-	CfgClusterA5bility   = "cluster-availability"
-	CfgStdoutAccessLog   = "stdout-access-log"
+	CfgStdoutAccessLog = "stdout-access-log"
+	CfgAccessLogStdout = "access-log-stdout"
+	CfgAccessLogLevel  = "access-log-level"
 )
 
 const (

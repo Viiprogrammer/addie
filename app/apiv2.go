@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 func (m *apiResponse) parseApiResponse(schema interface{}) (e error) {
@@ -65,7 +67,7 @@ func (*ApiClient) setApiRequestHeaders(req *http.Request) *http.Request {
 	return req
 }
 
-func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, params ...interface{}) (arsp *apiResponse) {
+func (m *ApiClient) getApiResponse(c *fiber.Ctx, hmethod string, amethod ApiRequestMethod, params ...interface{}) (arsp *apiResponse) {
 	arsp = &apiResponse{}
 
 	rrl := *m.apiBaseUrl
@@ -89,7 +91,7 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 
 	rrl.RawQuery = rgs.Encode()
 
-	fmt.Println(rrl.RawQuery)
+	rlog(c).Trace().Msgf("rawquery: %s", rrl.RawQuery)
 
 	var req *http.Request
 	if req, arsp.err = http.NewRequest(hmethod, rrl.String(), body); arsp.Err() != nil {
@@ -103,7 +105,7 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 	}
 	defer func() {
 		if e := rsp.Body.Close(); e != nil {
-			gLog.Warn().Err(e)
+			rlog(c).Warn().Err(e)
 		}
 	}()
 
@@ -116,19 +118,19 @@ func (m *ApiClient) getApiResponse(hmethod string, amethod ApiRequestMethod, par
 
 	switch rsp.StatusCode {
 	case http.StatusOK:
-		gLog.Debug().Str("api_method", string(amethod)).Msg("api reqiest has been completed with response 200 OK")
+		rlog(c).Debug().Str("api_method", string(amethod)).Msg("api reqiest has been completed with response 200 OK")
 	default:
-		gLog.Warn().Str("api_method", string(amethod)).Int("api_response_code", rsp.StatusCode).
+		rlog(c).Warn().Str("api_method", string(amethod)).Int("api_response_code", rsp.StatusCode).
 			Msg("abnormal api response; trying to parse api error object...")
 
 		var aerr *apiError
 		if err := arsp.parseApiResponse(&aerr); err != nil {
-			gLog.Error().Err(arsp.Err()).Msg("got an error in parsing reponse error object")
+			rlog(c).Error().Err(arsp.Err()).Msg("got an error in parsing reponse error object")
 			arsp.err = errApiAbnormalResponse
 			return
 		}
 
-		gLog.Warn().Int("error_code", aerr.Error.Code).Str("error_desc", aerr.Error.Message).
+		rlog(c).Warn().Int("error_code", aerr.Error.Code).Str("error_desc", aerr.Error.Message).
 			Msg("api error object has been parse")
 		arsp.err = errApiAbnormalResponse
 		return
