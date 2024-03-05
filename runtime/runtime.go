@@ -20,7 +20,6 @@ const (
 	RuntimePatchBlocklist
 	RuntimePatchBlocklistIps
 	RuntimePatchLimiter
-	RuntimePatchStdoutAccess
 	RuntimePatchAccessStdout
 	RuntimePatchAccessLevel
 )
@@ -34,7 +33,6 @@ var (
 		utils.CfgBlockList:         RuntimePatchBlocklistIps,
 		utils.CfgBlockListSwitcher: RuntimePatchBlocklist,
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
-		utils.CfgStdoutAccessLog:   RuntimePatchStdoutAccess,
 		utils.CfgAccessLogStdout:   RuntimePatchAccessStdout,
 		utils.CfgAccessLogLevel:    RuntimePatchAccessLevel,
 	}
@@ -48,7 +46,6 @@ var (
 		RuntimePatchBlocklist:    "blocklist switch",
 		RuntimePatchBlocklistIps: "blocklist ips",
 		RuntimePatchLimiter:      "limiter switch",
-		RuntimePatchStdoutAccess: "stdout access log switcher",
 		RuntimePatchAccessStdout: "access_log stdout switcher",
 		RuntimePatchAccessLevel:  "access_log loglevel",
 	}
@@ -101,8 +98,6 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = patch.ApplySwitch(m.Config, ParamBlocklist)
 	case RuntimePatchLimiter:
 		e = patch.ApplySwitch(m.Config, ParamLimiter)
-	case RuntimePatchStdoutAccess: // TODO : TO DELETE
-		e = patch.ApplySwitch(m.Config, ParamStdoutAccess)
 	case RuntimePatchAccessStdout:
 		e = patch.ApplySwitch(m.Config, ParamAccessStdout)
 
@@ -141,6 +136,7 @@ func (m *RuntimePatch) ApplyLogLevel(st *Storage, param StorageParam) (e error) 
 	}
 
 	st.Set(ParamAccessLevel, level)
+	log.Info().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
 	return
 }
 
@@ -179,7 +175,7 @@ func (m *RuntimePatch) ApplySwitch(st *Storage, param StorageParam) (e error) {
 		return
 	}
 
-	log.Debug().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
+	log.Info().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
 	return
 }
 

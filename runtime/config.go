@@ -23,7 +23,6 @@ const (
 	ParamBlocklist
 	ParamBlocklistIps
 	ParamLimiter
-	ParamStdoutAccess
 	ParamAccessStdout
 	ParamAccessLevel
 
@@ -36,7 +35,6 @@ var ParamDefaults = map[StorageParam]interface{}{
 	ParamBlocklist:    1,
 	ParamBlocklistIps: []string{},
 	ParamLimiter:      0,
-	ParamStdoutAccess: 0,
 	ParamAccessStdout: 1,
 	ParamAccessLevel:  zerolog.InfoLevel,
 }
@@ -47,7 +45,6 @@ var GetNameByParam = map[StorageParam]string{
 	ParamBlocklist:    runtimeChangesHumanize[RuntimePatchBlocklist],
 	ParamBlocklistIps: runtimeChangesHumanize[RuntimePatchBlocklistIps],
 	ParamLimiter:      runtimeChangesHumanize[RuntimePatchLimiter],
-	ParamStdoutAccess: runtimeChangesHumanize[RuntimePatchStdoutAccess],
 	ParamAccessStdout: runtimeChangesHumanize[RuntimePatchAccessStdout],
 	ParamAccessLevel:  runtimeChangesHumanize[RuntimePatchAccessLevel],
 }
