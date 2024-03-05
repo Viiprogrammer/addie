@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // getHlpExtra() simply is a secure_link implementation
@@ -17,14 +19,15 @@ import (
 //
 //	echo -n '2147483647/s/link127.0.0.1 secret' | \
 //		openssl md5 -binary | openssl base64 | tr +/ -_ | tr -d =
-func (*App) getHlpExtra(uri, sip, uid string) (expires, extra string) {
+func (*App) getHlpExtra(c *fiber.Ctx, uri, sip, uid string) (expires, extra string) {
 
 	localts := time.Now().Local().Add(gCli.Duration("link-expiration")).Unix()
 	expires = strconv.Itoa(int(localts))
 
 	// secret link skeleton:
 	// expire:uri:cache_ip:uid secret
-	gLog.Trace().Strs("extra_values", []string{expires, uri, sip, uid, gCli.String("link-secret")}).Msg("")
+	rlog(c).Trace().
+		Strs("extra_values", []string{expires, uri, sip, uid, gCli.String("link-secret")}).Msg("")
 
 	// concat all values
 	// ?? buf := expires + uri + cip + sip + uid + " " + gCli.String("link-secret")

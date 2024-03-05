@@ -100,7 +100,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	}
 
 	// precondition finished; quality cool down
-	ctx.Locals("uri", m.getUriWithFakeQuality(tsr, uri, quality))
+	ctx.Locals("uri", m.getUriWithFakeQuality(ctx, tsr, uri, quality))
 	return ctx.Next()
 }
 
