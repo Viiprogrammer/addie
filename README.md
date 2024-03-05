@@ -7,6 +7,7 @@
 [![License](https://img.shields.io/badge/license-MIT%20License-blue.svg)](https://github.com/Mindhunter86/addie/LICENSE)
 
 [![DeepSource](https://deepsource.io/gh/MindHunter86/addie.svg/?label=active+issues&show_trend=true&token=AtG-lWiJr05mqoRLQqksdr54)](https://deepsource.io/gh/MindHunter86/addie/?ref=repository-badge)
+[![DeepSource](https://app.deepsource.com/gh/MindHunter86/addie.svg/?label=resolved+issues&show_trend=true&token=AtG-lWiJr05mqoRLQqksdr54)](https://app.deepsource.com/gh/MindHunter86/addie/)
 [![GitHub issues](https://img.shields.io/github/issues/Mindhunter86/addie.svg)](https://github.com/Mindhunter86/addie/issues)
 [![Current Work](https://img.shields.io/github/milestones/progress-percent/Mindhunter86/addie/3)](https://github.com/MindHunter86/addie/milestone/3)
 
