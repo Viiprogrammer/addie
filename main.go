@@ -52,7 +52,7 @@ func main() {
 			Email: "mindhunter86@vkom.cc",
 		},
 	}
-	app.Copyright = "(c) 2022-2023 mindhunter86\nwith love for Anilibria project"
+	app.Copyright = "(c) 2022-2024 mindhunter86\nwith love for Anilibria project"
 	app.Usage = "AniLibria media delivery manager (ADDIE)"
 
 	app.Flags = []cli.Flag{
