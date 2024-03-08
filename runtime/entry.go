@@ -45,6 +45,12 @@ func (m *Entry) deploy(val interface{}) {
 	// wait for deploy initialization before redeploying
 	m.wginit.Wait()
 
+	// candidate check for avoiding dummy "rejections"
+	if val == m.candidate() {
+		log.Debug().Msg("requested value is already patching now, reject new deploy request")
+		return
+	}
+
 	// check if there is active deploy right now
 	if !m.deployed {
 		if m.deployDone == nil {
@@ -54,11 +60,6 @@ func (m *Entry) deploy(val interface{}) {
 		log.Trace().Msg("concurrent deploy detected, send done() and wait for closing")
 		m.deployDone()
 		m.wg.Wait()
-	}
-
-	if val == m.candidate() {
-		log.Debug().Msg("requested value is already patching now, reject new deploy request")
-		return
 	}
 
 	if !m.deployed {
