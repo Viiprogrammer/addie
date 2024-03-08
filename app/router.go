@@ -127,16 +127,20 @@ func (m *App) fiberConfigure() {
 			rlog(c).Trace().Msgf("Time Collector %s", time.Since(stop).Round(time.Microsecond))
 		}
 
-		if rlog(c).GetLevel() <= zerolog.InfoLevel || status != fiber.StatusOK {
-			m.rsyslog(c).WithLevel(lvl).
-				Int("status", status).
-				Str("method", c.Method()).
-				Str("path", c.Path()).
-				Str("ip", c.IP()).
-				Dur("latency", total).
-				Str("user-agent", c.Get(fiber.HeaderUserAgent)).
-				Msg("")
-		}
+		rlog(c).WithLevel(lvl).
+			Int("status", status).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Str("ip", c.IP()).
+			Dur("latency", total).
+			Str("user-agent", c.Get(fiber.HeaderUserAgent)).Msg("")
+		m.rsyslog(c).WithLevel(lvl).
+			Int("status", status).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Str("ip", c.IP()).
+			Dur("latency", total).
+			Str("user-agent", c.Get(fiber.HeaderUserAgent)).Msg("")
 
 		return
 	})
