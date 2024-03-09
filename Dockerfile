@@ -26,7 +26,7 @@ RUN echo "ready" \
   && go build -trimpath -ldflags="-s -w -X 'main.version=$MAIN_VERSION' -X 'main.buildtime=$MAIN_BUILDTIME'" -o addie \
   && apk add --no-cache upx \
   && upx -9 -k addie \
-  && echo "nobody:*:65534:65534:nobody:/_nonexistent:/bin/false" > etc_passwd
+  && echo "nobody:x:65534:65534:nobody:/usr/local/bin:/bin/false" > etc_passwd
 
 
 # container - production
@@ -35,8 +35,8 @@ LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
 WORKDIR /usr/local/bin/
 COPY --from=build /usr/sources/addie/etc_passwd /etc/passwd
-COPY --from=build --chown=65534:65534 --chmod=0550 /usr/sources/addie/addie addie
+COPY --from=build --chown=root --chmod=0555 /usr/sources/addie/addie addie
 
-USER nobody:nobody
+USER nobody
 ENTRYPOINT ["/usr/local/bin/addie"]
 CMD ["--help"]
