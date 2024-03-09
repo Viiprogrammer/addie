@@ -29,7 +29,7 @@ RUN echo "ready" \
   && echo "nobody:x:65534:65534:nobody:/usr/local/bin:/bin/false" > etc_passwd
 
 
-# container - production
+# container - runner
 FROM scratch
 LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
