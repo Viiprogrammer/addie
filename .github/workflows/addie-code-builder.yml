@@ -64,7 +64,7 @@ jobs:
         with:
           push: true
           project: ztpzwz2463
-          test: ghcr.io/${{ env.GH_LWREPONAME }}:testbuild202403
+          tags: ghcr.io/${{ env.GH_LWREPONAME }}:testbuild202403
           # tags: ghcr.io/${{ env.GH_LWREPONAME }}:${{ needs.parse_phase.outputs.BUILD_TAG }}
           build-args: |
             GOAPP_MAIN_VERSION=${{ needs.parse_phase.outputs.BUILD_GOTAG }}
