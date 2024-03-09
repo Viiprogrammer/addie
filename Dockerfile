@@ -35,7 +35,7 @@ LABEL maintainer="mindhunter86 <mindhunter86@vkom.cc>"
 
 WORKDIR /usr/local/bin/
 COPY --from=build /usr/sources/addie/etc_passwd /etc/passwd
-COPY --from=build --chown=root --chmod=0555 /usr/sources/addie/addie addie
+COPY --from=build --chmod=0555 /usr/sources/addie/addie addie
 
 USER nobody
 ENTRYPOINT ["/usr/local/bin/addie"]
