@@ -74,6 +74,10 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
+	// !!!
+	// !!!
+	// !!!
+	// TODO !!!
 	uri := ctx.Locals("uri").(*string)
 	sub := m.chunkRegexp.FindSubmatch([]byte(*uri))
 
@@ -81,7 +85,7 @@ func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	buf.Write(sub[utils.ChunkEpisodeId])
 	buf.Write(sub[utils.ChunkQualityLevel])
 
-	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
+	_, server, e := m.bareBalancer.BalanceByChunk(buf, sub[utils.ChunkName])
 	if errors.Is(e, balancer.ErrServerUnavailable) {
 		gLog.Debug().Err(e).Msg("balancer soft error; fallback to random balancing")
 		return ctx.Next()

@@ -114,12 +114,12 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 	rlog(ctx).Trace().Msg("consul lottery winner, rewriting destination server...")
 
 	var server *balancer.BalancerServer
-	uri, reqid := []byte(ctx.Locals("uri").(string)), ctx.Locals("requestid").(string)
-	// uri := []byte(ctx.Locals("uri").(string))
+	uri := []byte(ctx.Locals("uri").(string))
 
-	prefixbuf := bytes.NewBuffer(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkTitleId])
-	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkEpisodeId])
-	prefixbuf.Write(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkQualityLevel])
+	sub := m.chunkRegexp.FindSubmatch(uri)
+	prefixbuf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	prefixbuf.Write(sub[utils.ChunkEpisodeId])
+	prefixbuf.Write(sub[utils.ChunkQualityLevel])
 
 	// chunkname, prefix := string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]), prefixbuf.String()
 
@@ -161,31 +161,29 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 			// so if fails limit reached - use new cluster or fallback to baremetal random balancing
 			if fails == gCli.Int("balancer-server-max-fails") {
 				if fallback {
-					rlog(ctx).Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+					rlog(ctx).Error().Str("cluster", cluster.GetClusterName()).
 						Msg("internal balancer error; too many balance errors; using fallback func()...")
 					return m.fbMidAppBalanceFallback(ctx)
 				} else {
 					fallback = true
-					rlog(ctx).Error().Str("req", reqid).Str("cluster", cluster.GetClusterName()).
+					rlog(ctx).Error().Str("cluster", cluster.GetClusterName()).
 						Msg("internal balancer error; too many balance errors; using next cluster...")
 					break
 				}
 			}
 
 			// trying to balance with giver cluster
-			_, server, e = cluster.BalanceByChunk(
-				prefixbuf.String(),
-				string(m.chunkRegexp.FindSubmatch(uri)[utils.ChunkName]))
+			_, server, e = cluster.BalanceByChunk(prefixbuf, sub[utils.ChunkName])
 
 			if errors.Is(e, balancer.ErrServerUnavailable) {
-				rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).
+				rlog(ctx).Trace().Err(e).Int("fails", fails).
 					Str("cluster", cluster.GetClusterName()).Msg("trying to roll new server...")
 				continue
 			} else if errors.Is(e, balancer.ErrUpstreamUnavailable) {
-				rlog(ctx).Trace().Err(e).Int("fails", fails).Str("req", reqid).Msg("temporary upstream error")
+				rlog(ctx).Trace().Err(e).Int("fails", fails).Msg("temporary upstream error")
 				continue
 			} else if e != nil {
-				rlog(ctx).Error().Err(e).Str("req", reqid).
+				rlog(ctx).Error().Err(e).
 					Str("cluster", cluster.GetClusterName()).Msg("could not balance; undefined error")
 				break
 			}
