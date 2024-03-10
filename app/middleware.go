@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"math/rand"
-	"strings"
 
 	"github.com/MindHunter86/addie/balancer"
 	"github.com/MindHunter86/addie/runtime"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
+	futils "github.com/gofiber/fiber/v2/utils"
 	"github.com/rs/zerolog"
 )
 
@@ -47,7 +47,7 @@ const (
 // 	}
 // }
 
-func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
+func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (_ bool) {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
 
 	// TODO: refactor
@@ -55,26 +55,29 @@ func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 		rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-XXX-internal precond balancer")
 	}
 
-	if strings.TrimSpace(ctx.Get(apiHeaderUri, "")) == "" {
+	var u, i, d []byte
+	var peekCtxHeader = ctx.Context().Request.Header.Peek
+
+	if u = bytes.TrimSpace(peekCtxHeader(apiHeaderUri)); len(u) == 0 {
 		ctx.Locals("errors", errMidAppPreHeaderUri)
 		return
-	} else if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
+	} else if !m.chunkRegexp.Match(u) {
 		ctx.Locals("errors", errMidAppPreUriRegexp)
 		return
 	}
-
-	if strings.TrimSpace(ctx.Get(apiHeaderId, "")) == "" {
+	if i = bytes.TrimSpace(peekCtxHeader(apiHeaderId)); len(i) == 0 {
 		ctx.Locals("errors", errMidAppPreHeaderId)
 		return
 	}
 
-	if strings.TrimSpace(ctx.Get(apiHeaderServer, "")) == "" {
+	if d = bytes.TrimSpace(peekCtxHeader(apiHeaderServer)); len(d) == 0 {
 		ctx.Locals("errors", errMidAppPreHeaderServer)
 		return
 	}
 
-	ctx.Locals("uid", strings.TrimSpace(ctx.Get(apiHeaderId)))
-	ctx.Locals("srv", strings.TrimSpace(ctx.Get(apiHeaderServer)))
+	ctx.Locals("uri", u)
+	ctx.Locals("uid", i)
+	ctx.Locals("srv", d)
 	return true
 }
 
@@ -83,24 +86,29 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	m.lapRequestTimer(ctx, utils.FbReqTmrFakeQuality)
 	rlog(ctx).Trace().Msg("fake quality check")
 
-	uri := ctx.Get(apiHeaderUri)
-	tsr := NewTitleSerieRequest(uri)
+	uri := ctx.Locals("uri").([]byte)
+	tsr := NewTitleSerieRequest(string(uri))
+	// !!!
+	// !!!
+	// !!!
 
 	if !tsr.isValid() {
-		ctx.Locals("uri", uri)
 		return ctx.Next()
 	}
 
 	quality := m.runtime.Config.Get(runtime.ParamQuality).(utils.TitleQuality)
 	rlog(ctx).Debug().Uint16("tsr", uint16(tsr.getTitleQuality())).Uint16("coded", uint16(quality)).
 		Msg("quality check")
+
 	if tsr.getTitleQuality() <= quality {
-		ctx.Locals("uri", uri)
 		return ctx.Next()
 	}
 
 	// precondition finished; quality cool down
-	ctx.Locals("uri", m.getUriWithFakeQuality(ctx, tsr, uri, quality))
+	// !!!
+	// !!!
+	// !!!
+	ctx.Locals("uri", []byte(m.getUriWithFakeQuality(ctx, tsr, string(uri), quality)))
 	return ctx.Next()
 }
 
@@ -114,7 +122,7 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 	rlog(ctx).Trace().Msg("consul lottery winner, rewriting destination server...")
 
 	var server *balancer.BalancerServer
-	uri := []byte(ctx.Locals("uri").(string))
+	uri := ctx.Locals("uri").([]byte)
 
 	sub := m.chunkRegexp.FindSubmatch(uri)
 	prefixbuf := bytes.NewBuffer(sub[utils.ChunkTitleId])
@@ -189,9 +197,10 @@ func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
 			}
 
 			// if all ok (if no errors) - save destination and go to the next fiber handler:
-			ctx.Locals("srv",
-				strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+			name := bytes.Trim(futils.UnsafeBytes(server.Name), "-node")
+			domain := futils.UnsafeBytes(gCli.String("consul-entries-domain"))
 
+			ctx.Locals("srv", utils.JoinSize(len(name)+1+len(domain), name, []byte("."), domain))
 			return ctx.Next()
 		}
 	}
@@ -206,8 +215,10 @@ func (m *App) fbMidAppBalanceFallback(ctx *fiber.Ctx) error {
 		return e
 	}
 
-	ctx.Locals("srv",
-		strings.ReplaceAll(server.Name, "-node", "")+"."+gCli.String("consul-entries-domain"))
+	name := bytes.Trim(futils.UnsafeBytes(server.Name), "-node")
+	domain := futils.UnsafeBytes(gCli.String("consul-entries-domain"))
+
+	ctx.Locals("srv", utils.JoinSize(len(name)+1+len(domain), name, []byte("."), domain))
 	return ctx.Next()
 }
 
@@ -228,20 +239,27 @@ func (m *App) fbMidAppBlocklist(ctx *fiber.Ctx) error {
 }
 
 // balancer api
-func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) bool {
+func (m *App) fbMidBlcPreCond(ctx *fiber.Ctx) (_ bool) {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
-	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-node-internal balancer")
 
-	var errs appMidError
-
-	if huri := strings.TrimSpace(ctx.Get(apiHeaderUri)); huri == "" {
-		errs = errs | errMidAppPreHeaderUri
-	} else if !m.chunkRegexp.Match([]byte(huri)) {
-		errs = errs | errMidAppPreUriRegexp
-	} else {
-		ctx.Locals("uri", &huri)
+	// TODO: refactor
+	if m.runtime.Config.Get(runtime.ParamAccessLevel).(zerolog.Level) == zerolog.TraceLevel {
+		rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-node-internal balancer")
 	}
 
-	ctx.Locals("errors", errs)
-	return errs == 0
+	var u []byte
+	var peekCtxHeader = ctx.Context().Request.Header.Peek
+
+	if u = bytes.TrimSpace(peekCtxHeader(apiHeaderUri)); len(u) == 0 {
+		ctx.Locals("errors", errMidAppPreHeaderUri)
+		return
+	} else if !m.chunkRegexp.Match(u) {
+		ctx.Locals("errors", errMidAppPreUriRegexp)
+		return
+	}
+
+	ctx.Locals("uri", u)
+	return true
+	// ctx.Locals("errors", errs)
+	// return errs == 0
 }
