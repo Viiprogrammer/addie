@@ -10,6 +10,7 @@ import (
 	"github.com/MindHunter86/addie/runtime"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -48,33 +49,32 @@ const (
 
 func (m *App) fbMidAppPreCond(ctx *fiber.Ctx) (skip bool) {
 	m.lapRequestTimer(ctx, utils.FbReqTmrBlcPreCond)
-	rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-XXX-internal precond balancer")
 
-	var errs appMidError
-	switch h := ctx.GetReqHeaders(); {
-	case strings.TrimSpace(h[apiHeaderUri][0]) == "":
-		errs = errs | errMidAppPreHeaderUri
-		ctx.Locals("errors", errs)
+	// TODO: refactor
+	if m.runtime.Config.Get(runtime.ParamAccessLevel).(zerolog.Level) == zerolog.TraceLevel {
+		rlog(ctx).Trace().Interface("hdrs", ctx.GetReqHeaders()).Msg("cache-XXX-internal precond balancer")
+	}
+
+	if strings.TrimSpace(ctx.Get(apiHeaderUri, "")) == "" {
+		ctx.Locals("errors", errMidAppPreHeaderUri)
 		return
-	case strings.TrimSpace(h[apiHeaderId][0]) == "":
-		errs = errs | errMidAppPreHeaderId
-		ctx.Locals("errors", errs)
+	} else if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
+		ctx.Locals("errors", errMidAppPreUriRegexp)
 		return
-	case strings.TrimSpace(h[apiHeaderServer][0]) == "":
-		errs = errs | errMidAppPreHeaderServer
-		ctx.Locals("errors", errs)
+	}
+
+	if strings.TrimSpace(ctx.Get(apiHeaderId, "")) == "" {
+		ctx.Locals("errors", errMidAppPreHeaderId)
+		return
+	}
+
+	if strings.TrimSpace(ctx.Get(apiHeaderServer, "")) == "" {
+		ctx.Locals("errors", errMidAppPreHeaderServer)
 		return
 	}
 
 	ctx.Locals("uid", strings.TrimSpace(ctx.Get(apiHeaderId)))
 	ctx.Locals("srv", strings.TrimSpace(ctx.Get(apiHeaderServer)))
-
-	// match uri
-	if !m.chunkRegexp.Match([]byte(ctx.Get(apiHeaderUri))) {
-		ctx.Locals("errors", errs|errMidAppPreUriRegexp)
-		return
-	}
-
 	return true
 }
 
