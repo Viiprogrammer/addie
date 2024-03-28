@@ -106,7 +106,7 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 
 // if return value == true - Balance() will be skipped
 func (m *App) fbMidAppBalancerLottery(_ *fiber.Ctx) bool {
-	return m.runtime.Config.Get(runtime.ParamLottery).(int) < rand.Intn(99)+1 // skipcq: GSC-G404 math/rand is enough
+	return gCli.Bool("balancer-full-bypass") || m.runtime.Config.Get(runtime.ParamLottery).(int) < rand.Intn(99)+1 // skipcq: GSC-G404 math/rand is enough
 }
 
 func (m *App) fbMidAppBalance(ctx *fiber.Ctx) (e error) {
