@@ -70,14 +70,14 @@ func (m *consulClient) bootstrap() {
 	var errs = make(chan error, 16)
 
 	// goroutine helper - consul health
-	listenClusterEvents := func(wait *sync.WaitGroup, ec chan error, payload func() error) {
-		wait.Add(1)
+	// listenClusterEvents := func(wait *sync.WaitGroup, ec chan error, payload func() error) {
+	// 	wait.Add(1)
 
-		go func(done func(), gopayload func() error, errors chan error) {
-			errors <- gopayload()
-			done()
-		}(wait.Done, payload, ec)
-	}
+	// 	go func(done func(), gopayload func() error, errors chan error) {
+	// 		errors <- gopayload()
+	// 		done()
+	// 	}(wait.Done, payload, ec)
+	// }
 
 	// goroutine helper - consul KV
 	listenClusterKVs := func(wait *sync.WaitGroup, payload func()) {
@@ -91,12 +91,12 @@ func (m *consulClient) bootstrap() {
 	}
 
 	// consul health service watchdog
-	for _, clusterBalancer := range m.balancers {
-		cbalancer := clusterBalancer
-		listenClusterEvents(&wg, errs, func() error {
-			return m.listenClusterEvents(cbalancer)
-		})
-	}
+	// for _, clusterBalancer := range m.balancers {
+	// 	cbalancer := clusterBalancer
+	// 	listenClusterEvents(&wg, errs, func() error {
+	// 		return m.listenClusterEvents(cbalancer)
+	// 	})
+	// }
 
 	// consul KV watchdog
 	runpatch := gCtx.Value(utils.ContextKeyRPatcher).(chan *runtime.RuntimePatch)

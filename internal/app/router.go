@@ -182,6 +182,10 @@ func (m *App) fiberConfigure() {
 	api.Post("limiter/switch", gController.LimiterSwitch)
 	api.Post("quality", gController.UpdateQualityRewrite)
 
+	// broker api
+	broker := m.fb.Group("/broker")
+	broker.Post("/connect", m.broker.ProxyOnConnect)
+
 	// group upstream
 	upstr := api.Group("/balancer")
 	upstr.Get("/stats", gController.GetBalancerStats)

@@ -16,6 +16,7 @@ import (
 	"github.com/MindHunter86/addie/internal/balancer"
 	"github.com/MindHunter86/addie/internal/blocklist"
 	"github.com/MindHunter86/addie/internal/runtime"
+	"github.com/MindHunter86/addie/internal/services/broker"
 	"github.com/MindHunter86/addie/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	bolt "github.com/gofiber/storage/bbolt"
@@ -44,6 +45,7 @@ type App struct {
 	cache     *CachedTitlesBucket
 	blocklist *blocklist.Blocklist
 	runtime   *runtime.Runtime
+	broker    *broker.Broker
 
 	cloudBalancer balancer.Balancer
 	bareBalancer  balancer.Balancer
@@ -158,6 +160,14 @@ func (m *App) Bootstrap() (e error) {
 	// common
 	const chunksplit = `^(\/[^\/]+\/[^\/]+\/[^\/]+\/)([^\/]+)\/([^\/]+)\/([^\/]+)\/([^.\/]+)\.ts$`
 	m.chunkRegexp = regexp.MustCompile(chunksplit)
+
+	// broker
+	gLog.Info().Msg("starting broker client...")
+	if m.broker, e = broker.NewBroker(gCtx); e != nil {
+		return
+	}
+
+	gofunc(&wg, func(){ gLog.Print(m.broker.Bootstrap().Error()) })
 
 	// anilibria API
 	gLog.Info().Msg("starting anilibria api client...")

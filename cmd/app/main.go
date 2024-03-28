@@ -247,6 +247,26 @@ func main() {
 			'tick' - is a ticker duration; each tick, the step will be decreased by 1;
 			a request's quality will be updated when 'hardcoded payload' mod 'step' == 0`,
 		},
+
+		&cli.StringFlag{
+			Name:  "centrifugo-endpoint",
+			Value: "ws://localhost:8000/connection/websocket",
+		},
+		&cli.StringFlag{
+			Name:  "centrifugo-token",
+			Value: "d7f4f7e9-b5be-4dcf-ae27-2ab8ad066081",
+		},
+		&cli.BoolFlag{
+			Name: "centrifugo-insecure",
+		},
+		&cli.DurationFlag{
+			Name:  "centrifugo-conn-timeout",
+			Value: 1 * time.Second,
+		},
+		&cli.DurationFlag{
+			Name:  "centrifugo-keepalive",
+			Value: 300 * time.Second,
+		},
 	}
 
 	app.Action = func(c *cli.Context) (e error) {
