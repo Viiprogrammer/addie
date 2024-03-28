@@ -187,6 +187,10 @@ func main() {
 			Usage: "max fails for one request; max value - 10",
 			Value: 3,
 		},
+		&cli.BoolFlag{
+			Name:  "balancer-full-bypass",
+			Usage: "use X-Server header as a balance target",
+		},
 
 		// ...
 		&cli.DurationFlag{
