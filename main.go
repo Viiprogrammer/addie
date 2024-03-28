@@ -239,14 +239,14 @@ func main() {
 
 		&cli.IntFlag{
 			Name:  "balancer-softer-step",
-			Value: 10,
+			Value: 99,
 			Usage: `balancer 'soft' mode for soft witching between qualities;
 			'step' - is a static variable with some 'starting' value; each tick it will be decreased by 1;
 			a request's quality will be updated when 'hardcoded payload' mod 'step' == 0`,
 		},
 		&cli.DurationFlag{
 			Name:  "balancer-softer-tick",
-			Value: 30 * time.Second,
+			Value: 1 * time.Second,
 			Usage: `balancer 'soft' mode for soft witching between qualities;
 			'tick' - is a ticker duration; each tick, the step will be decreased by 1;
 			a request's quality will be updated when 'hardcoded payload' mod 'step' == 0`,
