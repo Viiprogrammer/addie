@@ -8,7 +8,7 @@ require (
 	github.com/gofiber/swagger v1.0.0
 	github.com/hashicorp/consul/api v1.28.2
 	github.com/jedib0t/go-pretty/v6 v6.5.9
-	github.com/rs/zerolog v1.31.0
+	github.com/rs/zerolog v1.33.0
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/swaggo/swag v1.16.3
 	github.com/urfave/cli/v2 v2.27.2
