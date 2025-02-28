@@ -62,7 +62,9 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 
 	var rgs = &url.Values{}
 	if ctx.Get("X-Ru-Cluster") != "" {
-		rgs.Add("core", ctx.Locals("core").(string))
+		if core := ctx.Locals("core"); core != nil {
+			rgs.Add("core", core.(string))
+		}
 	}
 
 	rgs.Add("expires", expires)
