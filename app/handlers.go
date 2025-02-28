@@ -61,6 +61,10 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 	}
 
 	var rgs = &url.Values{}
+	if ctx.Get("X-Ru-Cluster") != "" {
+		rgs.Add("core", ctx.Locals("core").(string))
+	}
+
 	rgs.Add("expires", expires)
 	rgs.Add("extra", extra)
 	rrl.RawQuery, rrl.Scheme = rgs.Encode(), "https"
@@ -95,7 +99,7 @@ func (m *App) fbHndApiCoreBalance(ctx *fiber.Ctx) (e error) {
 	}
 
 	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
-	ctx.Set("X-Core-Location", srv)
+	ctx.Locals("core", srv)
 
 	return ctx.Next()
 }
