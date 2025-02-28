@@ -71,6 +71,35 @@ func (m *App) fbHndAppRequestSign(ctx *fiber.Ctx) (e error) {
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
 
+func (m *App) fbHndApiCoreBalance(ctx *fiber.Ctx) (e error) {
+	if ctx.Get("X-Ru-Cluster") == "" {
+		return ctx.Next()
+	}
+
+	gLog.Trace().Msg("fetching core server...")
+
+	uri := ctx.Locals("uri").(string)
+	sub := m.chunkRegexp.FindSubmatch([]byte(uri))
+
+	buf := bytes.NewBuffer(sub[utils.ChunkTitleId])
+	buf.Write(sub[utils.ChunkEpisodeId])
+	buf.Write(sub[utils.ChunkQualityLevel])
+
+	_, server, e := m.bareBalancer.BalanceByChunk(buf.String(), string(sub[utils.ChunkName]))
+	if errors.Is(e, balancer.ErrServerUnavailable) {
+		gLog.Debug().Err(e).Msg("balancer soft error; fallback to random balancing")
+		return ctx.Next()
+	} else if e != nil {
+		gLog.Warn().Err(e).Msg("balancer critical error; fallback to random balancing")
+		return ctx.Next()
+	}
+
+	srv := strings.ReplaceAll(server.Name, "-node", "") + "." + gCli.String("consul-entries-domain")
+	ctx.Set("X-Core-Location", srv)
+
+	return ctx.Next()
+}
+
 func (m *App) fbHndBlcNodesBalance(ctx *fiber.Ctx) error {
 	ctx.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
 
