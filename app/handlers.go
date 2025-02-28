@@ -80,8 +80,6 @@ func (m *App) fbHndApiCoreBalance(ctx *fiber.Ctx) (e error) {
 		return ctx.Next()
 	}
 
-	gLog.Trace().Msg("fetching core server...")
-
 	uri := ctx.Locals("uri").(string)
 	sub := m.chunkRegexp.FindSubmatch([]byte(uri))
 
