@@ -228,6 +228,9 @@ func (m *App) fiberConfigure() {
 	media.Use(m.fbMidAppFakeQuality)
 	media.Use(skip.New(m.fbMidAppBalance, m.fbMidAppBalancerLottery))
 
+	// group media - core cache fetcher
+	media.Use(m.fbHndApiCoreBalance)
+
 	// group media - sign handler
 	media.Use(m.fbHndAppRequestSign)
 }
