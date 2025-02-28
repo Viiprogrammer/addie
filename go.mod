@@ -7,7 +7,7 @@ require (
 	github.com/gofiber/storage/bbolt v1.3.5
 	github.com/gofiber/swagger v1.1.0
 	github.com/hashicorp/consul/api v1.30.0
-	github.com/jedib0t/go-pretty/v6 v6.6.1
+	github.com/jedib0t/go-pretty/v6 v6.6.6
 	github.com/rs/zerolog v1.33.0
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/swaggo/swag v1.16.4
@@ -44,7 +44,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
-	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/tinylib/msgp v1.2.5 // indirect
