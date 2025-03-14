@@ -191,6 +191,10 @@ func main() {
 			Name:  "balancer-full-bypass",
 			Usage: "use X-Server header as a balance target",
 		},
+		&cli.BoolFlag{
+			Name:  "balancer-highcost-zone",
+			Usage: "enable all mitigation, migration and bypass methods configured in consul for this instance",
+		},
 		&cli.IntFlag{
 			Name:  "balancer-softer-step",
 			Value: 99,

@@ -11,6 +11,7 @@ import (
 	"github.com/MindHunter86/addie/blocklist"
 	"github.com/MindHunter86/addie/utils"
 	"github.com/rs/zerolog"
+	"github.com/urfave/cli/v2"
 )
 
 type RuntimePatchType uint8
@@ -24,6 +25,7 @@ const (
 	RuntimePatchAccessStdout
 	RuntimePatchAccessLevel
 	RuntimePatchQualityBypass
+	RuntimePatchForceRUMitigate
 )
 
 var (
@@ -38,20 +40,22 @@ var (
 		utils.CfgAccessLogStdout:   RuntimePatchAccessStdout,
 		utils.CfgAccessLogLevel:    RuntimePatchAccessLevel,
 		utils.CfgQualityBypass:     RuntimePatchQualityBypass,
+		utils.CfgForceRUMitigate:   RuntimePatchForceRUMitigate,
 	}
 
 	// intenal
 	log *zerolog.Logger
 
 	runtimeChangesHumanize = map[RuntimePatchType]string{
-		RuntimePatchLottery:       "lottery chance",
-		RuntimePatchQuality:       "quality level",
-		RuntimePatchBlocklist:     "blocklist switch",
-		RuntimePatchBlocklistIps:  "blocklist ips",
-		RuntimePatchLimiter:       "limiter switch",
-		RuntimePatchAccessStdout:  "access_log stdout switcher",
-		RuntimePatchAccessLevel:   "access_log loglevel",
-		RuntimePatchQualityBypass: "quality rewrite bypass",
+		RuntimePatchLottery:         "lottery chance",
+		RuntimePatchQuality:         "quality level",
+		RuntimePatchBlocklist:       "blocklist switch",
+		RuntimePatchBlocklistIps:    "blocklist ips",
+		RuntimePatchLimiter:         "limiter switch",
+		RuntimePatchAccessStdout:    "access_log stdout switcher",
+		RuntimePatchAccessLevel:     "access_log loglevel",
+		RuntimePatchQualityBypass:   "quality rewrite bypass",
+		RuntimePatchForceRUMitigate: "migrate unbypassed ru to europe",
 	}
 )
 
@@ -61,6 +65,7 @@ type (
 
 		// todo - refactor
 		blocklist *blocklist.Blocklist // temporary;
+		cli       *cli.Context
 	}
 	RuntimePatch struct {
 		Type  RuntimePatchType
@@ -71,9 +76,11 @@ type (
 func NewRuntime(c context.Context) (r *Runtime, e error) {
 	blist := c.Value(utils.ContextKeyBlocklist).(*blocklist.Blocklist)
 	log = c.Value(utils.ContextKeyLogger).(*zerolog.Logger)
+	clictx := c.Value(utils.ContextKeyCliContext).(*cli.Context)
 
 	r = &Runtime{
 		blocklist: blist,
+		cli:       clictx,
 	}
 
 	if r.Config, e = NewStorage(c); e != nil {
@@ -109,7 +116,18 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 		e = patch.ApplyLogLevel(m.Config, ParamAccessLevel)
 
 	case RuntimePatchQualityBypass:
+		if !m.cli.Bool("balancer-highcost-zone") {
+			log.Warn().Msg("mitigate, quality-bypass patches are disabled for this instanse, check --help")
+			return
+		}
 		e = patch.ApplyQualityBypass(m.Config, ParamQualityBypass)
+
+	case RuntimePatchForceRUMitigate:
+		if !m.cli.Bool("balancer-highcost-zone") {
+			log.Warn().Msg("mitigate, quality-bypass patches are disabled for this instanse, check --help")
+			return
+		}
+		e = patch.ApplyForceRUMitigation(m.Config, ParamForceRUMitigate)
 
 	default:
 		panic("internal error - undefined runtime patch type")
@@ -120,6 +138,20 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 			Msgf("could not apply runtime configuration (%s)", runtimeChangesHumanize[patch.Type])
 	}
 
+	return
+}
+
+func (m *RuntimePatch) ApplyForceRUMitigation(st *Storage, param StorageParam) (e error) {
+	buf := strings.TrimSpace(string(m.Patch))
+
+	if buf == "" {
+		st.Set(ParamForceRUMitigate, "")
+		log.Info().Msgf("runtime patch has been applied for %s with '' (reset)", GetNameByParam[param])
+		return
+	}
+
+	st.Set(ParamForceRUMitigate, buf)
+	log.Info().Msgf("runtime patch has been applied for %s with %s", GetNameByParam[param], buf)
 	return
 }
 

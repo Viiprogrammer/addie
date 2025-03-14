@@ -35,6 +35,7 @@ const (
 	CfgAccessLogStdout   = "access-log-stdout"
 	CfgAccessLogLevel    = "access-log-level"
 	CfgQualityBypass     = "quality-bypass-for"
+	CfgForceRUMitigate   = "force-ru-mitigate-to"
 )
 
 const (
