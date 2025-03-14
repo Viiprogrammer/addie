@@ -31,9 +31,11 @@ const (
 	CfgBlockList         = "block-list"
 	CfgBlockListSwitcher = "block-list-switcher"
 	CfgLimiterSwitcher   = "limiter-switcher"
-	CfgStdoutAccessLog = "stdout-access-log"
-	CfgAccessLogStdout = "access-log-stdout"
-	CfgAccessLogLevel  = "access-log-level"
+	CfgStdoutAccessLog   = "stdout-access-log"
+	CfgAccessLogStdout   = "access-log-stdout"
+	CfgAccessLogLevel    = "access-log-level"
+	CfgQualityBypass     = "quality-bypass-for"
+	CfgForceRUMitigate   = "force-ru-mitigate-to"
 )
 
 const (

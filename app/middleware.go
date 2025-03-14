@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"math/rand"
+	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/MindHunter86/addie/balancer"
@@ -89,6 +91,32 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	if !tsr.isValid() {
 		ctx.Locals("uri", uri)
 		return ctx.Next()
+	}
+
+	origin := ctx.Get("Origin", "")
+	if origin != "" && m.runtime.Config.Get(runtime.ParamQualityBypass) != nil {
+		reg := m.runtime.Config.Get(runtime.ParamQualityBypass).(*regexp.Regexp)
+		if reg.MatchString(origin) {
+			rlog(ctx).Trace().Msg("request bypassed due matching with bypass regexp from consul")
+			ctx.Locals("uri", uri)
+			return ctx.Next()
+		}
+	}
+
+	mitigation := m.runtime.Config.Get(runtime.ParamForceRUMitigate).(string)
+	if mitigation != "" {
+		rrl, e := url.Parse(mitigation)
+		if e != nil {
+			rlog(ctx).Warn().Msg("could not migrate this requests because of mitigate-to URL parsing error")
+			ctx.Locals("uri", uri)
+			return ctx.Next()
+		}
+
+		rrl.Path = uri
+		rlog(ctx).Trace().Msg("request redirected to " + rrl.String())
+
+		ctx.Response().Header.Set("Location", rrl.String())
+		return fiber.NewError(fiber.StatusTemporaryRedirect)
 	}
 
 	quality := m.runtime.Config.Get(runtime.ParamQuality).(utils.TitleQuality)
