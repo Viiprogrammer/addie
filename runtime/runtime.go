@@ -117,14 +117,14 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 
 	case RuntimePatchQualityBypass:
 		if !m.cli.Bool("balancer-highcost-zone") {
-			log.Warn().Msg("mitigate, quality-bypass patches are disabled for this instanse, check --help")
+			log.Warn().Msg("mitigate, quality-bypass patches are disabled for this instance, check --help")
 			return
 		}
 		e = patch.ApplyQualityBypass(m.Config, ParamQualityBypass)
 
 	case RuntimePatchForceRUMitigate:
 		if !m.cli.Bool("balancer-highcost-zone") {
-			log.Warn().Msg("mitigate, quality-bypass patches are disabled for this instanse, check --help")
+			log.Warn().Msg("mitigate, quality-bypass patches are disabled for this instance, check --help")
 			return
 		}
 		e = patch.ApplyForceRUMitigation(m.Config, ParamForceRUMitigate)
