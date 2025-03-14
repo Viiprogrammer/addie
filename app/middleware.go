@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"math/rand"
+	"regexp"
 	"strings"
 
 	"github.com/MindHunter86/addie/balancer"
@@ -97,6 +98,13 @@ func (m *App) fbMidAppFakeQuality(ctx *fiber.Ctx) error {
 	if tsr.getTitleQuality() <= quality {
 		ctx.Locals("uri", uri)
 		return ctx.Next()
+	}
+
+	origin, reg := ctx.Get("Origin", ""), m.runtime.Config.Get(runtime.ParamQualityBypass).(*regexp.Regexp)
+	if origin != "" {
+		if reg.MatchString(origin) {
+			return ctx.Next()
+		}
 	}
 
 	// precondition finished; quality cool down

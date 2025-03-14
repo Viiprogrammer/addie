@@ -25,28 +25,31 @@ const (
 	ParamLimiter
 	ParamAccessStdout
 	ParamAccessLevel
+	ParamQualityBypass
 
 	paramMaxSize // used only for make(maxvalue)
 )
 
 var ParamDefaults = map[StorageParam]interface{}{
-	ParamLottery:      100,
-	ParamQuality:      utils.TitleQualityHD,
-	ParamBlocklist:    1,
-	ParamBlocklistIps: []string{},
-	ParamLimiter:      0,
-	ParamAccessStdout: 1,
-	ParamAccessLevel:  zerolog.InfoLevel,
+	ParamLottery:       100,
+	ParamQuality:       utils.TitleQualityHD,
+	ParamBlocklist:     1,
+	ParamBlocklistIps:  []string{},
+	ParamLimiter:       0,
+	ParamAccessStdout:  1,
+	ParamAccessLevel:   zerolog.InfoLevel,
+	ParamQualityBypass: "",
 }
 
 var GetNameByParam = map[StorageParam]string{
-	ParamLottery:      runtimeChangesHumanize[RuntimePatchLottery],
-	ParamQuality:      runtimeChangesHumanize[RuntimePatchQuality],
-	ParamBlocklist:    runtimeChangesHumanize[RuntimePatchBlocklist],
-	ParamBlocklistIps: runtimeChangesHumanize[RuntimePatchBlocklistIps],
-	ParamLimiter:      runtimeChangesHumanize[RuntimePatchLimiter],
-	ParamAccessStdout: runtimeChangesHumanize[RuntimePatchAccessStdout],
-	ParamAccessLevel:  runtimeChangesHumanize[RuntimePatchAccessLevel],
+	ParamLottery:       runtimeChangesHumanize[RuntimePatchLottery],
+	ParamQuality:       runtimeChangesHumanize[RuntimePatchQuality],
+	ParamBlocklist:     runtimeChangesHumanize[RuntimePatchBlocklist],
+	ParamBlocklistIps:  runtimeChangesHumanize[RuntimePatchBlocklistIps],
+	ParamLimiter:       runtimeChangesHumanize[RuntimePatchLimiter],
+	ParamAccessStdout:  runtimeChangesHumanize[RuntimePatchAccessStdout],
+	ParamAccessLevel:   runtimeChangesHumanize[RuntimePatchAccessLevel],
+	ParamQualityBypass: runtimeChangesHumanize[RuntimePatchQualityBypass],
 }
 
 type Storage struct {

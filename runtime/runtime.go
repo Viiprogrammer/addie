@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,7 @@ const (
 	RuntimePatchLimiter
 	RuntimePatchAccessStdout
 	RuntimePatchAccessLevel
+	RuntimePatchQualityBypass
 )
 
 var (
@@ -35,19 +37,21 @@ var (
 		utils.CfgLimiterSwitcher:   RuntimePatchLimiter,
 		utils.CfgAccessLogStdout:   RuntimePatchAccessStdout,
 		utils.CfgAccessLogLevel:    RuntimePatchAccessLevel,
+		utils.CfgQualityBypass:     RuntimePatchQualityBypass,
 	}
 
 	// intenal
 	log *zerolog.Logger
 
 	runtimeChangesHumanize = map[RuntimePatchType]string{
-		RuntimePatchLottery:      "lottery chance",
-		RuntimePatchQuality:      "quality level",
-		RuntimePatchBlocklist:    "blocklist switch",
-		RuntimePatchBlocklistIps: "blocklist ips",
-		RuntimePatchLimiter:      "limiter switch",
-		RuntimePatchAccessStdout: "access_log stdout switcher",
-		RuntimePatchAccessLevel:  "access_log loglevel",
+		RuntimePatchLottery:       "lottery chance",
+		RuntimePatchQuality:       "quality level",
+		RuntimePatchBlocklist:     "blocklist switch",
+		RuntimePatchBlocklistIps:  "blocklist ips",
+		RuntimePatchLimiter:       "limiter switch",
+		RuntimePatchAccessStdout:  "access_log stdout switcher",
+		RuntimePatchAccessLevel:   "access_log loglevel",
+		RuntimePatchQualityBypass: "quality rewrite bypass",
 	}
 )
 
@@ -104,6 +108,9 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 	case RuntimePatchAccessLevel:
 		e = patch.ApplyLogLevel(m.Config, ParamAccessLevel)
 
+	case RuntimePatchQualityBypass:
+		e = patch.ApplyQualityBypass(m.Config, ParamQualityBypass)
+
 	default:
 		panic("internal error - undefined runtime patch type")
 	}
@@ -113,6 +120,26 @@ func (m *Runtime) ApplyPatch(patch *RuntimePatch) (e error) {
 			Msgf("could not apply runtime configuration (%s)", runtimeChangesHumanize[patch.Type])
 	}
 
+	return
+}
+
+func (m *RuntimePatch) ApplyQualityBypass(st *Storage, param StorageParam) (e error) {
+	buf := strings.TrimSpace(string(m.Patch))
+
+	if buf == "" {
+		st.Set(ParamQualityBypass, nil)
+		log.Info().Msgf("runtime patch has been applied for %s with nil (reset)", GetNameByParam[param])
+		return
+	}
+
+	var reg *regexp.Regexp
+	if reg, e = regexp.Compile(buf); e != nil {
+		e = fmt.Errorf("could not compile given regexp of %s - %s", GetNameByParam[param], buf)
+		return
+	}
+
+	st.Set(ParamQualityBypass, reg)
+	log.Info().Msgf("runtime patch has been applied for %s with %s (regexp)", GetNameByParam[param], buf)
 	return
 }
 
